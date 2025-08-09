@@ -1,10 +1,11 @@
 package com.mitrakoff.mariposa.hardwarechecker;
 
-import com.kosprov.jargon2.api.Jargon2;
-import java.nio.charset.StandardCharsets;
+import de.mkammerer.argon2.*;
 import java.util.UUID;
 
 public class HardwareChecker {
+    private static final Argon2 argon2 = Argon2Factory.create();
+
     public static void main(String[] args) {
         // CPU single-core
         Colours.styles(Colours.CYAN).println("\nChecking CPU...");
@@ -18,7 +19,7 @@ public class HardwareChecker {
 
     private static void checkCpu(int parallelism) {
         final long N = 1000;
-        Colours.styles().println("Hash algorithm: argon2id$v=19$m=65536,t=1,p=%d; N = %d", parallelism, N);
+        Colours.styles().println("N = %d; hash example: %s", N, calcHash(parallelism));
 
         final long start = System.currentTimeMillis();
         for (int i = 0; i < N; i++)
@@ -30,12 +31,6 @@ public class HardwareChecker {
     }
 
     private static String calcHash(int parallelism) {
-        return Jargon2.jargon2Hasher()
-                .type(Jargon2.Type.ARGON2id)
-                .memoryCost(65536)
-                .timeCost(1)
-                .parallelism(parallelism)
-                .password(UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8))
-                .encodedHash();
+        return argon2.hash(1, 65536, parallelism, UUID.randomUUID().toString().toCharArray());
     }
 }
