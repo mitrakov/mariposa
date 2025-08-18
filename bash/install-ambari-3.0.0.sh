@@ -12,25 +12,21 @@ NC='\033[0m'
 function log() {
     local message="[$(date +'%Y-%m-%d %H:%M:%S')] [LOG]   $1"
     echo -e "${GREEN}${message}${NC}"
-    echo "${message}" >> "${LOG_FILE}"
 }
 
 function info() {
     local message="[$(date +'%Y-%m-%d %H:%M:%S')] [INFO]  $1"
     echo -e "${BLUE}${message}${NC}"
-    echo "${message}" >> "${LOG_FILE}"
 }
 
 function warn() {
     local message="[$(date +'%Y-%m-%d %H:%M:%S')] [WARN]  $1"
     echo -e "${YELLOW}${message}${NC}"
-    echo "${message}" >> "${LOG_FILE}"
 }
 
 function error() {
     local message="[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $1"
     echo -e "${RED}${message}${NC}"
-    echo "${message}" >> "${LOG_FILE}"
 }
 
 function section() {
@@ -39,9 +35,6 @@ function section() {
     echo -e "${PURPLE}=================================================="
     echo -e "  ${message}"
     echo -e "==================================================${NC}"
-    echo "==================================================" >> "${LOG_FILE}"
-    echo "  ${message}" >> "${LOG_FILE}"
-    echo "==================================================" >> "${LOG_FILE}"
     echo
 }
 
@@ -176,6 +169,9 @@ function set_selinux_permissive() {
     # if getenforce == Enforcing
     setenforce 0
     sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+
+    info "SELinux done"
+    sleep 1
 }
 
 # Adds entries to /etc/hosts file
@@ -213,6 +209,7 @@ function disable_firewall() {
     if systemctl is-active --quiet firewalld; then
         systemctl stop firewalld && systemctl disable firewalld
         info "Firewall disabled"
+        sleep 1
     else
         info "Firewall is already inactive"
     fi
@@ -228,20 +225,14 @@ function install_java() {
     if [[ ! -d "/root/.sdkman" ]]; then
         dnf install -y zip unzip tar
         curl https://get.sdkman.io | bash
-        log "SdkMan installed"
     else
         info "SdkMan already installed"
     fi
 
     source "/root/.sdkman/bin/sdkman-init.sh"
 
-    log "Installing Java 17..."
     sdk install java 17.0.16-amzn
-
-    log "Installing Java 8..."
     sdk install java 8.0.462-amzn
-
-    sdk default java 8.0.462-amzn    # set Java8 as default
 
     info "Java installations are completed"
 }
@@ -255,8 +246,7 @@ function setup_ambari_repo() {
         check_primary_ip
         read -p "Enter the repository URL (e.g. http://192.168.1.1/ambari-repo): " ambari_repo
         if [[ -n "$ambari_repo" && "$ambari_repo" =~ ^http ]]; then
-            log "Setting up Ambari repository to: $ambari_repo"
-            log "Creating file /etc/yum.repos.d/ambari.repo"
+            log "Creating file /etc/yum.repos.d/ambari.repo. Setting up Ambari repository to: $ambari_repo"
 
             cat > /etc/yum.repos.d/ambari.repo << EOF
 [ambari]
@@ -364,6 +354,7 @@ function install_server() {
     section "Install Ambari-Server"
 
     install_common
+    sdk default java 17.0.16-amzn
     setup_ambari_repo
     install_ambari_server
     setup_mysql_jdbc
@@ -375,6 +366,7 @@ function install_agent() {
     section "Install Ambari agent"
 
     install_common
+    sdk default java 8.0.462-amzn
     apply_agent_fixes
 }
 
