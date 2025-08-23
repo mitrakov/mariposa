@@ -507,7 +507,9 @@ function fix_selinux() {
     log "Switching SELinux to permissive mode, to avoid possible issues with PAM modules on re-login"
 
     # update current boot
-    setenforce 0
+    if [ setenforce 0 ]; then
+      info "SELinux set to 0"
+    fi
 
     # make permanent
     sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
