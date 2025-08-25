@@ -294,15 +294,19 @@ function apply_agent_fixes() {
 
     # Error: "package 'distro' not found"
     dnf install -y python3-distro
+    info "Fix 1 done"
 
     # Error: "Error unpacking rpm package chkconfig-1.24-2.el9.x86_64"
     dnf install -y chkconfig    # if you already have this error run: rm -rf /etc/init.d
+    info "Fix 2 done"
 
     # Error: "nothing provides redhat-lsb needed by ranger_3_3_0-admin-2.4.0-1.el9.x86_64 from ambari'"
     dnf config-manager --set-enabled devel
+    info "Fix 3 done"
 
     # Error: "JAVA_HOME is not set, and java command not found"
     echo "export JAVA_HOME=/root/.sdkman/candidates/java/8.0.462-amzn" >> /etc/profile
+    info "Fix 4 done"
 
     info "Agent fixes applied"
 }
