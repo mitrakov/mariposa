@@ -237,6 +237,41 @@ function install_java() {
     info "Java installations are completed"
 }
 
+# Copy Java installations
+# must NOT contain symlinks!
+# must NOT be in protected folder (/root)
+function copy_java() {
+    section "Copy JDKs"
+    local jdk8="/usr/lib/jdk8"
+    local jdk17="/usr/lib/jdk17"
+
+    log "Copying Java installations to /usr/lib"
+
+    # copy Java 17
+    if [[ -d "/root/.sdkman/candidates/java/17.0.16-amzn" ]]; then
+        if [[ ! -d "$jdk17" ]]; then
+            cp -r "/root/.sdkman/candidates/java/17.0.16-amzn" "$jdk17"
+            log "Java 17 copied to $jdk17"
+        else
+            info "Directory $jdk17 already exists, skipping..."
+        fi
+    else
+        error "Java 17 installation not found"
+    fi
+
+    # copy Java 8
+    if [[ -d "/root/.sdkman/candidates/java/8.0.462-amzn" ]]; then
+        if [[ ! -d "$jdk8" ]]; then
+            cp -r "/root/.sdkman/candidates/java/8.0.462-amzn" "$jdk8"
+            log "Java 8 copied to $jdk8"
+        else
+            info "Directory $jdk8 already exists, skipping..."
+        fi
+    else
+        error "Java 8 installation not found"
+    fi
+}
+
 # Configures BigTop repository
 function setup_ambari_repo() {
     section "Ambari Repository configuration"
@@ -284,7 +319,7 @@ function setup_mysql_jdbc() {
 function start_ambari_server() {
     section "Starting Ambari-Server"
 
-    ambari-server setup --java-home /root/.sdkman/candidates/java/17.0.16-amzn --ambari-java-home /root/.sdkman/candidates/java/17.0.16-amzn --stack-java-home /root/.sdkman/candidates/java/8.0.462-amzn
+    ambari-server setup --java-home /usr/lib/jdk8 --ambari-java-home /usr/lib/jdk17 --stack-java-home /usr/lib/jdk8
     ambari-server start    # admin/admin; for services: root/admin7777
 }
 
@@ -305,7 +340,7 @@ function apply_agent_fixes() {
     info "Fix 3 done"
 
     # Error: "JAVA_HOME is not set, and java command not found"
-    echo "export JAVA_HOME=/root/.sdkman/candidates/java/8.0.462-amzn" >> /etc/profile
+    echo "export JAVA_HOME=/usr/lib/jdk8" >> /etc/profile
     info "Fix 4 done"
 
     info "Agent fixes applied"
@@ -351,6 +386,7 @@ function install_common() {
     setup_hosts
     disable_firewall
     install_java
+    copy_java
 }
 
 # Installs Ambari-Server
