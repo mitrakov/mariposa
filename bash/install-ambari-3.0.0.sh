@@ -166,9 +166,14 @@ function check_java() {
 function set_selinux_permissive() {
     section "SELinux configuration"
 
-    # if getenforce == Enforcing
-    setenforce 0
-    sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+    if [[ "$(getenforce)" == "Enforcing" ]]; then
+        log "SELinux is in Enforcing mode. Changing to Permissive..."
+        setenforce 0
+        sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+        info "SELinux mode changed to Permissive."
+    else
+        info "SELinux is not in Enforcing mode. No action needed."
+    fi
 
     info "SELinux done"
     sleep 1
