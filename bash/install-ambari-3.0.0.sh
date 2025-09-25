@@ -1,4 +1,6 @@
 #!/bin/bash
+# v1.0.0 (2025-09-26)
+# shellcheck disable=SC2162
 set -eo pipefail  # exit on any error or pipe failure
 
 RED='\033[0;31m'
@@ -10,22 +12,22 @@ NC='\033[0m'
 
 # Logging functions
 function log() {
-    local message="[$(date +'%Y-%m-%d %H:%M:%S')] [LOG]   $1"
+    message="[$(date +'%Y-%m-%d %H:%M:%S')] [LOG]   $1"
     echo -e "${GREEN}${message}${NC}"
 }
 
 function info() {
-    local message="[$(date +'%Y-%m-%d %H:%M:%S')] [INFO]  $1"
+    message="[$(date +'%Y-%m-%d %H:%M:%S')] [INFO]  $1"
     echo -e "${BLUE}${message}${NC}"
 }
 
 function warn() {
-    local message="[$(date +'%Y-%m-%d %H:%M:%S')] [WARN]  $1"
+    message="[$(date +'%Y-%m-%d %H:%M:%S')] [WARN]  $1"
     echo -e "${YELLOW}${message}${NC}"
 }
 
 function error() {
-    local message="[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $1"
+    message="[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $1"
     echo -e "${RED}${message}${NC}"
 }
 
@@ -99,11 +101,11 @@ function check_os() {
 function check_primary_ip() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # macOS - use route and ifconfig
-        local primary_interface=$(route get default | grep interface | awk '{print $2}')
+        primary_interface=$(route get default | grep interface | awk '{print $2}')
         ipv4_addr=$(ifconfig "$primary_interface" | grep 'inet ' | awk '{print $2}')
     else
         # Linux - use ip command
-        local primary_interface=$(ip route | grep default | awk '{print $5}' | head -1)
+        primary_interface=$(ip route | grep default | awk '{print $5}' | head -1)
         ipv4_addr=$(ip -4 addr show "$primary_interface" | grep inet | awk '{print $2}' | cut -d'/' -f1 | head -1)
     fi
     
@@ -124,13 +126,13 @@ function check_python() {
     fi
     
     # get Python version
-    local python_version=$(python3 --version 2>&1)
+    python_version=$(python3 --version 2>&1)
     
     # extract version numbers (e.g., "3.9.2" from "Python 3.9.2")
-    local version_number=$(echo "$python_version" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-    local major=$(echo "$version_number" | cut -d. -f1)
-    local minor=$(echo "$version_number" | cut -d. -f2)
-    local patch=$(echo "$version_number" | cut -d. -f3)
+    version_number=$(echo "$python_version" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    major=$(echo "$version_number" | cut -d. -f1)
+    minor=$(echo "$version_number" | cut -d. -f2)
+    patch=$(echo "$version_number" | cut -d. -f3)
     
     # verify if version meets minimum requirements (Python 3.6+)
     if [[ $major -eq 3 && $minor -ge 6 ]] || [[ $major -gt 3 ]]; then
@@ -150,7 +152,7 @@ function check_java() {
     fi
 
     if command -v java &> /dev/null; then
-        local java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
     
         if [[ -n "$java_version" ]]; then
             info "Java version: $java_version"
@@ -184,15 +186,15 @@ function setup_hosts() {
     section "Hosts file configuration"
     
     info "Current /etc/hosts content:"
-    cat /etc/hosts | tail -20
+    tail -20 /etc/hosts
     echo
 
     # processing input file
     while IFS= read -r line; do
       [[ -z "$line" || "$line" =~ ^# ]] && continue   # skip blank lines and comments
 
-      local ip=$(echo "$line" | awk '{print $1}')
-      local hostname=$(echo "$line" | awk '{print $2}')
+      ip=$(echo "$line" | awk '{print $1}')
+      hostname=$(echo "$line" | awk '{print $2}')
 
       if grep -qE "\\b$ip\\b.*\\b$hostname\\b" /etc/hosts; then
         info "Entry for $ip $hostname already exists. Skipping."
@@ -203,7 +205,7 @@ function setup_hosts() {
     done < "$INPUT_FILE"
 
     info "Now /etc/hosts content:"
-    cat /etc/hosts | tail -20
+    tail -20 /etc/hosts
     echo
 }
 
@@ -415,12 +417,77 @@ function install_agent() {
     apply_agent_fixes
 }
 
+# Installs repository
+function install_repo() {
+    section "Installing repository"
+    info "It's totally OK to setup repository along with Ambari-Server"
+    local dir="/var/www/html/ambari-repo"
+
+    set_selinux_permissive
+
+    log "Installing createrepo"
+    dnf install -y createrepo
+    mkdir -p "$dir"
+    cd $dir
+
+    log "Downloading packages"
+    local url1="https://www.apache-ambari.com/dist/ambari/3.0.0/rocky9/"
+    local url2="https://www.apache-ambari.com/dist/bigtop/3.3.0/rocky9/"
+    read -p "Download Ambari/Bigtop packages (≈7.25 Gb)? If not, copy them manually to $dir. (Y/n): " -r
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        log "Downloading packages (≈7.25 Gb). It may take some time..."
+        dnf install -y wget
+        wget -r -np -nH --cut-dirs=4 --reject 'index.html*' "$url1"
+        wget -r -np -nH --cut-dirs=4 --reject 'index.html*' "$url2"
+    fi
+
+    if [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ]; then
+        error "Directory $dir is empty. Please download or copy Ambari and Bigtop packages there"
+        info "$url1"
+        info "$url2"
+        exit 13
+    fi
+
+    log "Creating local repository"
+    cd /var/www/html && createrepo .
+
+    log "Installing nginx"
+    dnf install -y nginx
+    cat > /etc/nginx/conf.d/ambari-repo.conf << EOF
+server {
+    listen 80;
+    server_name _;
+    root /var/www/html;
+    autoindex on;
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+}
+EOF
+
+    log "Let's open port 80"
+    if systemctl is-active --quiet firewalld; then
+        log "Firewall is enabled, adding rule for 80/tcp"
+        firewall-cmd --permanent --add-port=80/tcp
+        firewall-cmd --reload
+        info "Done..."
+    else
+        info "Firewall is disabled, skipping"
+    fi
+
+    log "Starting nginx..."
+    systemctl start nginx && systemctl enable nginx
+
+    log "Validating URL..."
+    curl -s localhost > /dev/null && info "Nginx is setup for Ambari repository"
+}
+
 # Checks for user choice
 function get_user_choice() {
     while true; do
-        read -p "Please select an option [1-4]: " choice
+        read -p "Please select an option [1-5]: " choice
         case $choice in
-            [1-4]) break ;;
+            [1-5]) break ;;
             *) ;;
         esac
     done
@@ -436,8 +503,9 @@ function main() {
         section "My Installation Menu"
         echo "1. Install Ambari-Server"
         echo "2. Install Ambari-Agent"
-        echo "3. Fix error: The package hadoop-hdfs-dfsrouter is not supported"
-        echo "4. Exit"
+        echo "3. Install Ambari repository"
+        echo "4. Fix error: The package hadoop-hdfs-dfsrouter is not supported"
+        echo "5. Exit"
         echo
         
         local choice=$(get_user_choice)
@@ -452,10 +520,14 @@ function main() {
                 break
                 ;;
             3)
-                patch_distro_select
+                install_repo
                 break
                 ;;
             4)
+                patch_distro_select
+                break
+                ;;
+            5)
                 exit 0
                 ;;
         esac
