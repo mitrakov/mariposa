@@ -1,7 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # v1.0.0 (2025-09-26)
 # shellcheck disable=SC2162
 set -eo pipefail  # exit on any error or pipe failure
+clear
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
