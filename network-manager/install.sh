@@ -10,5 +10,5 @@ rpm --install "$SCRIPT_DIR/NetworkManager-wifi-1.52.0-3.el9_6.x86_64.rpm"
 
 sudo systemctl restart NetworkManager
 echo "Installation done, checking ping..."
-sleep 3
+sleep 9
 ping 8.8.8.8
