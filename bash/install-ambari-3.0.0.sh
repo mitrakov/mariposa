@@ -53,6 +53,14 @@ function handle_error() {
     exit 1
 }
 
+function require() {
+  local cmd="$1"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "Error: required command '$cmd' not found in PATH ($PATH)"
+    exit 1
+  fi
+}
+
 # Checks command line arguments
 INPUT_FILE=""
 function check_args() {
