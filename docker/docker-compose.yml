@@ -1,0 +1,29 @@
+# You can check: http://localhost:9870
+services:
+  namenode:
+    image: mitrakov/hadoop:1.0.0
+    hostname: namenode.host
+    environment:
+      - IS_MASTER=1
+      - MASTER_HOST=namenode.host
+      - WORKER_HOSTS=datanode1.host,datanode2.host
+    ports:
+      - "9870:9870"
+      - "8088:8088"
+    depends_on:
+      - datanode1
+      - datanode2
+
+  datanode1:
+    image: mitrakov/hadoop:1.0.0
+    hostname: datanode1.host
+    environment:
+      - IS_MASTER=0
+      - MASTER_HOST=namenode.host
+
+  datanode2:
+    image: mitrakov/hadoop:1.0.0
+    hostname: datanode2.host
+    environment:
+      - IS_MASTER=0
+      - MASTER_HOST=namenode.host
