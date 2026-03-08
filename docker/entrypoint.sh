@@ -33,17 +33,25 @@ function check_env() {
     fi
 }
 
+# =====
+DFS_REPLICATION=${DFS_REPLICATION:-1}
 
 check_env "JAVA_HOME"
 check_env "HADOOP_HOME"
-check_env "MASTER_HOST"
+check_env "SPARK_HOME"
 check_env "IS_MASTER"
+check_env "MASTER_HOST"
+check_env "HADOOP_CONF_DIR"
+check_env "DFS_REPLICATION"
 
 # start SSH daemon
 sudo service ssh start
 
-# main core-site.xml
-cat <<EOF > $HADOOP_HOME/etc/hadoop/core-site.xml
+# setup data dirs for Docker volumes (must be in .sh, not in dockerfile)
+mkdir -p $HADOOP_HOME/dfs && sudo chown -R hadoop:hadoop $HADOOP_HOME/dfs
+
+# minimal setup for HDFS
+cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 <configuration>
     <property>
         <name>fs.defaultFS</name>
@@ -52,8 +60,26 @@ cat <<EOF > $HADOOP_HOME/etc/hadoop/core-site.xml
 </configuration>
 EOF
 
-# the MapReduce/YARN config (needed for multi-node)
-cat <<EOF > $HADOOP_HOME/etc/hadoop/yarn-site.xml
+# switch default "/tmp/hadoop-hadoop/dfs/name" to normal path
+cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
+<configuration>
+    <property>
+        <name>dfs.replication</name>
+        <value>$DFS_REPLICATION</value>
+    </property>
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>$HADOOP_HOME/dfs/name</value>
+    </property>
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>$HADOOP_HOME/dfs/data</value>
+    </property>
+</configuration>
+EOF
+
+# minimal setup for Yarn
+cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
 <configuration>
     <property>
         <name>yarn.resourcemanager.hostname</name>
@@ -62,17 +88,45 @@ cat <<EOF > $HADOOP_HOME/etc/hadoop/yarn-site.xml
 </configuration>
 EOF
 
+# setup Apache Spark
+# spark.master:                  YARN is a master
+# spark.yarn.jars:               use JARs directly from HDFS
+# spark.history.fs.logDirectory: must-have
+# spark.eventLog.*:              optional, write Spark logs to HDFS
+cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
+spark.master                      yarn
+spark.yarn.jars                   hdfs:///spark/libs/*.jar
+spark.history.fs.logDirectory     hdfs://$MASTER_HOST:9000/spark/logs
+spark.eventLog.dir                hdfs://$MASTER_HOST:9000/spark/logs
+spark.eventLog.enabled            true
+EOF
+
 # master logic
 if [[ "$IS_MASTER" == "1" ]] || [[ "$IS_MASTER" == "true" ]]; then
+    # parse worker hosts
     check_env "WORKER_HOSTS"
-    echo "$WORKER_HOSTS" | tr ',' '\n' > $HADOOP_HOME/etc/hadoop/workers
+    echo "$WORKER_HOSTS" | tr ',' '\n' > $HADOOP_CONF_DIR/workers
 
-    if [ ! -d "/tmp/hadoop-hadoop/dfs/name" ]; then
-        hdfs namenode -format -force
+    # format HDFS
+    if [ ! -f "$HADOOP_HOME/dfs/name/current/VERSION" ]; then
+        log "FIRST TIME run. Formatting Namenode"
+        hdfs namenode -format -nonInteractive
+    else
+        log "Persistent volume detected: skipping format"
     fi
 
+    # start Hadoop/Spark
     start-dfs.sh
     start-yarn.sh
+    hdfs dfs -mkdir -p /spark/logs        # must-have
+    start-history-server.sh
+
+    # copy Spark libs to HDFS
+    if ! hdfs dfs -test -e /spark/libs; then
+        log "Uploading Spark JARs to HDFS..."
+        hdfs dfs -mkdir -p /spark/libs
+        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
+    fi
 fi
 
 # infinite loop
