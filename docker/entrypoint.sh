@@ -63,7 +63,7 @@ cat <<EOF > $HADOOP_HOME/etc/hadoop/yarn-site.xml
 EOF
 
 # master logic
-if [[ "$IS_MASTER" == "1" ]] || [[ "$IS_MASTER" == "yes" ]]; then
+if [[ "$IS_MASTER" == "1" ]] || [[ "$IS_MASTER" == "true" ]]; then
     check_env "WORKER_HOSTS"
     echo "$WORKER_HOSTS" | tr ',' '\n' > $HADOOP_HOME/etc/hadoop/workers
 

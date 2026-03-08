@@ -1,6 +1,7 @@
 FROM eclipse-temurin:8
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
+# env variables
 ENV JAVA_HOME=/opt/java/openjdk
 ENV HADOOP_HOME=/opt/hadoop
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
@@ -10,10 +11,10 @@ RUN apt update && apt install -y openssh-server sudo
 
 # download Hadoop
 RUN wget --output-document=- https://downloads.apache.org/hadoop/common/hadoop-3.4.2/hadoop-3.4.2.tar.gz | \
-    tar --extract --gzip --directory /opt && mv /opt/hadoop-3.4.2 /opt/hadoop
-RUN echo "export JAVA_HOME=/opt/java/openjdk" >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+    tar --extract --gzip --directory /opt && mv /opt/hadoop-3.4.2 $HADOOP_HOME
+RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh
 
-# setup hadoop user
+# setup hadoop user, add to "sudo", switch to it
 RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER hadoop
 
