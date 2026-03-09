@@ -1,31 +1,35 @@
-FROM eclipse-temurin:8
+# java 17 is min for Spark 4.1.1
+FROM eclipse-temurin:17
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
+# base env vars
 ENV HADOOP_HOME=/opt/hadoop
 ENV SPARK_HOME=/opt/spark
 
-# ssh is required for Hadoop, sudo is required to start services
-RUN apt update && apt install -y openssh-server sudo mc
+# ssh is required for Hadoop, sudo is required to start services, iproute for ip (opt), mc is opt
+RUN apt update && apt install -y openssh-server sudo iproute2 mc
 
 # download Apache Hadoop
-RUN wget --output-document=- https://downloads.apache.org/hadoop/common/hadoop-3.4.2/hadoop-3.4.2.tar.gz | \
-    tar --extract --gzip --directory /opt && mv /opt/hadoop-3.4.2 $HADOOP_HOME
+RUN wget --output-document=- https://downloads.apache.org/hadoop/common/hadoop-3.4.3/hadoop-3.4.3.tar.gz | \
+    tar --extract --gzip --directory /opt && mv /opt/hadoop-3.4.3 $HADOOP_HOME
 
 # download Apache Spark
-RUN wget --output-document=- https://downloads.apache.org/spark/spark-3.5.8/spark-3.5.8-bin-hadoop3.tgz | \
-    tar --extract --gzip --directory /opt && mv /opt/spark-3.5.8-bin-hadoop3 $SPARK_HOME
+RUN wget --output-document=- https://downloads.apache.org/spark/spark-4.1.1/spark-4.1.1-bin-hadoop3.tgz | \
+    tar --extract --gzip --directory /opt && mv /opt/spark-4.1.1-bin-hadoop3 $SPARK_HOME
 
-# extra env variables, keep it after (!) massive downloads (HADOOP_CONF_DIR is needed for Yarn)
+# extra env variables, keep it after massive downloads
+# the HADOOP_CONF_DIR is needed for Yarn
 ENV JAVA_HOME=/opt/java/openjdk
 ENV HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin
 
-# setup hadoop user, add it to "sudo", grant persmission for "dfs" dir, and switch to a new user
-RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-USER hadoop
+# must-have
+RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh
 
-# add java home
-RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+# setup hadoop user; add to sudoers; create /dfs folder; some versions of Hadoop belong to user "2002" => chown to hadoop:hadoop
+RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN mkdir $HADOOP_HOME/dfs && chown -R hadoop:hadoop $HADOOP_HOME
+USER hadoop
 
 # SSH passwordless login for Hadoop
 RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys

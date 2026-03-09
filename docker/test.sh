@@ -1,0 +1,14 @@
+#!/bin/bash
+docker run --rm --name hey \
+  --env MASTER_HOST=localhost \
+  --env IS_MASTER=1 \
+  --env WORKER_HOSTS=localhost \
+  --volume ~/hadoop_master_data:/opt/hadoop/dfs/name \
+  --volume ~/hadoop_datanode_data:/opt/hadoop/dfs/data \
+  --publish 9870:9870 \
+  --publish 8088:8088 \
+  --publish 18080:18080 \
+  --publish 4040:4040 \
+  mitrakov/hadoop:1.0.0
+
+# WARN util.NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
