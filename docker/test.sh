@@ -3,8 +3,10 @@ docker run --rm --name hey \
   --env MASTER_HOST=localhost \
   --env IS_MASTER=1 \
   --env WORKER_HOSTS=localhost \
+  --env HIVE_DB_PASSWORD=12345 \
   --volume ~/hadoop_master_data:/opt/hadoop/dfs/name \
   --volume ~/hadoop_datanode_data:/opt/hadoop/dfs/data \
+  --volume ~/hadoop_postgres_data:/var/lib/postgresql/16/main \
   --publish 9870:9870 \
   --publish 8088:8088 \
   --publish 18080:18080 \

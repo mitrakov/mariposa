@@ -1,0 +1,58 @@
+cp $HIVE_HOME/lib/postgresql-42.7.2.jar $SPARK_HOME/jars/
+RUN rm $HIVE_HOME/lib/guava-*.jar && cp $HADOOP_HOME/share/hadoop/common/lib/guava-*.jar $HIVE_HOME/lib/
+
+hive-site.xml:
+<configuration>
+    <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:postgresql://postgres-db:5432/metastore_db</value>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>org.postgresql.Driver</value>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>hive</value>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>hive</value>
+    </property>
+    <property>
+        <name>hive.metastore.warehouse.dir</name>
+        <value>/user/hive/warehouse</value>
+    </property>
+    <property>
+        <name>datanucleus.autoCreateSchema</name>
+        <value>true</value>
+    </property>
+    <property>
+        <name>datanucleus.fixedDatastore</name>
+        <value>false</value>
+    </property>
+</configuration>
+
+
+
+spark.sql.warehouse.dir             hdfs:///user/hive/warehouse
+spark.hadoop.hive.metastore.uris    thrift://localhost:9083
+
+sudo -u postgres psql
+
+
+
+ln --symbolic --force $HIVE_HOME/conf/hive-site.xml $SPARK_HOME/conf/hive-site.xml
+
+
+
+
+---
+Spark 4.1.1 bundles Hive
+2.3.10 by default for metastore connectivity when enabled, supporting versions 2.0.0 through 4.0.1. For optimal performance, it is recommended to use the default 2.3.10 or configure a specific version using spark.sql.hive.metastore.version and spark.sql.hive.metastore.jars. 
+
+    Default Version: Hive 2.3.10.
+    Supported Versions: 2.0.0–2.3.10, 3.0.0–3.1.3, and 4.0.0–4.0.1.
+    Configuration: Set spark.sql.hive.metastore.version in your spark-defaults.conf or SparkSession to match your external metastore. 
+
+If using an external Hive Metastore (HMS), ensure the version matches the jars provided to Spark to avoid deserialization errors. 
