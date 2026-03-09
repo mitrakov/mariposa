@@ -27,7 +27,7 @@ function error() {
 function check_env() {
     if [[ -z "${!1:-}" ]]; then
         error "Error: environment variable '$1' is not set or empty"
-        exit 5
+        exit 1
     else
         info "$1: ${!1}"
     fi
@@ -45,7 +45,7 @@ function check_os() {
         result=$(cat /etc/redhat-release)
     else
         error "Unable to detect operating system"
-        exit 5
+        exit 1
     fi
 
     info "OS: $result"
@@ -80,11 +80,16 @@ function check_java() {
     fi
 }
 
+
+
 # =====
+
+
 
 check_env "JAVA_HOME"
 check_env "HADOOP_HOME"
 check_env "SPARK_HOME"
+check_env "HIVE_HOME"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "HADOOP_CONF_DIR"
@@ -95,7 +100,36 @@ check_primary_ip
 check_java
 
 # start SSH daemon
+log "Starting SSH..."
 sudo service ssh start
+
+# start Postgres (master only)
+if [[ "$IS_MASTER" == "true" ]]; then
+    check_env "HIVE_DB_PASSWORD"
+
+    log "Starting PostgreSQL..."
+    PG_DATA_DIR="/var/lib/postgresql/16/main"
+
+    sudo chown -R postgres:postgres /var/lib/postgresql/16
+    if [ ! -s "$PG_DATA_DIR/PG_VERSION" ]; then
+        log "First time run. Initializing PostgreSQL database..."
+        sudo -u postgres /usr/lib/postgresql/16/bin/initdb -D "$PG_DATA_DIR"        # initdb must be run as the postgres user
+    else
+        log "OK: Database exists in $PG_DATA_DIR"
+    fi
+    sudo service postgresql start
+
+    USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hive';")
+    if [ "$USER_EXISTS" != "1" ]; then
+        log "First time run. Creating 'hive' user and 'metastore_db'..."
+        sudo -u postgres psql --command "CREATE USER hive WITH PASSWORD '$HIVE_DB_PASSWORD';"
+        sudo -u postgres psql --command "CREATE DATABASE metastore_db OWNER hive;"
+        sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE metastore_db TO hive;"
+        log "PostgreSQL user 'hive' and database 'metastore_db' created."
+    else
+        log "OK: user 'hive' exists"
+    fi
+fi
 
 # minimal setup for HDFS
 log "Creating configs..."
@@ -109,7 +143,7 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 EOF
 
 # setup replication factor && switch default "/tmp/hadoop-hadoop/dfs/name" to stable path
-if [[ "$MASTER_HOST" == "localhost" ]] || [[ "$MASTER_HOST" == "127.0.0.1" ]] || [[ "$MASTER_HOST" == "$WORKER_HOSTS" ]]; then
+if [[ "$MASTER_HOST" == "localhost" ]] || [[ "$MASTER_HOST" == "127.0.0.1" ]]; then
     DFS_REPLICATION=1
 else
     DFS_REPLICATION=2
@@ -142,47 +176,107 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
 EOF
 
 # setup Apache Spark
-# spark.master:                  YARN is a master
-# spark.history.fs.logDirectory: must-have
-# spark.eventLog.*:              optional, write Spark logs to HDFS
-# spark.yarn.jars:               optional, use JARs directly from HDFS
+# spark.master                     YARN is a master
+# spark.history.fs.logDirectory    must-have
+# spark.eventLog.*                 opt, write Spark logs to HDFS
+# spark.yarn.jars                  opt, use JARs directly from HDFS
+# spark.hadoop.hive.metastore.uris opt, HIVE support
 cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
-spark.master                      yarn
-spark.history.fs.logDirectory     hdfs://$MASTER_HOST:9000/spark/logs
-spark.eventLog.dir                hdfs://$MASTER_HOST:9000/spark/logs
-spark.eventLog.enabled            true
-spark.yarn.jars                   hdfs:///spark/libs/*.jar
+spark.master                       yarn
+spark.history.fs.logDirectory      hdfs://$MASTER_HOST:9000/spark/logs
+spark.eventLog.dir                 hdfs://$MASTER_HOST:9000/spark/logs
+spark.eventLog.enabled             true
+spark.yarn.jars                    hdfs:///spark/libs/*.jar
+spark.hadoop.hive.metastore.uris   thrift://$MASTER_HOST:9083
 EOF
 
+# opt: setup Hive
+if [[ "$IS_MASTER" == "true" ]]; then
+    cat <<EOF > $HIVE_HOME/conf/hive-site.xml
+<configuration>
+    <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:postgresql://localhost:5432/metastore_db</value>
+        <description>JDBC path to Postgres metastore DB</description>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>org.postgresql.Driver</value>
+        <description>JDBC Driver</description>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>hive</value>
+        <description>Postgres user</description>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>$HIVE_DB_PASSWORD</value>
+        <description>Postgres password</description>
+    </property>
+    <property>
+        <name>hive.metastore.uris</name>
+        <value>thrift://$MASTER_HOST:9083</value>
+        <description>IP address and port of the Hive Metastore service</description>
+    </property>
+</configuration>
+EOF
+else      # for workers
+    cat <<EOF > $HIVE_HOME/conf/hive-site.xml
+<configuration>
+    <property>
+        <name>hive.metastore.uris</name>
+        <value>thrift://$MASTER_HOST:9083</value>
+        <description>IP address and port of the Hive Metastore service</description>
+    </property>
+</configuration>
+EOF
+fi
+
 # master logic
-if [[ "$IS_MASTER" == "1" ]] || [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$IS_MASTER" == "true" ]]; then
     # parse worker hosts
     check_env "WORKER_HOSTS"
     echo "$WORKER_HOSTS" | tr ',' '\n' > $HADOOP_CONF_DIR/workers
 
     # format HDFS
     if [ ! -f "$HADOOP_HOME/dfs/name/current/VERSION" ]; then
-        log "FIRST TIME run. Formatting Namenode"
+        log "First time run. Formatting Namenode"
         hdfs namenode -format -nonInteractive
     else
-        log "Persistent volume detected: skipping format"
+        log "OK: Namenode data detected."
     fi
 
     # start Hadoop/Spark
-    log "Starting services..."
+    log "Starting Hadoop services..."
     start-dfs.sh
     start-yarn.sh
     hdfs dfs -mkdir -p /spark/logs        # must-have
     start-history-server.sh
 
-    # optional: copy Spark libs to HDFS
+    # opt: start Hive Metastore
+    log "Starting Hive Metastore..."
+    export PGPASSWORD="$HIVE_DB_PASSWORD"
+    SCHEMA_EXISTS=$(psql --host localhost --username hive --dbname metastore_db --tuples-only --no-align --command "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'VERSION');")
+    if [ "$SCHEMA_EXISTS" != "t" ]; then
+        log "First time run. Initializing Hive Metastore..."
+        schematool -initSchema -dbType postgres
+    else
+        log "OK: Hive Metastore detected"
+    fi
+    hive --service metastore &
+
+    # opt: copy Spark libs to HDFS for better performance
     if ! hdfs dfs -test -e /spark/libs; then
-        log "Uploading Spark JARs to HDFS..."
+        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
         hdfs dfs -mkdir -p /spark/libs
         hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
+    else
+        log "OK: Spark JARs already loaded into HDFS"
     fi
 fi
 
 # infinite loop
+sleep 1
 log "Done!"
 tail -f /dev/null

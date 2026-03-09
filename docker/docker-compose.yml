@@ -3,11 +3,13 @@ services:
     image: mitrakov/hadoop:1.0.0
     hostname: namenode.host
     environment:
-      - IS_MASTER=1
+      - IS_MASTER=true
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
+      - HIVE_DB_PASSWORD=12345
     volumes:
-      - ~/hadoop_master_data:/opt/hadoop/dfs/name
+      - ~/hadoop/master_data:/opt/hadoop/dfs/name
+      - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
     ports:
       - "9870:9870"   # HDFS UI
       - "8088:8088"   # YARN UI
@@ -17,18 +19,18 @@ services:
     image: mitrakov/hadoop:1.0.0
     hostname: datanode1.host
     environment:
-      - IS_MASTER=0
+      - IS_MASTER=false
       - MASTER_HOST=namenode.host
     volumes:
-      - ~/hadoop_datanode1_data:/opt/hadoop/dfs/data
+      - ~/hadoop/datanode1_data:/opt/hadoop/dfs/data
 
   datanode2:
     image: mitrakov/hadoop:1.0.0
     hostname: datanode2.host
     environment:
-      - IS_MASTER=0
+      - IS_MASTER=false
       - MASTER_HOST=namenode.host
     volumes:
-      - ~/hadoop_datanode2_data:/opt/hadoop/dfs/data
+      - ~/hadoop/datanode2_data:/opt/hadoop/dfs/data
     ports:
       - "8042:8042"   # YARN
