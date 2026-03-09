@@ -32,9 +32,55 @@ function check_env() {
         info "$1: ${!1}"
     fi
 }
+function check_os() {
+    local result=""
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        result="MacOS $(sw_vers -productVersion) (Build: $(sw_vers -buildVersion))"
+    elif [[ -f /etc/os-release ]]; then
+        # linux distributions with /etc/os-release
+        source /etc/os-release
+        result="$ID $VERSION_ID ($PRETTY_NAME)"
+    elif [[ -f /etc/redhat-release ]]; then
+        # fallback for older RHEL systems without /etc/os-release
+        result=$(cat /etc/redhat-release)
+    else
+        error "Unable to detect operating system"
+        exit 5
+    fi
+
+    info "OS: $result"
+}
+function check_primary_ip() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS - use route and ifconfig
+        primary_interface=$(route get default | grep interface | awk '{print $2}')
+        ipv4_addr=$(ifconfig "$primary_interface" | grep 'inet ' | awk '{print $2}')
+    else
+        # Linux - use ip command
+        primary_interface=$(ip route | grep default | awk '{print $5}' | head -1)
+        ipv4_addr=$(ip -4 addr show "$primary_interface" | grep inet | awk '{print $2}' | cut -d'/' -f1 | head -1)
+    fi
+    
+    info "Default IPv4 address: $ipv4_addr"
+}
+function check_hostname() {
+    info "Hostname: $(hostname)"
+}
+function check_java() {
+    if command -v java &> /dev/null; then
+        java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    
+        if [[ -n "$java_version" ]]; then
+            info "Java version: $java_version"
+        else
+            warn "Cannot detect Java version"
+        fi
+    else
+        warn "'java' command not found"
+    fi
+}
 
 # =====
-DFS_REPLICATION=${DFS_REPLICATION:-1}
 
 check_env "JAVA_HOME"
 check_env "HADOOP_HOME"
@@ -42,15 +88,17 @@ check_env "SPARK_HOME"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "HADOOP_CONF_DIR"
-check_env "DFS_REPLICATION"
+
+check_os
+check_hostname
+check_primary_ip
+check_java
 
 # start SSH daemon
 sudo service ssh start
 
-# setup data dirs for Docker volumes (must be in .sh, not in dockerfile)
-mkdir -p $HADOOP_HOME/dfs && sudo chown -R hadoop:hadoop $HADOOP_HOME/dfs
-
 # minimal setup for HDFS
+log "Creating configs..."
 cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 <configuration>
     <property>
@@ -60,7 +108,12 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 </configuration>
 EOF
 
-# switch default "/tmp/hadoop-hadoop/dfs/name" to normal path
+# setup replication factor && switch default "/tmp/hadoop-hadoop/dfs/name" to stable path
+if [[ "$MASTER_HOST" == "localhost" ]] || [[ "$MASTER_HOST" == "127.0.0.1" ]] || [[ "$MASTER_HOST" == "$WORKER_HOSTS" ]]; then
+    DFS_REPLICATION=1
+else
+    DFS_REPLICATION=2
+fi
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
     <property>
@@ -90,15 +143,15 @@ EOF
 
 # setup Apache Spark
 # spark.master:                  YARN is a master
-# spark.yarn.jars:               use JARs directly from HDFS
 # spark.history.fs.logDirectory: must-have
 # spark.eventLog.*:              optional, write Spark logs to HDFS
+# spark.yarn.jars:               optional, use JARs directly from HDFS
 cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
 spark.master                      yarn
-spark.yarn.jars                   hdfs:///spark/libs/*.jar
 spark.history.fs.logDirectory     hdfs://$MASTER_HOST:9000/spark/logs
 spark.eventLog.dir                hdfs://$MASTER_HOST:9000/spark/logs
 spark.eventLog.enabled            true
+spark.yarn.jars                   hdfs:///spark/libs/*.jar
 EOF
 
 # master logic
@@ -116,12 +169,13 @@ if [[ "$IS_MASTER" == "1" ]] || [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # start Hadoop/Spark
+    log "Starting services..."
     start-dfs.sh
     start-yarn.sh
     hdfs dfs -mkdir -p /spark/logs        # must-have
     start-history-server.sh
 
-    # copy Spark libs to HDFS
+    # optional: copy Spark libs to HDFS
     if ! hdfs dfs -test -e /spark/libs; then
         log "Uploading Spark JARs to HDFS..."
         hdfs dfs -mkdir -p /spark/libs
@@ -130,4 +184,5 @@ if [[ "$IS_MASTER" == "1" ]] || [[ "$IS_MASTER" == "true" ]]; then
 fi
 
 # infinite loop
+log "Done!"
 tail -f /dev/null

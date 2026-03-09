@@ -6,14 +6,12 @@ services:
       - IS_MASTER=1
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
-      - DFS_REPLICATION=2
     volumes:
       - ~/hadoop_master_data:/opt/hadoop/dfs/name
     ports:
       - "9870:9870"   # HDFS UI
       - "8088:8088"   # YARN UI
       - "18080:18080" # Spark History Server
-      - "4040:4040"   # Spark App UI, ephermal!
 
   datanode1:
     image: mitrakov/hadoop:1.0.0
@@ -21,7 +19,6 @@ services:
     environment:
       - IS_MASTER=0
       - MASTER_HOST=namenode.host
-      - DFS_REPLICATION=2
     volumes:
       - ~/hadoop_datanode1_data:/opt/hadoop/dfs/data
 
@@ -31,7 +28,6 @@ services:
     environment:
       - IS_MASTER=0
       - MASTER_HOST=namenode.host
-      - DFS_REPLICATION=2
     volumes:
       - ~/hadoop_datanode2_data:/opt/hadoop/dfs/data
     ports:
