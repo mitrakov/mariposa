@@ -90,6 +90,7 @@ check_env "JAVA_HOME"
 check_env "HADOOP_HOME"
 check_env "SPARK_HOME"
 check_env "HIVE_HOME"
+check_env "HBASE_HOME"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "HADOOP_CONF_DIR"
@@ -233,6 +234,36 @@ else      # for workers
 EOF
 fi
 
+# setup HBase
+cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
+<configuration>
+    <property>
+        <name>hbase.cluster.distributed</name>
+        <value>true</value>
+        <description>use HDFS instead of standalone local FS</description>
+    </property>
+    <property>
+        <name>hbase.rootdir</name>
+        <value>hdfs://$MASTER_HOST:9000/hbase</value>
+        <description>link to a Namenode</description>
+    </property>
+    <property>
+        <name>hbase.zookeeper.quorum</name>
+        <value>$MASTER_HOST</value>
+        <description>spin up own ZK instance on master host</description>
+    </property>
+    <property>
+      <name>hbase.wal.provider</name>
+      <value>filesystem</value>
+      <description>magic bullet for Java-17</description>
+    </property>
+</configuration>
+EOF
+# tell HBase to manage its own ZooKeeper
+echo "export HBASE_MANAGES_ZK=true" >> $HBASE_HOME/conf/hbase-env.sh
+# fix Java-17 errors
+export HBASE_OPTS="--add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED"
+
 # master logic
 if [[ "$IS_MASTER" == "true" ]]; then
     # parse worker hosts
@@ -248,10 +279,12 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # start Hadoop/Spark
-    log "Starting Hadoop services..."
+    log "Starting HDFS..."
     start-dfs.sh
+    log "Starting YARN..."
     start-yarn.sh
     hdfs dfs -mkdir -p /spark/logs        # must-have
+    log "Starting Spark History Server..."
     start-history-server.sh
 
     # opt: start Hive Metastore
@@ -265,6 +298,10 @@ if [[ "$IS_MASTER" == "true" ]]; then
         log "OK: Hive Metastore detected"
     fi
     hive --service metastore &
+
+    # opt: start HBase
+    log "Starting HBase..."
+    start-hbase.sh
 
     # opt: copy Spark libs to HDFS for better performance
     if ! hdfs dfs -test -e /spark/libs; then
