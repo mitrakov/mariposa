@@ -1,7 +1,7 @@
 #!/bin/bash
 docker run --rm --name hey \
   --env MASTER_HOST=localhost \
-  --env IS_MASTER=1 \
+  --env IS_MASTER=true \
   --env WORKER_HOSTS=localhost \
   --env HIVE_DB_PASSWORD=12345 \
   --volume ~/hadoop_master_data:/opt/hadoop/dfs/name \

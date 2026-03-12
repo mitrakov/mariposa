@@ -17,6 +17,13 @@ RUN wget --output-document=- https://downloads.apache.org/hadoop/common/hadoop-3
 ENV HIVE_HOME=/opt/hive
 RUN wget --output-document=- https://archive.apache.org/dist/hive/hive-2.3.10/apache-hive-2.3.10-bin.tar.gz | \
     tar --extract --gzip --directory /opt && mv /opt/apache-hive-2.3.10-bin $HIVE_HOME
-
 # download a newer Postgres driver because std Hive driver it too old and doesn't support 'scram-sha-256'
 RUN wget --directory-prefix $HIVE_HOME/lib https://jdbc.postgresql.org/download/postgresql-42.7.10.jar
+
+# download Apache HBase 2.6.4
+ENV HBASE_HOME=/opt/hbase
+RUN wget --output-document=- https://downloads.apache.org/hbase/2.6.4/hbase-2.6.4-bin.tar.gz | \
+    tar --extract --gzip --directory /opt && mv /opt/hbase-2.6.4 $HBASE_HOME
+
+# Update PATH in your main Dockerfile or here
+ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin
