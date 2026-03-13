@@ -14,6 +14,7 @@ services:
       - "9870:9870"   # HDFS UI
       - "8088:8088"   # YARN UI
       - "18080:18080" # Spark History Server
+      - "16010:16010" # HBase
 
   datanode1:
     image: mitrakov/hadoop:1.0.0
@@ -23,6 +24,8 @@ services:
       - MASTER_HOST=namenode.host
     volumes:
       - ~/hadoop/datanode1_data:/opt/hadoop/dfs/data
+    ports:
+      - "8042:8042"   # NodeManager
 
   datanode2:
     image: mitrakov/hadoop:1.0.0
@@ -33,4 +36,4 @@ services:
     volumes:
       - ~/hadoop/datanode2_data:/opt/hadoop/dfs/data
     ports:
-      - "8042:8042"   # YARN
+      - "8043:8042"   # NodeManager

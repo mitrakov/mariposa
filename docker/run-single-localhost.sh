@@ -4,12 +4,14 @@ docker run --rm --name hey \
   --env IS_MASTER=true \
   --env WORKER_HOSTS=localhost \
   --env HIVE_DB_PASSWORD=12345 \
-  --volume ~/hadoop_master_data:/opt/hadoop/dfs/name \
-  --volume ~/hadoop_datanode_data:/opt/hadoop/dfs/data \
-  --volume ~/hadoop_postgres_data:/var/lib/postgresql/16/main \
+  --volume ~/hadoop/test_master_data:/opt/hadoop/dfs/name \
+  --volume ~/hadoop/test_datanode_data:/opt/hadoop/dfs/data \
+  --volume ~/hadoop/test_postgres_data:/var/lib/postgresql/16/main \
   --publish 9870:9870 \
   --publish 8088:8088 \
   --publish 18080:18080 \
+  --publish 16010:16010 \
+  --publish 16020:16020 \
   --publish 4040:4040 \
   mitrakov/hadoop:1.0.0
 
