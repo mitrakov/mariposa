@@ -91,6 +91,7 @@ check_env "HADOOP_HOME"
 check_env "SPARK_HOME"
 check_env "HIVE_HOME"
 check_env "HBASE_HOME"
+#check_env "ZK_HOME"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "HADOOP_CONF_DIR"
@@ -255,14 +256,12 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
     <property>
       <name>hbase.wal.provider</name>
       <value>filesystem</value>
-      <description>magic bullet for Java-17</description>
+      <description>fix java-17 Netty error: IllegalArgumentException: object is not an instance of declaring class</description>
     </property>
 </configuration>
 EOF
 # tell HBase to manage its own ZooKeeper
 echo "export HBASE_MANAGES_ZK=true" >> $HBASE_HOME/conf/hbase-env.sh
-# fix Java-17 errors
-export HBASE_OPTS="--add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED"
 
 # master logic
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -287,7 +286,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     log "Starting Spark History Server..."
     start-history-server.sh
 
-    # opt: start Hive Metastore
+    # opt: start Hive Metastore (in bg)
     log "Starting Hive Metastore..."
     export PGPASSWORD="$HIVE_DB_PASSWORD"
     SCHEMA_EXISTS=$(psql --host localhost --username hive --dbname metastore_db --tuples-only --no-align --command "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'VERSION');")
