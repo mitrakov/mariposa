@@ -1,4 +1,4 @@
-# test Hbase (hbase shell)
+== hbase shell ===
 create 'users', 'info'
 list 'users'
 describe 'users'
@@ -12,19 +12,11 @@ scan 'users'
 disable 'users'
 drop 'users'
 
-
-
-# Ask Gemini to fix this once this f*cking HBase start working normally
-SLF4J: Class path contains multiple SLF4J bindings.
-SLF4J: Found binding in [jar:file:/opt/hbase/lib/client-facing-thirdparty/log4j-slf4j-impl-2.17.2.jar!/org/slf4j/impl/StaticLoggerBinder.class]
-SLF4J: Found binding in [jar:file:/opt/hadoop/share/hadoop/common/lib/slf4j-reload4j-1.7.36.jar!/org/slf4j/impl/StaticLoggerBinder.class]
-SLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.
-SLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]
-
-
-
-
-== zk ==
-zkCli.sh
-create /app_config "db_url=jdbc:postgresql://namenode.host:5432/hive"
+== zkCli.sh ==
+create /app_config "Some data"
 get /app_config
+
+== spark-shell ==
+spark.sql("CREATE TABLE IF NOT EXISTS tommy (id INT, name STRING, value DOUBLE) USING HIVE;")
+spark.sql("INSERT INTO TABLE tommy (id, name, value) VALUES (1, 'Tommy', 16.6);")
+spark.sql("SELECT * FROM tommy;").show()
