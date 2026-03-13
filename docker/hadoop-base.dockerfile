@@ -26,9 +26,9 @@ RUN wget --output-document=- https://downloads.apache.org/hbase/2.5.13/hbase-2.5
     tar --extract --gzip --directory /opt && mv /opt/hbase-2.5.13 $HBASE_HOME
 
 # download Apache Zookeeper 3.9.5 (Spark uses 3.9.4)
-#ENV ZK_HOME=/opt/zookeeper
-#RUN wget --output-document=- https://downloads.apache.org/zookeeper/zookeeper-3.9.5/apache-zookeeper-3.9.5-bin.tar.gz | \
-#    tar --extract --gzip --directory /opt && mv /opt/apache-zookeeper-3.9.5-bin $ZK_HOME
+ENV ZOOKEEPER_HOME=/opt/zookeeper
+RUN wget --output-document=- https://downloads.apache.org/zookeeper/zookeeper-3.9.5/apache-zookeeper-3.9.5-bin.tar.gz | \
+    tar --extract --gzip --directory /opt && mv /opt/apache-zookeeper-3.9.5-bin $ZOOKEEPER_HOME
 
 # Update PATH in your main Dockerfile or here
-ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin
+ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin

@@ -7,6 +7,7 @@ docker run --rm --name hey \
   --volume ~/hadoop/test_master_data:/opt/hadoop/dfs/name \
   --volume ~/hadoop/test_datanode_data:/opt/hadoop/dfs/data \
   --volume ~/hadoop/test_postgres_data:/var/lib/postgresql/16/main \
+  --volume ~/hadoop/test_zk_data:/opt/zookeeper/data \
   --publish 9870:9870 \
   --publish 8088:8088 \
   --publish 18080:18080 \

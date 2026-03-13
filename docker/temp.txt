@@ -1,4 +1,4 @@
-# test Hbase
+# test Hbase (hbase shell)
 create 'users', 'info'
 list 'users'
 describe 'users'
@@ -20,3 +20,11 @@ SLF4J: Found binding in [jar:file:/opt/hbase/lib/client-facing-thirdparty/log4j-
 SLF4J: Found binding in [jar:file:/opt/hadoop/share/hadoop/common/lib/slf4j-reload4j-1.7.36.jar!/org/slf4j/impl/StaticLoggerBinder.class]
 SLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.
 SLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]
+
+
+
+
+== zk ==
+zkCli.sh
+create /app_config "db_url=jdbc:postgresql://namenode.host:5432/hive"
+get /app_config

@@ -14,9 +14,12 @@ RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
 RUN useradd --create-home --shell /bin/bash hadoop && \
     echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
     mkdir $HADOOP_HOME/dfs && \
+    mkdir $HADOOP_HOME/logs && \
+    mkdir $ZOOKEEPER_HOME/data && \
     chown -R hadoop:hadoop $HADOOP_HOME && \
     chown -R hadoop:hadoop $HIVE_HOME && \
-    chown -R hadoop:hadoop $HBASE_HOME
+    chown -R hadoop:hadoop $HBASE_HOME && \
+    chown -R hadoop:hadoop $ZOOKEEPER_HOME
 USER hadoop
 
 # SSH passwordless login for Hadoop

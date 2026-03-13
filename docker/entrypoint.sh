@@ -91,9 +91,11 @@ check_env "HADOOP_HOME"
 check_env "SPARK_HOME"
 check_env "HIVE_HOME"
 check_env "HBASE_HOME"
-#check_env "ZK_HOME"
+check_env "ZOOKEEPER_HOME"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
+check_env "WORKER_HOSTS"
+check_env "ZK_ID"
 check_env "HADOOP_CONF_DIR"
 
 check_os
@@ -133,8 +135,9 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 fi
 
-# minimal setup for HDFS
 log "Creating configs..."
+
+# minimal setup for HDFS
 cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 <configuration>
     <property>
@@ -192,7 +195,7 @@ spark.yarn.jars                    hdfs:///spark/libs/*.jar
 spark.hadoop.hive.metastore.uris   thrift://$MASTER_HOST:9083
 EOF
 
-# opt: setup Hive
+# setup Hive
 if [[ "$IS_MASTER" == "true" ]]; then
     cat <<EOF > $HIVE_HOME/conf/hive-site.xml
 <configuration>
@@ -250,8 +253,12 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
     </property>
     <property>
         <name>hbase.zookeeper.quorum</name>
-        <value>$MASTER_HOST</value>
-        <description>spin up own ZK instance on master host</description>
+        <value>$MASTER_HOST,$WORKER_HOSTS</value>
+        <description>Zookeeper full quorum list</description>
+    </property>
+    <property>
+        <name>hbase.zookeeper.property.clientPort</name>
+        <value>2181</value>
     </property>
     <property>
       <name>hbase.wal.provider</name>
@@ -260,13 +267,37 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
     </property>
 </configuration>
 EOF
-# tell HBase to manage its own ZooKeeper
-echo "export HBASE_MANAGES_ZK=true" >> $HBASE_HOME/conf/hbase-env.sh
+
+# setup ZK for each node (ZK_ID must be a unique number for every node, e.g. 1,2,3)
+echo "$ZK_ID" > $ZOOKEEPER_HOME/data/myid
+
+cat <<EOF > $ZOOKEEPER_HOME/conf/zoo.cfg
+tickTime=1000
+initLimit=10
+syncLimit=5
+dataDir=$ZOOKEEPER_HOME/data
+clientPort=2181
+
+server.1=$MASTER_HOST:2888:3888
+EOF
+
+count=2     # "1" is already set for $MASTER_HOST
+IFS=','
+for worker in $WORKER_HOSTS; do
+    if [ -n "$worker" ]; then
+        echo "server.$count=$worker:2888:3888" >> $ZOOKEEPER_HOME/conf/zoo.cfg
+        count=$((count + 1))
+    fi
+done
+unset IFS
+
+# ZK
+log "Starting Zookeeper..."
+zkServer.sh start
 
 # master logic
 if [[ "$IS_MASTER" == "true" ]]; then
     # parse worker hosts
-    check_env "WORKER_HOSTS"
     echo "$WORKER_HOSTS" | tr ',' '\n' > $HADOOP_CONF_DIR/workers
 
     # format HDFS
