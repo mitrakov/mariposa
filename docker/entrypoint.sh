@@ -238,7 +238,8 @@ else      # for workers
 EOF
 fi
 
-# setup HBase
+# setup HBase (HBASE_MANAGES_ZK=false is needed not to start ZK on its own)
+export HBASE_MANAGES_ZK=false
 cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
 <configuration>
     <property>
@@ -291,6 +292,14 @@ for worker in $WORKER_HOSTS; do
 done
 unset IFS
 
+# opt: disable log4j-slf4j-impl JARs that cause "SLF4J: Class path contains multiple SLF4J bindings."
+find $HIVE_HOME/lib/ -name "log4j-slf4j-impl-*.jar" | while read -r jar; do
+    sudo mv -v "$jar" "$jar.bak"
+done
+find $HBASE_HOME/lib/client-facing-thirdparty/ -name "log4j-slf4j-impl-*.jar" | while read -r jar; do
+    sudo mv -v "$jar" "$jar.bak"
+done
+
 # ZK
 log "Starting Zookeeper..."
 zkServer.sh start
@@ -317,7 +326,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
     log "Starting Spark History Server..."
     start-history-server.sh
 
-    # opt: start Hive Metastore (in bg)
+    # start HBase
+    log "Starting HBase..."
+    start-hbase.sh
+
+    # start Hive Metastore (in bg)
     log "Starting Hive Metastore..."
     export PGPASSWORD="$HIVE_DB_PASSWORD"
     SCHEMA_EXISTS=$(psql --host localhost --username hive --dbname metastore_db --tuples-only --no-align --command "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'VERSION');")
@@ -328,10 +341,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
         log "OK: Hive Metastore detected"
     fi
     hive --service metastore &
-
-    # opt: start HBase
-    log "Starting HBase..."
-    start-hbase.sh
 
     # opt: copy Spark libs to HDFS for better performance
     if ! hdfs dfs -test -e /spark/libs; then
