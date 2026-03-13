@@ -6,10 +6,12 @@ services:
       - IS_MASTER=true
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
+      - ZK_ID=1
       - HIVE_DB_PASSWORD=12345
     volumes:
       - ~/hadoop/master_data:/opt/hadoop/dfs/name
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
+      - ~/hadoop/zk1_data:/opt/zookeeper/data
     ports:
       - "9870:9870"   # HDFS UI
       - "8088:8088"   # YARN UI
@@ -22,8 +24,11 @@ services:
     environment:
       - IS_MASTER=false
       - MASTER_HOST=namenode.host
+      - WORKER_HOSTS=datanode1.host,datanode2.host
+      - ZK_ID=2
     volumes:
       - ~/hadoop/datanode1_data:/opt/hadoop/dfs/data
+      - ~/hadoop/zk2_data:/opt/zookeeper/data
     ports:
       - "8042:8042"   # NodeManager
 
@@ -33,7 +38,10 @@ services:
     environment:
       - IS_MASTER=false
       - MASTER_HOST=namenode.host
+      - WORKER_HOSTS=datanode1.host,datanode2.host
+      - ZK_ID=3
     volumes:
       - ~/hadoop/datanode2_data:/opt/hadoop/dfs/data
+      - ~/hadoop/zk3_data:/opt/zookeeper/data
     ports:
       - "8043:8042"   # NodeManager
