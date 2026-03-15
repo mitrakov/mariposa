@@ -92,6 +92,7 @@ check_env "SPARK_HOME"
 check_env "HIVE_HOME"
 check_env "HBASE_HOME"
 check_env "ZOOKEEPER_HOME"
+check_env "KAFKA_HOME"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
@@ -285,12 +286,54 @@ EOF
 count=2     # "1" is already set for $MASTER_HOST
 IFS=','
 for worker in $WORKER_HOSTS; do
-    if [ -n "$worker" ]; then
-        echo "server.$count=$worker:2888:3888" >> $ZOOKEEPER_HOME/conf/zoo.cfg
-        count=$((count + 1))
-    fi
+    echo "server.$count=$worker:2888:3888" >> $ZOOKEEPER_HOME/conf/zoo.cfg
+    count=$((count + 1))
 done
 unset IFS
+
+# setup Apache Kafka
+MY_HOST=$(hostname)
+ZK_QUORUM="$MASTER_HOST:2181"
+IFS=','
+for worker in $WORKER_HOSTS; do
+    ZK_QUORUM="$ZK_QUORUM,$worker:2181"
+done
+unset IFS
+
+cat <<EOF > $KAFKA_HOME/config/server.properties
+# The id of the broker. This must be set to a unique integer for each broker.
+broker.id=$ZK_ID
+# The address the socket server listens on.
+listeners=PLAINTEXT://0.0.0.0:9092
+# Hostname and port the broker will advertise to producers and consumers.
+advertised.listeners=PLAINTEXT://$MY_HOST:9092
+# The number of threads that the server uses for receiving requests from the network and sending responses to the network
+num.network.threads=3
+num.io.threads=8
+socket.send.buffer.bytes=102400
+socket.receive.buffer.bytes=102400
+socket.request.max.bytes=104857600
+# Log settings
+log.dirs=$KAFKA_HOME/data
+num.partitions=1
+num.recovery.threads.per.data.dir=1
+offsets.topic.replication.factor=1
+transaction.state.log.replication.factor=1
+transaction.state.log.min.isr=1
+# Retention
+log.retention.hours=168
+log.segment.bytes=1073741824
+log.retention.check.interval.ms=300000
+# Zookeeper connection
+zookeeper.connect=$ZK_QUORUM
+zookeeper.connection.timeout.ms=18000
+# Group coordinator settings
+group.initial.rebalance.delay.ms=0
+EOF
+
+
+
+# =====
 
 # opt: disable log4j-slf4j-impl JARs that cause "SLF4J: Class path contains multiple SLF4J bindings."
 find $HIVE_HOME/lib/ -name "log4j-slf4j-impl-*.jar" | while read -r jar; do
@@ -303,6 +346,10 @@ done
 # ZK
 log "Starting Zookeeper..."
 zkServer.sh start
+
+# Kafka
+log "Starting Kafka Server..."
+kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 # master logic
 if [[ "$IS_MASTER" == "true" ]]; then

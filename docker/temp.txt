@@ -1,3 +1,14 @@
+== Spark ===
+println(s"Hadoop Version: ${org.apache.hadoop.util.VersionInfo.getVersion}")
+println(s"Hadoop Core JAR Location: ${classOf[org.apache.hadoop.conf.Configuration].getProtectionDomain.getCodeSource.getLocation}")
+spark.conf.get("spark.sql.catalogImplementation")    // hive
+spark.sql("SHOW DATABASES").show()                   // default
+spark.catalog.listDatabases().show(truncate=false)   // |default|spark_catalog|Default Hive database|hdfs://localhost:9000/user/hive/warehouse|
+spark.sql("CREATE TABLE hive_test (id INT, message STRING) USING hive")
+spark.sql("INSERT INTO hive_test VALUES (1, 'Tommy')")
+spark.sql("SELECT * FROM hive_test").show()
+
+
 == hbase shell ===
 create 'users', 'info'
 list 'users'
@@ -20,3 +31,9 @@ get /app_config
 spark.sql("CREATE TABLE IF NOT EXISTS tommy (id INT, name STRING, value DOUBLE) USING HIVE;")
 spark.sql("INSERT INTO TABLE tommy (id, name, value) VALUES (1, 'Tommy', 16.6);")
 spark.sql("SELECT * FROM tommy;").show()
+
+=== kafka ===
+kafka-topics.sh --create --topic quickstart-events --bootstrap-server localhost:9092
+kafka-console-producer.sh --topic quickstart-events --bootstrap-server localhost:9092
+...
+kafka-console-consumer.sh --topic quickstart-events --from-beginning --bootstrap-server namenode.host:9092

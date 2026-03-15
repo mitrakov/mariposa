@@ -3,6 +3,7 @@ docker run --rm --name hey \
   --env MASTER_HOST=localhost \
   --env IS_MASTER=true \
   --env WORKER_HOSTS=localhost \
+  --env ZK_ID=1 \
   --env HIVE_DB_PASSWORD=12345 \
   --volume ~/hadoop/test_master_data:/opt/hadoop/dfs/name \
   --volume ~/hadoop/test_datanode_data:/opt/hadoop/dfs/data \

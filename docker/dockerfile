@@ -19,7 +19,8 @@ RUN useradd --create-home --shell /bin/bash hadoop && \
     chown -R hadoop:hadoop $HADOOP_HOME && \
     chown -R hadoop:hadoop $HIVE_HOME && \
     chown -R hadoop:hadoop $HBASE_HOME && \
-    chown -R hadoop:hadoop $ZOOKEEPER_HOME
+    chown -R hadoop:hadoop $ZOOKEEPER_HOME && \
+    chown -R hadoop:hadoop $KAFKA_HOME
 USER hadoop
 
 # SSH passwordless login for Hadoop

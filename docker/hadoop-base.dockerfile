@@ -30,5 +30,10 @@ ENV ZOOKEEPER_HOME=/opt/zookeeper
 RUN wget --output-document=- https://downloads.apache.org/zookeeper/zookeeper-3.9.5/apache-zookeeper-3.9.5-bin.tar.gz | \
     tar --extract --gzip --directory /opt && mv /opt/apache-zookeeper-3.9.5-bin $ZOOKEEPER_HOME
 
+# download Apache Kafka 3.9.2 (Hadoop uses 3.9.0)
+ENV KAFKA_HOME=/opt/kafka
+RUN wget --output-document=- https://downloads.apache.org/kafka/3.9.2/kafka_2.13-3.9.2.tgz | \
+    tar --extract --gzip --directory /opt && mv /opt/kafka_2.13-3.9.2 $KAFKA_HOME
+
 # Update PATH in your main Dockerfile or here
-ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin
+ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin:$KAFKA_HOME/bin
