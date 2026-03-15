@@ -301,34 +301,10 @@ done
 unset IFS
 
 cat <<EOF > $KAFKA_HOME/config/server.properties
-# The id of the broker. This must be set to a unique integer for each broker.
-broker.id=$ZK_ID
-# The address the socket server listens on.
 listeners=PLAINTEXT://0.0.0.0:9092
-# Hostname and port the broker will advertise to producers and consumers.
 advertised.listeners=PLAINTEXT://$MY_HOST:9092
-# The number of threads that the server uses for receiving requests from the network and sending responses to the network
-num.network.threads=3
-num.io.threads=8
-socket.send.buffer.bytes=102400
-socket.receive.buffer.bytes=102400
-socket.request.max.bytes=104857600
-# Log settings
-log.dirs=$KAFKA_HOME/data
-num.partitions=1
-num.recovery.threads.per.data.dir=1
-offsets.topic.replication.factor=1
-transaction.state.log.replication.factor=1
-transaction.state.log.min.isr=1
-# Retention
-log.retention.hours=168
-log.segment.bytes=1073741824
-log.retention.check.interval.ms=300000
-# Zookeeper connection
+broker.id=$ZK_ID
 zookeeper.connect=$ZK_QUORUM
-zookeeper.connection.timeout.ms=18000
-# Group coordinator settings
-group.initial.rebalance.delay.ms=0
 EOF
 
 
@@ -346,6 +322,13 @@ done
 # ZK
 log "Starting Zookeeper..."
 zkServer.sh start
+
+
+# Clean up stale Kafka registration in ZK (sleep 3 id to take some fresh air for ZK)
+sleep 3
+log "Checking for stale Kafka registration for Broker $ZK_ID..."
+zkCli.sh -server $MASTER_HOST:2181 delete /brokers/ids/$ZK_ID || true
+sleep 3
 
 # Kafka
 log "Starting Kafka Server..."

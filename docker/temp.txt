@@ -4,7 +4,8 @@ println(s"Hadoop Core JAR Location: ${classOf[org.apache.hadoop.conf.Configurati
 spark.conf.get("spark.sql.catalogImplementation")    // hive
 spark.sql("SHOW DATABASES").show()                   // default
 spark.catalog.listDatabases().show(truncate=false)   // |default|spark_catalog|Default Hive database|hdfs://localhost:9000/user/hive/warehouse|
-spark.sql("CREATE TABLE hive_test (id INT, message STRING) USING hive")
+
+spark.sql("CREATE TABLE hive_test (id INT, message STRING) USING HIVE;")
 spark.sql("INSERT INTO hive_test VALUES (1, 'Tommy')")
 spark.sql("SELECT * FROM hive_test").show()
 
@@ -13,7 +14,6 @@ spark.sql("SELECT * FROM hive_test").show()
 create 'users', 'info'
 list 'users'
 describe 'users'
-
 put 'users', 'row1', 'info:name', 'Tommy'
 put 'users', 'row1', 'info:role', 'Bobby'
 put 'users', 'row2', 'info:name', 'Jimmy'
@@ -23,17 +23,15 @@ scan 'users'
 disable 'users'
 drop 'users'
 
+
 == zkCli.sh ==
 create /app_config "Some data"
 get /app_config
 
-== spark-shell ==
-spark.sql("CREATE TABLE IF NOT EXISTS tommy (id INT, name STRING, value DOUBLE) USING HIVE;")
-spark.sql("INSERT INTO TABLE tommy (id, name, value) VALUES (1, 'Tommy', 16.6);")
-spark.sql("SELECT * FROM tommy;").show()
 
 === kafka ===
 kafka-topics.sh --create --topic quickstart-events --bootstrap-server localhost:9092
+kafka-topics.sh --list --bootstrap-server localhost:9092
 kafka-console-producer.sh --topic quickstart-events --bootstrap-server localhost:9092
 ...
 kafka-console-consumer.sh --topic quickstart-events --from-beginning --bootstrap-server namenode.host:9092
