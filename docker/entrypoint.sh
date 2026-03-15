@@ -29,7 +29,12 @@ function check_env() {
         error "Error: environment variable '$1' is not set or empty"
         exit 1
     else
-        info "$1: ${!1}"
+        local lower_name=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+        if [[ "$lower_name" == *"password"* ]]; then
+            info "$1: **********"
+        else
+            info "$1: ${!1}"
+        fi
     fi
 }
 function check_os() {
@@ -303,6 +308,7 @@ unset IFS
 cat <<EOF > $KAFKA_HOME/config/server.properties
 listeners=PLAINTEXT://0.0.0.0:9092
 advertised.listeners=PLAINTEXT://$MY_HOST:9092
+log.dirs=$KAFKA_HOME/data
 broker.id=$ZK_ID
 zookeeper.connect=$ZK_QUORUM
 EOF
@@ -322,16 +328,19 @@ done
 # ZK
 log "Starting Zookeeper..."
 zkServer.sh start
+sleep 2    # allow zk to start
 
-
-# Clean up stale Kafka registration in ZK (sleep 3 id to take some fresh air for ZK)
-sleep 3
+# Clean up stale Kafka registration in Zookeeper
 log "Checking for stale Kafka registration for Broker $ZK_ID..."
-zkCli.sh -server $MASTER_HOST:2181 delete /brokers/ids/$ZK_ID || true
-sleep 3
+NODE_EXISTS=$(zkCli.sh ls /brokers/ids/$ZK_ID 2>&1 | grep "Node does not exist" || true)
+if [ -z "$NODE_EXISTS" ]; then
+    zkCli.sh delete /brokers/ids/$ZK_ID     # will fail if /brokers/ids/$ZK_ID does not exist (=> wrap in "if NODE_EXISTS")
+fi
+
 
 # Kafka
 log "Starting Kafka Server..."
+sudo chown -R hadoop:hadoop $KAFKA_HOME/data     # fix issue when MacOS create volumes as "root"
 kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 # master logic
