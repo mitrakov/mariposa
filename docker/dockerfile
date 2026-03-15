@@ -16,6 +16,7 @@ RUN useradd --create-home --shell /bin/bash hadoop && \
     mkdir $HADOOP_HOME/dfs && \
     mkdir $HADOOP_HOME/logs && \
     mkdir $ZOOKEEPER_HOME/data && \
+    mkdir $KAFKA_HOME/data && \
     chown -R hadoop:hadoop $HADOOP_HOME && \
     chown -R hadoop:hadoop $HIVE_HOME && \
     chown -R hadoop:hadoop $HBASE_HOME && \
