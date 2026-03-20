@@ -98,6 +98,7 @@ check_env "HIVE_HOME"
 check_env "HBASE_HOME"
 check_env "ZOOKEEPER_HOME"
 check_env "KAFKA_HOME"
+check_env "AIRFLOW_HOME"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
@@ -125,7 +126,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         log "First time run. Initializing PostgreSQL database..."
         sudo -u postgres /usr/lib/postgresql/16/bin/initdb -D "$PG_DATA_DIR"        # initdb must be run as the postgres user
     else
-        log "OK: Database exists in $PG_DATA_DIR"
+        info "OK: Database exists in $PG_DATA_DIR"
     fi
     sudo service postgresql start
 
@@ -137,7 +138,18 @@ if [[ "$IS_MASTER" == "true" ]]; then
         sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE metastore_db TO hive;"
         log "PostgreSQL user 'hive' and database 'metastore_db' created."
     else
-        log "OK: user 'hive' exists"
+        info "OK: user 'hive' exists"
+    fi
+
+    USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='airflow';")
+    if [ "$USER_EXISTS" != "1" ]; then
+        log "First time run. Creating 'airflow' user and 'airflow_db'..."
+        sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD 'airflow_pass';"
+        sudo -u postgres psql --command "CREATE DATABASE airflow_db OWNER airflow;"
+        sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE airflow_db TO airflow;"
+        log "PostgreSQL user 'airflow' and database 'airflow_db' created."
+    else
+        info "OK: user 'airflow' exists"
     fi
 fi
 
@@ -154,11 +166,7 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 EOF
 
 # setup replication factor && switch default "/tmp/hadoop-hadoop/dfs/name" to stable path
-if [[ "$MASTER_HOST" == "localhost" ]] || [[ "$MASTER_HOST" == "127.0.0.1" ]]; then
-    DFS_REPLICATION=1
-else
-    DFS_REPLICATION=2
-fi
+DFS_REPLICATION=2
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
     <property>
@@ -353,7 +361,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         log "First time run. Formatting Namenode"
         hdfs namenode -format -nonInteractive
     else
-        log "OK: Namenode data detected."
+        info "OK: Namenode data detected."
     fi
 
     # start Hadoop/Spark
@@ -377,7 +385,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         log "First time run. Initializing Hive Metastore..."
         schematool -initSchema -dbType postgres
     else
-        log "OK: Hive Metastore detected"
+        info "OK: Hive Metastore detected"
     fi
     hive --service metastore &
 
@@ -387,8 +395,25 @@ if [[ "$IS_MASTER" == "true" ]]; then
         hdfs dfs -mkdir -p /spark/libs
         hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
     else
-        log "OK: Spark JARs already loaded into HDFS"
+        info "OK: Spark JARs already loaded into HDFS"
     fi
+
+
+    # apache Airflow
+    log "Starting Apache Airflow..."
+    export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:airflow_pass@localhost:5432/airflow_db"
+    export AIRFLOW__CORE__EXECUTOR=LocalExecutor
+
+    if [ ! -f "$AIRFLOW_HOME/airflow.cfg" ]; then
+        log "Migrating Airflow Database..."
+        airflow db migrate
+    fi
+
+    log "Starting Airflow..."
+    airflow api-server --port 8085 > /opt/airflow/api-server.log 2>&1 &
+    airflow scheduler     > $AIRFLOW_HOME/scheduler.log 2>&1 &
+    airflow dag-processor > $AIRFLOW_HOME/dag-processor.log 2>&1 &
+    airflow triggerer     > $AIRFLOW_HOME/triggerer.log 2>&1 &
 fi
 
 # infinite loop

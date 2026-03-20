@@ -10,6 +10,10 @@ ENV HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
 
+# ...
+ENV AIRFLOW_HOME=/opt/airflow
+ENV PATH=$PATH:/home/hadoop/.local/bin
+
 # add hadoop user; add to sudoers; create folder for hadoop data; chown folders to hadoop:hadoop
 RUN useradd --create-home --shell /bin/bash hadoop && \
     echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
@@ -17,12 +21,19 @@ RUN useradd --create-home --shell /bin/bash hadoop && \
     mkdir $HADOOP_HOME/logs && \
     mkdir $ZOOKEEPER_HOME/data && \
     mkdir $KAFKA_HOME/data && \
+    mkdir $AIRFLOW_HOME && \
     chown -R hadoop:hadoop $HADOOP_HOME && \
     chown -R hadoop:hadoop $HIVE_HOME && \
     chown -R hadoop:hadoop $HBASE_HOME && \
     chown -R hadoop:hadoop $ZOOKEEPER_HOME && \
-    chown -R hadoop:hadoop $KAFKA_HOME
+    chown -R hadoop:hadoop $KAFKA_HOME && \
+    chown -R hadoop:hadoop $AIRFLOW_HOME
 USER hadoop
+
+# install Apache Airflow
+RUN pip install "apache-airflow[celery]==3.0.6" --no-cache-dir --break-system-packages --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.0.6/constraints-3.12.txt"
+RUN pip install --no-cache-dir --break-system-packages psycopg2-binary asyncpg
+RUN pip install --no-cache-dir --break-system-packages apache-airflow-providers-apache-spark
 
 # SSH passwordless login for Hadoop
 RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && \
