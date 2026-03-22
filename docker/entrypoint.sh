@@ -408,7 +408,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     airflow db migrate
     airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
     
-    sleep 3
+    sleep 2
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi
 
