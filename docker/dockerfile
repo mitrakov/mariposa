@@ -39,5 +39,9 @@ RUN pip install --no-cache-dir --break-system-packages apache-airflow-providers-
 RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && \
     cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 
+# TODO: psycopg2 probably not needed, also check asyncpg
+# TODO, move up
+RUN mkdir -p $AIRFLOW_HOME/dags
+
 COPY entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

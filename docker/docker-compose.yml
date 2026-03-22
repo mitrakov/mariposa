@@ -13,6 +13,7 @@ services:
       - ~/hadoop/zk1_data:/opt/zookeeper/data
       - ~/hadoop/kafka1_data:/opt/kafka/data
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
+      - ~/hadoop/airflow_dags:/opt/airflow/dags
     ports:
       - "9870:9870"   # HDFS UI
       - "8085:8085"   # Airflow

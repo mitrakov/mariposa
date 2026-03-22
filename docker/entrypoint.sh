@@ -398,28 +398,20 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: Spark JARs already loaded into HDFS"
     fi
 
-
     # apache Airflow
     log "Starting Apache Airflow..."
-    export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:airflow_pass@localhost:5432/airflow_db"
-    export AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8085
-    export AIRFLOW__API__BASE_URL=http://localhost:8085
-    export AIRFLOW__API__PORT=8085
-    export AIRFLOW__CORE__EXECUTOR=LocalExecutor
-    export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085
-    export AIRFLOW__CORE__EXECUTION_API_SERVER_URL="http://localhost:8085/execution/"
-    
-    if [ ! -f "$AIRFLOW_HOME/airflow.cfg" ]; then
-        log "First time run. Migrating Airflow Database..."
-        airflow db migrate
-    fi
+    export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
+    export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
+    export AIRFLOW__API__BASE_URL=http://localhost:8085             # used by DAG executor
+    export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085    # used by DAG updater
+
+    airflow db migrate
     airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
     
-    sleep 6
+    sleep 3
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi
 
 # infinite loop
-sleep 1
 log "Done!"
 tail -f /dev/null
