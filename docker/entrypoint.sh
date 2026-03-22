@@ -402,18 +402,21 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # apache Airflow
     log "Starting Apache Airflow..."
     export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:airflow_pass@localhost:5432/airflow_db"
+    export AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8085
+    export AIRFLOW__API__BASE_URL=http://localhost:8085
+    export AIRFLOW__API__PORT=8085
     export AIRFLOW__CORE__EXECUTOR=LocalExecutor
-
+    export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085
+    export AIRFLOW__CORE__EXECUTION_API_SERVER_URL="http://localhost:8085/execution/"
+    
     if [ ! -f "$AIRFLOW_HOME/airflow.cfg" ]; then
-        log "Migrating Airflow Database..."
+        log "First time run. Migrating Airflow Database..."
         airflow db migrate
     fi
-
-    log "Starting Airflow..."
-    airflow api-server --port 8085 > /opt/airflow/api-server.log 2>&1 &
-    airflow scheduler     > $AIRFLOW_HOME/scheduler.log 2>&1 &
-    airflow dag-processor > $AIRFLOW_HOME/dag-processor.log 2>&1 &
-    airflow triggerer     > $AIRFLOW_HOME/triggerer.log 2>&1 &
+    airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
+    
+    sleep 6
+    cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi
 
 # infinite loop
