@@ -1,6 +1,3 @@
-// install for updated to 2.13 repo!
-mvn -Dspark.version=4.1.1 -Dscala.version=2.13.17 -Dhadoop-three.version=3.4.2 -Dscala.binary.version=2.13 -Dhbase.version=2.5.13 -DskipTests clean install
-
 import org.apache.spark.sql._
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
 import spark.implicits._
