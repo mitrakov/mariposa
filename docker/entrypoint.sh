@@ -200,6 +200,23 @@ EOF
 # spark.eventLog.*                 opt, write Spark logs to HDFS
 # spark.yarn.jars                  opt, use JARs directly from HDFS
 # spark.hadoop.hive.metastore.uris opt, HIVE support
+# spark.*.extraClassPath           opt, HBASE support
+export HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-common-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-protocol-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-protocol-shaded-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-server-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-mapreduce-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-shaded-miscellaneous-4.1.12.jar:\
+$HBASE_HOME/lib/hbase-shaded-protobuf-4.1.12.jar:\
+$HBASE_HOME/lib/hbase-shaded-netty-4.1.12.jar:\
+$HBASE_HOME/lib/hbase-unsafe-4.1.12.jar:\
+$HBASE_HOME/lib/protobuf-java-2.5.0.jar:\
+$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-api-1.49.0.jar:\
+$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-context-1.49.0.jar:\
+$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-semconv-1.29.0-alpha.jar:\
+$HBASE_HOME/lib/client-facing-thirdparty/slf4j-api-1.7.33.jar"
+
 cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
 spark.master                       yarn
 spark.history.fs.logDirectory      hdfs://$MASTER_HOST:9000/spark/logs
@@ -207,6 +224,8 @@ spark.eventLog.dir                 hdfs://$MASTER_HOST:9000/spark/logs
 spark.eventLog.enabled             true
 spark.yarn.jars                    hdfs:///spark/libs/*.jar
 spark.hadoop.hive.metastore.uris   thrift://$MASTER_HOST:9083
+spark.driver.extraClassPath        $HBASE_HOME/conf:$HBASE_LIBS
+spark.executor.extraClassPath      $HBASE_HOME/conf:$HBASE_LIBS
 EOF
 
 # setup Hive
@@ -389,15 +408,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
     hive --service metastore &
 
-    # opt: copy Spark libs to HDFS for better performance
-    if ! hdfs dfs -test -e /spark/libs; then
-        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
-        hdfs dfs -mkdir -p /spark/libs
-        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
-    else
-        info "OK: Spark JARs already loaded into HDFS"
-    fi
-
     # apache Airflow
     log "Starting Apache Airflow..."
     export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
@@ -410,6 +420,15 @@ if [[ "$IS_MASTER" == "true" ]]; then
     
     sleep 2
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
+
+    # opt: copy Spark libs to HDFS for better performance
+    if ! hdfs dfs -test -e /spark/libs; then
+        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
+        hdfs dfs -mkdir -p /spark/libs
+        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
+    else
+        info "OK: Spark JARs already loaded into HDFS"
+    fi
 fi
 
 # infinite loop
