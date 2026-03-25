@@ -41,6 +41,8 @@ RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && \
 
 # TODO, move up
 RUN mkdir -p $AIRFLOW_HOME/dags
+RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-spark-1.1.0.jar
+RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-spark-protocol-shaded-1.1.0.jar
 
 COPY entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

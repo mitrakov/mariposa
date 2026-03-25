@@ -3,7 +3,7 @@
 FROM eclipse-temurin:17
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
-# download Apache Spark 4.1.1
+# download Apache Spark 4.1.1 (uses Scala 2.13.17)
 ENV SPARK_HOME=/opt/spark
 RUN wget --output-document=- https://downloads.apache.org/spark/spark-4.1.1/spark-4.1.1-bin-hadoop3.tgz | \
     tar --extract --gzip --directory /opt && mv /opt/spark-4.1.1-bin-hadoop3 $SPARK_HOME
