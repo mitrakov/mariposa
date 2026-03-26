@@ -18,6 +18,7 @@ services:
       - "9870:9870"   # HDFS UI
       - "8085:8085"   # Airflow
       - "8088:8088"   # YARN UI
+      - "8888:8888"   # HUE
       - "18080:18080" # Spark History Server
       - "16010:16010" # HBase
 
