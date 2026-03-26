@@ -99,6 +99,7 @@ check_env "HBASE_HOME"
 check_env "ZOOKEEPER_HOME"
 check_env "KAFKA_HOME"
 check_env "AIRFLOW_HOME"
+check_env "HUE_HOME"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
@@ -166,12 +167,11 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 EOF
 
 # setup replication factor && switch default "/tmp/hadoop-hadoop/dfs/name" to stable path
-DFS_REPLICATION=2
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
     <property>
         <name>dfs.replication</name>
-        <value>$DFS_REPLICATION</value>
+        <value>2</value>
     </property>
     <property>
         <name>dfs.namenode.name.dir</name>
@@ -180,6 +180,11 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     <property>
         <name>dfs.datanode.data.dir</name>
         <value>$HADOOP_HOME/dfs/data</value>
+    </property>
+    <property>
+        <name>dfs.webhdfs.enabled</name>
+        <value>true</value>
+        <description>Enable WebHDFS for HUE</description>
     </property>
 </configuration>
 EOF
@@ -340,6 +345,33 @@ broker.id=$ZK_ID
 zookeeper.connect=$ZK_QUORUM
 EOF
 
+if [[ "$IS_MASTER" == "true" ]]; then
+    # setup Hue
+    cat <<EOF > $HUE_HOME/desktop/conf/hue.ini
+[desktop]
+  http_host=0.0.0.0
+  http_port=8888
+  secret_key=spark_hadoop_secret_key
+  time_zone=UTC
+
+[hadoop]
+  [[hdfs_clusters]]
+    [[[default]]]
+      fs_defaultfs=hdfs://$MASTER_HOST:9000
+      webhdfs_url=http://$MASTER_HOST:9870/webhdfs/v1
+
+  [[yarn_clusters]]
+    [[[default]]]
+      resourcemanager_host=$MASTER_HOST
+      resourcemanager_port=8032
+      submit_to=True
+
+[beeswax]
+  hive_server_host=$MASTER_HOST
+  hive_server_port=10000
+EOF
+fi
+
 
 
 # =====
@@ -391,6 +423,10 @@ if [[ "$IS_MASTER" == "true" ]]; then
     hdfs dfs -mkdir -p /spark/logs        # must-have
     log "Starting Spark History Server..."
     start-history-server.sh
+
+    # start HUE
+    log "Starting Hue..."
+    $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 &
 
     # start HBase
     log "Starting HBase..."
