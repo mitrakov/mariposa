@@ -20,15 +20,15 @@ RUN wget https://cdn.gethue.com/downloads/hue-4.11.0.tgz && \
 
 WORKDIR $HUE_HOME
 
-# 2. Patch Makefile.vars to allow Python > 3.9
+# Patch Makefile.vars to allow Python > 3.9
 RUN sed -i 's/ifeq ($(shell test $(MINOR_VER) -lt 8; echo $$?),0)/ifeq (0,1)/g' Makefile.vars && \
     sed -i 's/$(error "$(VER_ERR_MSG)")/true/g' Makefile.vars
 
-# 3. Prepare Python 3.11 venv
-RUN mkdir -p build/env && touch build/env/stamp
+# Prepare Python 3.11 venv
+RUN mkdir -p build/env
 RUN python3.11 -m venv build/env
 
-# Patch path bugs and remove problematic/unnecessary packages
+# Patch path bugs and remove broken packages
 RUN find desktop/core -name "*.txt" -exec sed -i 's|\${ROOT}|/opt/hue|g' {} +
 RUN sed -i '/slack-sdk==3.2.0/d' desktop/core/base_requirements.txt && \
     sed -i '/greenlet==/d' desktop/core/base_requirements.txt && \
@@ -37,14 +37,14 @@ RUN sed -i '/slack-sdk==3.2.0/d' desktop/core/base_requirements.txt && \
     sed -i '/numpy==1.23.1/d' desktop/core/requirements.txt && \
     sed -i '/pandas==1.4.2/d' desktop/core/requirements.txt
 
-# 4. Install broken Python dependencies
-RUN ./build/env/bin/pip install --upgrade pip setuptools==67.8.0 wheel
+# Install broken Python dependencies
+RUN ./build/env/bin/pip install --upgrade pip setuptools==67.8.0 wheel httplib2
 RUN ./build/env/bin/pip install greenlet PyYAML pure-sasl thrift-sasl numpy pandas
 
 # Install remaining requirements
 RUN ./build/env/bin/pip install -r desktop/core/requirements.txt
 
-# 5. Main Build using Python 3.11
+# Main Build using Python 3.11 using legacy OpenSSL lib
 RUN export NODE_OPTIONS=--openssl-legacy-provider && \
     make apps PYTHON_VER=python3.11 \
               SYS_PYTHON=/usr/local/bin/python3.11 \

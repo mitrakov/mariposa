@@ -1,66 +1,6 @@
 # docker build --tag mitrakov/hadoop:1.0.0 .
-FROM mitrakov/hadoop-tools:1.0.0
+FROM mitrakov/hadoop-base:1.0.0
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
-
-# extra env variables, keep it after massive downloads
-# the HADOOP_CONF_DIR is needed for Yarn
-ENV HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
-
-# must-have
-RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh
-RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
-
-# airflow home must be set before(!) installation
-ENV AIRFLOW_HOME=/opt/airflow
-ENV PATH=$PATH:/home/hadoop/.local/bin
-
-# add hadoop user; add to sudoers; create folder for hadoop data; chown folders to hadoop:hadoop
-RUN useradd --create-home --shell /bin/bash hadoop && \
-    echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
-    mkdir $HADOOP_HOME/dfs && \
-    mkdir $HADOOP_HOME/logs && \
-    mkdir $ZOOKEEPER_HOME/data && \
-    mkdir $KAFKA_HOME/data && \
-    mkdir $AIRFLOW_HOME && \
-    chown -R hadoop:hadoop $HADOOP_HOME && \
-    chown -R hadoop:hadoop $HIVE_HOME && \
-    chown -R hadoop:hadoop $HBASE_HOME && \
-    chown -R hadoop:hadoop $ZOOKEEPER_HOME && \
-    chown -R hadoop:hadoop $KAFKA_HOME && \
-    chown -R hadoop:hadoop $AIRFLOW_HOME
-USER hadoop
-
-# install Apache Airflow
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/python3.12 /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/python3 /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/pip3* /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/airflow /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/celery /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/gunicorn /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/flask /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/alembic /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/python3.12/ /usr/local/lib/python3.12/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/libpython3.12* /usr/local/lib/
-
-# SSH passwordless login for Hadoop
-RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && \
-    cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
-
-# TODO, move up, rm sudo
-RUN mkdir -p $AIRFLOW_HOME/dags
-RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-spark-1.1.0.jar
-RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-spark-protocol-shaded-1.1.0.jar
-
-ENV HUE_HOME=/opt/hue
-COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
-RUN sudo chown -R hadoop:hadoop $HUE_HOME
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/bin/python3.11 /usr/local/bin/python3.11
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/python3.11 /usr/local/lib/python3.11
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/libpython3.11* /usr/local/lib/
-RUN $HUE_HOME/build/env/bin/pip install httplib2
-
-# fix warnings: "SLF4J: Class path contains multiple SLF4J bindings."
-RUN rm /opt/hive/lib/log4j-slf4j-impl-2.17.2.jar /opt/hbase/lib/client-facing-thirdparty/log4j-slf4j-impl-2.17.2.jar
 
 COPY entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
