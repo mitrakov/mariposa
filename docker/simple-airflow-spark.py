@@ -1,4 +1,4 @@
-# first create a connection spark_default with host 'yarn'!
+# add it to /opt/airflow/dags
 import os
 import glob
 from airflow import DAG

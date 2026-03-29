@@ -30,10 +30,17 @@ RUN useradd --create-home --shell /bin/bash hadoop && \
     chown -R hadoop:hadoop $AIRFLOW_HOME
 USER hadoop
 
-# install Apache Airflow (both psycopg2 and asyncpg are necessary modules!)
-RUN pip install "apache-airflow[celery]==3.0.6" --no-cache-dir --break-system-packages --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.0.6/constraints-3.12.txt"
-RUN pip install --no-cache-dir --break-system-packages apache-airflow-providers-apache-spark
-RUN pip install --no-cache-dir --break-system-packages psycopg2-binary asyncpg
+# install Apache Airflow
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/python3.12 /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/python3 /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/pip3* /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/airflow /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/celery /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/gunicorn /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/flask /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/alembic /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/python3.12/ /usr/local/lib/python3.12/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/libpython3.12* /usr/local/lib/
 
 # SSH passwordless login for Hadoop
 RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && \
