@@ -230,8 +230,7 @@ $HBASE_HOME/lib/hbase-unsafe-4.1.12.jar:\
 $HBASE_HOME/lib/protobuf-java-2.5.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-api-1.49.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-context-1.49.0.jar:\
-$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-semconv-1.29.0-alpha.jar:\
-$HBASE_HOME/lib/client-facing-thirdparty/slf4j-api-1.7.33.jar"
+$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-semconv-1.29.0-alpha.jar"
 
 cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
 spark.master                       yarn
@@ -387,13 +386,6 @@ fi
 
 # =====
 
-# opt: disable log4j-slf4j-impl JARs that cause "SLF4J: Class path contains multiple SLF4J bindings."
-find $HIVE_HOME/lib/ -name "log4j-slf4j-impl-*.jar" | while read -r jar; do
-    sudo mv -v "$jar" "$jar.bak"
-done
-find $HBASE_HOME/lib/client-facing-thirdparty/ -name "log4j-slf4j-impl-*.jar" | while read -r jar; do
-    sudo mv -v "$jar" "$jar.bak"
-done
 
 # ZK
 log "Starting Zookeeper..."
@@ -469,7 +461,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     airflow db migrate
     airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
     
-    sleep 2
+    sleep 3
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 
     # start HUE ("cd" needed)
@@ -484,6 +476,10 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: Spark JARs already loaded into HDFS"
     fi
+
+    # opt: create a default user home for HUE
+    log "Creating HDFS directory: /user/hadoop"
+    hdfs dfs -mkdir -p /user/hadoop
 fi
 
 # infinite loop
