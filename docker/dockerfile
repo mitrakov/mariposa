@@ -47,11 +47,10 @@ RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-sp
 ENV HUE_HOME=/opt/hue
 COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
 RUN sudo chown -R hadoop:hadoop $HUE_HOME
-
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/bin/python3.9 /usr/local/bin/python3.9
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/python3.9 /usr/local/lib/python3.9
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/libpython3.9* /usr/local/lib/
-RUN /opt/hue/build/env/bin/pip install httplib2
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/bin/python3.10 /usr/local/bin/python3.10
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/python3.10 /usr/local/lib/python3.10
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/libpython3.10* /usr/local/lib/
+RUN $HUE_HOME/build/env/bin/pip install httplib2
 
 COPY entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
