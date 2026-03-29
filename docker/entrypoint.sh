@@ -162,6 +162,17 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
     <property>
         <name>fs.defaultFS</name>
         <value>hdfs://$MASTER_HOST:9000</value>
+        <description>give the datanodes address of the namenode</description>
+    </property>
+    <property>
+      <name>hadoop.proxyuser.hue.hosts</name>
+      <value>*</value>
+      <description>add permissions for HUE</description>
+    </property>
+    <property>
+      <name>hadoop.proxyuser.hue.groups</name>
+      <value>*</value>
+      <description>add permissions for HUE</description>
     </property>
 </configuration>
 EOF
@@ -402,6 +413,14 @@ log "Starting Kafka Server..."
 sudo chown -R hadoop:hadoop $KAFKA_HOME/data     # fix issue when MacOS create volumes as "root"
 kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
+# HUE ("cd" needed)
+if [[ "$IS_MASTER" == "true" ]]; then
+  # fix obsolete python decodestring/encodestring
+  sed -i "s/_b64_decode_fn = getattr(base64, 'decodebytes', base64.decodestring)/_b64_decode_fn = base64.decodebytes/g" /opt/hue/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
+  sed -i "s/_b64_encode_fn = getattr(base64, 'encodebytes', base64.encodestring)/_b64_encode_fn = base64.encodebytes/g" /opt/hue/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
+  (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)
+fi
+
 # master logic
 if [[ "$IS_MASTER" == "true" ]]; then
     # parse worker hosts
@@ -423,10 +442,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     hdfs dfs -mkdir -p /spark/logs        # must-have
     log "Starting Spark History Server..."
     start-history-server.sh
-
-    # start HUE
-    log "Starting Hue..."
-    $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 &
 
     # start HBase
     log "Starting HBase..."
@@ -456,6 +471,10 @@ if [[ "$IS_MASTER" == "true" ]]; then
     
     sleep 2
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
+
+    # start HUE ("cd" needed)
+    log "Starting Hue..."
+    (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
 
     # opt: copy Spark libs to HDFS for better performance
     if ! hdfs dfs -test -e /spark/libs; then
