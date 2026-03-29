@@ -92,19 +92,19 @@ function check_java() {
 
 
 check_env "JAVA_HOME"
-check_env "HADOOP_HOME"
 check_env "SPARK_HOME"
+check_env "HADOOP_HOME"
 check_env "HIVE_HOME"
 check_env "HBASE_HOME"
 check_env "ZOOKEEPER_HOME"
 check_env "KAFKA_HOME"
 check_env "AIRFLOW_HOME"
 check_env "HUE_HOME"
+check_env "HADOOP_CONF_DIR"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "ZK_ID"
-check_env "HADOOP_CONF_DIR"
 
 check_os
 check_hostname
@@ -177,20 +177,23 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 </configuration>
 EOF
 
-# setup replication factor && switch default "/tmp/hadoop-hadoop/dfs/name" to stable path
+# minimal HDFS setup
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
     <property>
         <name>dfs.replication</name>
         <value>2</value>
+        <description>replication factor (default 3)</description>
     </property>
     <property>
         <name>dfs.namenode.name.dir</name>
         <value>$HADOOP_HOME/dfs/name</value>
+        <description>switch default "/tmp/hadoop-hadoop/dfs/name" to stable path</description>
     </property>
     <property>
         <name>dfs.datanode.data.dir</name>
         <value>$HADOOP_HOME/dfs/data</value>
+        <description>switch default "/tmp/hadoop-hadoop/dfs/data" to stable path</description>
     </property>
     <property>
         <name>dfs.webhdfs.enabled</name>
@@ -206,6 +209,7 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     <property>
         <name>yarn.resourcemanager.hostname</name>
         <value>$MASTER_HOST</value>
+        <description>Tell Yarn the namenode address</description>
     </property>
 </configuration>
 EOF
@@ -355,8 +359,8 @@ broker.id=$ZK_ID
 zookeeper.connect=$ZK_QUORUM
 EOF
 
+# setup Hue
 if [[ "$IS_MASTER" == "true" ]]; then
-    # setup Hue
     cat <<EOF > $HUE_HOME/desktop/conf/hue.ini
 [desktop]
   http_host=0.0.0.0
@@ -382,9 +386,42 @@ if [[ "$IS_MASTER" == "true" ]]; then
 EOF
 fi
 
+# opt: add a simple Spark DAG to Airflow
+if [[ "$IS_MASTER" == "true" ]]; then
+    cat <<EOF > $AIRFLOW_HOME/dags/spark_connection_test.py
+import os
+import glob
+from airflow import DAG
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+from datetime import datetime
+
+# Helper to find the examples JAR dynamically
+SPARK_HOME = os.getenv('SPARK_HOME', '/opt/spark')
+JAR_PATTERN = f"{SPARK_HOME}/examples/jars/spark-examples_*.jar"
+found_jars = glob.glob(JAR_PATTERN)
+EXAMPLES_JAR = found_jars[0] if found_jars else "NOT_FOUND"
+
+with DAG(dag_id='spark_connection_test') as dag:
+    submit_job = SparkSubmitOperator(
+        task_id='submit_spark_pi',
+        application=EXAMPLES_JAR,
+        java_class='org.apache.spark.examples.SparkPi',
+        application_args=['10'],
+        conf={
+            "spark.master": "yarn",
+            "spark.submit.deployMode": "client",
+            "spark.executor.memory": "512m",
+            "spark.driver.memory": "512m"
+        },
+        name='airflow-spark-test-pi'
+    )
+EOF
+fi
 
 
-# =====
+# =========================
+# === starting services ===
+# =========================
 
 
 # ZK
@@ -399,19 +436,10 @@ if [ -z "$NODE_EXISTS" ]; then
     zkCli.sh delete /brokers/ids/$ZK_ID     # will fail if /brokers/ids/$ZK_ID does not exist (=> wrap in "if NODE_EXISTS")
 fi
 
-
 # Kafka
 log "Starting Kafka Server..."
 sudo chown -R hadoop:hadoop $KAFKA_HOME/data     # fix issue when MacOS create volumes as "root"
 kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
-
-# HUE ("cd" needed)
-if [[ "$IS_MASTER" == "true" ]]; then
-  # fix obsolete python decodestring/encodestring
-  sed -i "s/_b64_decode_fn = getattr(base64, 'decodebytes', base64.decodestring)/_b64_decode_fn = base64.decodebytes/g" /opt/hue/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
-  sed -i "s/_b64_encode_fn = getattr(base64, 'encodebytes', base64.encodestring)/_b64_encode_fn = base64.encodebytes/g" /opt/hue/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
-  (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)
-fi
 
 # master logic
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -460,13 +488,15 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
     airflow db migrate
     airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
-    
-    sleep 3
-    cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 
-    # start HUE ("cd" needed)
-    log "Starting Hue..."
+    # HUE
+    log "Starting HUE..."
+    # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py
+    # simple "if (!migrated) then migrate" doesn't work
+    (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
     (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
+    # opt: create a default user home for HUE to fix warnings on the web-page
+    hdfs dfs -mkdir -p /user/hadoop
 
     # opt: copy Spark libs to HDFS for better performance
     if ! hdfs dfs -test -e /spark/libs; then
@@ -477,9 +507,9 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: Spark JARs already loaded into HDFS"
     fi
 
-    # opt: create a default user home for HUE
-    log "Creating HDFS directory: /user/hadoop"
-    hdfs dfs -mkdir -p /user/hadoop
+    # TODO: should be visible only first time
+    warn "Airflow password:"
+    cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi
 
 # infinite loop
