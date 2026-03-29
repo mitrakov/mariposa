@@ -1,38 +1,52 @@
 # docker build --file hue.dockerfile --tag mitrakov/hadoop-hue:1.0.0 .
-FROM python:3.9-slim-bookworm AS builder
+FROM python:3.10-slim-bookworm AS builder
 
-# install hundreds of tools (TODO: check)
-RUN apt update && apt install -y make gcc g++ wget git rsync curl ca-certificates gnupg python3-dev libkrb5-dev libxml2-dev libxslt1-dev zlib1g-dev libldap2-dev libsasl2-dev libssl-dev libffi-dev libsasl2-dev libkrb5-dev
-# install node.js (needed)
+# Install build dependencies
+RUN apt update && apt install -y \
+    make gcc g++ wget git rsync curl ca-certificates gnupg \
+    python3-dev libkrb5-dev libxml2-dev libxslt1-dev zlib1g-dev \
+    libldap2-dev libsasl2-dev libssl-dev libffi-dev
+
+# Install Node.js 18 (Required for Hue's static assets)
 RUN mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt update && apt install -y nodejs
 
-# download HUE
+# Download HUE
 ENV HUE_HOME=/opt/hue
-RUN wget https://cdn.gethue.com/downloads/hue-4.11.0.tgz && tar -xvf hue-4.11.0.tgz && mv hue-4.11.0 $HUE_HOME
+RUN wget https://cdn.gethue.com/downloads/hue-4.11.0.tgz && \
+    tar -xvf hue-4.11.0.tgz && mv hue-4.11.0 $HUE_HOME
 
-# prepare python venv
 WORKDIR $HUE_HOME
-RUN export ROOT=$HUE_HOME
-RUN mkdir -p build/env && touch build/env/stamp
-RUN python3.9 -m venv build/env
 
-# patch bugs, remove slack
+# 2. Patch Makefile.vars to allow Python > 3.9
+RUN sed -i 's/ifeq ($(shell test $(MINOR_VER) -lt 8; echo $$?),0)/ifeq (0,1)/g' Makefile.vars && \
+    sed -i 's/$(error "$(VER_ERR_MSG)")/true/g' Makefile.vars
+
+# 3. Prepare Python 3.10 venv
+RUN mkdir -p build/env && touch build/env/stamp
+RUN python3.10 -m venv build/env
+
+# Patch path bugs and remove problematic/unnecessary packages
 RUN find desktop/core -name "*.txt" -exec sed -i 's|\${ROOT}|/opt/hue|g' {} +
 RUN sed -i '/slack-sdk==3.2.0/d' desktop/core/base_requirements.txt && \
     sed -i '/greenlet==/d' desktop/core/base_requirements.txt && \
-    sed -i '/sasl==/d' desktop/core/base_requirements.txt
+    sed -i '/sasl==/d' desktop/core/base_requirements.txt && \
+    sed -i '/PyYAML==5.4.1/d' desktop/core/base_requirements.txt
 
-# install python dependencies
-RUN ./build/env/bin/pip install --upgrade pip setuptools==58.0.0 wheel
-RUN ./build/env/bin/pip install --no-build-isolation greenlet sasl
+# 4. Install Python dependencies with specific versions for 3.10 compatibility
+RUN ./build/env/bin/pip install --upgrade pip setuptools==65.5.0 wheel
+
+# First install broken packages manually
+RUN ./build/env/bin/pip install greenlet sasl PyYAML
+
+# Install remaining requirements
 RUN ./build/env/bin/pip install -r desktop/core/requirements.txt
 
-# main build
+# 5. Main Build using Python 3.10
 RUN export NODE_OPTIONS=--openssl-legacy-provider && \
-    make apps PYTHON_VER=python3.9 \
-              SYS_PYTHON=/usr/local/bin/python3.9 \
-              ENV_PYTHON=/opt/hue/build/env/bin/python3.9 \
+    make apps PYTHON_VER=python3.10 \
+              SYS_PYTHON=/usr/local/bin/python3.10 \
+              ENV_PYTHON=/opt/hue/build/env/bin/python3.10 \
               NPM_BIN=$(which npm)
