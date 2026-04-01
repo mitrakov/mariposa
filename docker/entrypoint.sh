@@ -480,23 +480,31 @@ if [[ "$IS_MASTER" == "true" ]]; then
     hive --service metastore &
 
     # apache Airflow
-    log "Starting Apache Airflow..."
-    export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
-    export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
-    export AIRFLOW__API__BASE_URL=http://localhost:8085             # used by DAG executor
-    export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085    # used by DAG updater
+    if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
+        log "Starting Apache Airflow..."
+        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
+        export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
+        export AIRFLOW__API__BASE_URL=http://localhost:8085             # used by DAG executor
+        export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085    # used by DAG updater
 
-    airflow db migrate
-    airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
+        airflow db migrate
+        airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
+    else
+        warn "SKIP_AIRFLOW is true => Airflow is not started"
+    fi
 
     # HUE
-    log "Starting HUE..."
-    # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py
-    # simple "if (!migrated) then migrate" doesn't work
-    (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
-    (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
-    # opt: create a default user home for HUE to fix warnings on the web-page
-    hdfs dfs -mkdir -p /user/hadoop
+    if [[ ${SKIP_HUE:-} != "true" ]]; then
+        log "Starting HUE..."
+        # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py
+        # simple "if (!migrated) then migrate" doesn't work
+        (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
+        (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
+        # opt: create a default user home for HUE to fix warnings on the web-page
+        hdfs dfs -mkdir -p /user/hadoop
+    else
+        warn "SKIP_HUE is true => HUE is not started"
+    fi
 
     # opt: copy Spark libs to HDFS for better performance
     if ! hdfs dfs -test -e /spark/libs; then
