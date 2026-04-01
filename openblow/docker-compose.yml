@@ -1,0 +1,36 @@
+services:
+  openblow:
+    image: mitrakov/openblow:1.0.0
+    hostname: openblow.host
+    environment:
+      - IS_MASTER=true
+      - MASTER_HOST=openblow.host
+      - WORKER_HOSTS=worker1.host
+      - ZK_ID=1
+      - HIVE_DB_PASSWORD=12345
+    volumes:
+      - ~/openblow/namenode_data:/opt/hadoop/dfs/name
+      - ~/openblow/zk1_data:/opt/zookeeper/data
+      - ~/openblow/kafka1_data:/opt/kafka/data
+      - ~/openblow/postgres_data:/var/lib/postgresql/16/main
+      - ~/openblow/wms:/home/hadoop/wms
+    ports:
+      - "9870:9870"   # HDFS UI
+      - "8088:8088"   # YARN UI
+      - "18080:18080" # Spark History Server
+      - "16010:16010" # HBase
+
+  worker1:
+    image: mitrakov/openblow:1.0.0
+    hostname: worker1.host
+    environment:
+      - IS_MASTER=false
+      - MASTER_HOST=openblow.host
+      - WORKER_HOSTS=worker1.host
+      - ZK_ID=2
+    volumes:
+      - ~/openblow/datanode1_data:/opt/hadoop/dfs/data
+      - ~/openblow/zk2_data:/opt/zookeeper/data
+      - ~/openblow/kafka2_data:/opt/kafka/data
+    ports:
+      - "8042:8042"   # NodeManager

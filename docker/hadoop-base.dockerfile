@@ -50,7 +50,7 @@ RUN wget --output-document=- https://downloads.apache.org/kafka/3.9.2/kafka_2.13
 # Update PATH in your main Dockerfile or here
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin:$KAFKA_HOME/bin
 
-# install sudo to start services, ssh for Hadoop, postgresql for Hive Metastore (pin version 16), iproute/mc: optional
+# install sudo to start services, ssh for Hadoop, postgresql for Hive Metastore and Airflow (pin version 16), iproute/mc: optional
 RUN apt update && apt install -y sudo openssh-server postgresql-16 iproute2 mc && apt clean
 
 # copy-paste Apache Airflow

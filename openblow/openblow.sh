@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail  # exit on any error, undefined variable, or pipe failure
 
-
-
-
-
-# TODO: Hive is too old!
-
-
-
-
 # helpers
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -107,8 +98,6 @@ check_env "HIVE_HOME"
 check_env "HBASE_HOME"
 check_env "ZOOKEEPER_HOME"
 check_env "KAFKA_HOME"
-check_env "AIRFLOW_HOME"
-check_env "HUE_HOME"
 check_env "HADOOP_CONF_DIR"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
@@ -150,17 +139,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: user 'hive' exists"
     fi
-
-    USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='airflow';")
-    if [ "$USER_EXISTS" != "1" ]; then
-        log "First time run. Creating 'airflow' user and 'airflow_db'..."
-        sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD 'airflow_pass';"
-        sudo -u postgres psql --command "CREATE DATABASE airflow_db OWNER airflow;"
-        sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE airflow_db TO airflow;"
-        log "PostgreSQL user 'airflow' and database 'airflow_db' created."
-    else
-        info "OK: user 'airflow' exists"
-    fi
 fi
 
 log "Creating configs..."
@@ -172,16 +150,6 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
         <name>fs.defaultFS</name>
         <value>hdfs://$MASTER_HOST:9000</value>
         <description>give the datanodes address of the namenode</description>
-    </property>
-    <property>
-      <name>hadoop.proxyuser.hue.hosts</name>
-      <value>*</value>
-      <description>add permissions for HUE</description>
-    </property>
-    <property>
-      <name>hadoop.proxyuser.hue.groups</name>
-      <value>*</value>
-      <description>add permissions for HUE</description>
     </property>
 </configuration>
 EOF
@@ -204,11 +172,6 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
         <value>$HADOOP_HOME/dfs/data</value>
         <description>switch default "/tmp/hadoop-hadoop/dfs/data" to stable path</description>
     </property>
-    <property>
-        <name>dfs.webhdfs.enabled</name>
-        <value>true</value>
-        <description>Enable WebHDFS for HUE</description>
-    </property>
 </configuration>
 EOF
 
@@ -230,20 +193,16 @@ EOF
 # spark.yarn.jars                  opt, use JARs directly from HDFS
 # spark.hadoop.hive.metastore.uris opt, HIVE support
 # spark.*.extraClassPath           opt, HBASE support
-export HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-common-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-protocol-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-protocol-shaded-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-server-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-mapreduce-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-shaded-miscellaneous-4.1.12.jar:\
-$HBASE_HOME/lib/hbase-shaded-protobuf-4.1.12.jar:\
-$HBASE_HOME/lib/hbase-shaded-netty-4.1.12.jar:\
-$HBASE_HOME/lib/hbase-unsafe-4.1.12.jar:\
-$HBASE_HOME/lib/protobuf-java-2.5.0.jar:\
-$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-api-1.49.0.jar:\
-$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-context-1.49.0.jar:\
-$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-semconv-1.29.0-alpha.jar"
+export HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-common-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-protocol-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-protocol-shaded-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-server-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-mapreduce-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-shaded-miscellaneous-3.5.1.jar:\
+$HBASE_HOME/lib/hbase-shaded-protobuf-3.5.1.jar:\
+$HBASE_HOME/lib/hbase-shaded-netty-3.5.1.jar:\
+$HBASE_HOME/lib/protobuf-java-2.5.0.jar:"
 
 cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
 spark.master                       yarn
@@ -368,64 +327,6 @@ broker.id=$ZK_ID
 zookeeper.connect=$ZK_QUORUM
 EOF
 
-# setup Hue
-if [[ "$IS_MASTER" == "true" ]]; then
-    cat <<EOF > $HUE_HOME/desktop/conf/hue.ini
-[desktop]
-  http_host=0.0.0.0
-  http_port=8888
-  secret_key=spark_hadoop_secret_key
-  time_zone=UTC
-
-[hadoop]
-  [[hdfs_clusters]]
-    [[[default]]]
-      fs_defaultfs=hdfs://$MASTER_HOST:9000
-      webhdfs_url=http://$MASTER_HOST:9870/webhdfs/v1
-
-  [[yarn_clusters]]
-    [[[default]]]
-      resourcemanager_host=$MASTER_HOST
-      resourcemanager_port=8032
-      submit_to=True
-
-[beeswax]
-  hive_server_host=$MASTER_HOST
-  hive_server_port=10000
-EOF
-fi
-
-# opt: add a simple Spark DAG to Airflow
-if [[ "$IS_MASTER" == "true" ]]; then
-    cat <<EOF > $AIRFLOW_HOME/dags/spark_connection_test.py
-import os
-import glob
-from airflow import DAG
-from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
-from datetime import datetime
-
-# Helper to find the examples JAR dynamically
-SPARK_HOME = os.getenv('SPARK_HOME', '/opt/spark')
-JAR_PATTERN = f"{SPARK_HOME}/examples/jars/spark-examples_*.jar"
-found_jars = glob.glob(JAR_PATTERN)
-EXAMPLES_JAR = found_jars[0] if found_jars else "NOT_FOUND"
-
-with DAG(dag_id='spark_connection_test') as dag:
-    submit_job = SparkSubmitOperator(
-        task_id='submit_spark_pi',
-        application=EXAMPLES_JAR,
-        java_class='org.apache.spark.examples.SparkPi',
-        application_args=['10'],
-        conf={
-            "spark.master": "yarn",
-            "spark.submit.deployMode": "client",
-            "spark.executor.memory": "512m",
-            "spark.driver.memory": "512m"
-        },
-        name='airflow-spark-test-pi'
-    )
-EOF
-fi
 
 
 # =========================
@@ -439,11 +340,11 @@ zkServer.sh start
 sleep 2    # allow zk to start
 
 # Clean up stale Kafka registration in Zookeeper
-log "Checking for stale Kafka registration for Broker $ZK_ID..."
-NODE_EXISTS=$(zkCli.sh ls /brokers/ids/$ZK_ID 2>&1 | grep "Node does not exist" || true)
-if [ -z "$NODE_EXISTS" ]; then
-    zkCli.sh delete /brokers/ids/$ZK_ID     # will fail if /brokers/ids/$ZK_ID does not exist (=> wrap in "if NODE_EXISTS")
-fi
+# log "Checking for stale Kafka registration for Broker $ZK_ID..."
+# NODE_EXISTS=$(zkCli.sh ls /brokers/ids/$ZK_ID 2>&1 | grep "Node does not exist" || true)
+# if [ -z "$NODE_EXISTS" ]; then
+#     zkCli.sh delete /brokers/ids/$ZK_ID     # will fail if /brokers/ids/$ZK_ID does not exist (=> wrap in "if NODE_EXISTS")
+# fi
 
 # Kafka
 log "Starting Kafka Server..."
@@ -488,34 +389,8 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
     hive --service metastore &
 
-    # apache Airflow
-    if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
-        log "Starting Apache Airflow..."
-        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
-        export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
-        export AIRFLOW__API__BASE_URL=http://localhost:8085             # used by DAG executor
-        export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085    # used by DAG updater
-
-        airflow db migrate
-        airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
-    else
-        warn "SKIP_AIRFLOW is true => Airflow is not started"
-    fi
-
-    # HUE
-    if [[ ${SKIP_HUE:-} != "true" ]]; then
-        log "Starting HUE..."
-        # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py
-        # simple "if (!migrated) then migrate" doesn't work
-        (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
-        (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
-        # opt: create a default user home for HUE to fix warnings on the web-page
-        hdfs dfs -mkdir -p /user/hadoop
-    else
-        warn "SKIP_HUE is true => HUE is not started"
-    fi
-
     # opt: copy Spark libs to HDFS for better performance
+    sleep 3
     if ! hdfs dfs -test -e /spark/libs; then
         log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
         hdfs dfs -mkdir -p /spark/libs
@@ -523,10 +398,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: Spark JARs already loaded into HDFS"
     fi
-
-    # TODO: should be visible only first time
-    warn "Airflow password:"
-    cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi
 
 # infinite loop
