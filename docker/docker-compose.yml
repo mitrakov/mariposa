@@ -8,6 +8,8 @@ services:
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=1
       - HIVE_DB_PASSWORD=12345
+      - SKIP_HUE=true
+      - SKIP_AIRFLOW=true
     volumes:
       - ~/hadoop/namenode_data:/opt/hadoop/dfs/name
       - ~/hadoop/zk1_data:/opt/zookeeper/data
