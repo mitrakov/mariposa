@@ -2,7 +2,6 @@
 FROM mitrakov/openblow-base:1.0.0
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
-# ADD the Scala 2.12 compatible versions (Check Maven Central for these)
 RUN wget --directory-prefix $SPARK_HOME/jars/ https://repo1.maven.org/maven2/org/apache/hbase/connectors/spark/hbase-spark/1.0.1/hbase-spark-1.0.1.jar
 RUN wget --directory-prefix $SPARK_HOME/jars/ https://repo1.maven.org/maven2/org/apache/hbase/connectors/spark/hbase-spark-protocol/1.0.1/hbase-spark-protocol-1.0.1.jar
 

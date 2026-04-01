@@ -389,8 +389,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
     hive --service metastore &
 
-    # opt: copy Spark libs to HDFS for better performance
+    # create a home dir
     sleep 3
+    hdfs dfs -mkdir /hadoop
+
+    # opt: copy Spark libs to HDFS for better performance
     if ! hdfs dfs -test -e /spark/libs; then
         log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
         hdfs dfs -mkdir -p /spark/libs

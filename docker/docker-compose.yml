@@ -11,7 +11,7 @@ services:
       - SKIP_HUE=true
       - SKIP_AIRFLOW=true
     volumes:
-      - ~/hadoop/namenode_data:/opt/hadoop/dfs/name
+      - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
       - ~/hadoop/zk1_data:/opt/zookeeper/data
       - ~/hadoop/kafka1_data:/opt/kafka/data
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
@@ -33,7 +33,7 @@ services:
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=2
     volumes:
-      - ~/hadoop/datanode1_data:/opt/hadoop/dfs/data
+      - ~/hadoop/hdfs2_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk2_data:/opt/zookeeper/data
       - ~/hadoop/kafka2_data:/opt/kafka/data
     ports:
@@ -48,7 +48,7 @@ services:
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=3
     volumes:
-      - ~/hadoop/datanode2_data:/opt/hadoop/dfs/data
+      - ~/hadoop/hdfs3_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk3_data:/opt/zookeeper/data
       - ~/hadoop/kafka3_data:/opt/kafka/data
     ports:
