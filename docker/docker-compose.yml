@@ -16,6 +16,7 @@ services:
       - ~/hadoop/kafka1_data:/opt/kafka/data
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
       - ~/hadoop/airflow_dags:/opt/airflow/dags
+      - ~/hadoop/workspace:/home/hadoop/workspace
     ports:
       - "9870:9870"   # HDFS UI
       - "8085:8085"   # Airflow
