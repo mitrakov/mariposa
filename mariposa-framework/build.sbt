@@ -1,5 +1,5 @@
 version := "1.0.0"
-scalaVersion := "2.13.17"
+scalaVersion := "2.13.17" // match Spark 4.1.1
 
 val sparkVersion = "4.1.1"
 
@@ -15,7 +15,7 @@ lazy val root = (project in file("."))
       ("org.apache.hbase.connectors.spark" % "hbase-spark" % "1.1.0").exclude("org.glassfish", "javax.el"),
       "org.apache.hbase.connectors.spark" % "hbase-spark-protocol-shaded" % "1.1.0",
     ),
-    assembly / mainClass := Some("com.mitrakoff.mariposa.Main"),
+    assembly / mainClass := Some("com.mitrakoff.mariposa.Kafka2Hive"),
     assembly / assemblyMergeStrategy := {
       case PathList("META-INF", xs*) =>
         xs match {

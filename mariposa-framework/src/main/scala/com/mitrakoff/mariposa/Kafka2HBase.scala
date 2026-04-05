@@ -6,7 +6,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.streaming.Trigger
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
 
-object Main {
+object Kafka2HBase {
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder()
       .appName("KafkaToHBase-Mariposa")
@@ -67,5 +67,7 @@ object Main {
 
 // hbase shell: create 'sensor_data', 'cf1'
 // kafka-topics.sh --bootstrap-server localhost:9092 --create --topic telemetry
+// spark-submit mariposa-framework-assembly-1.0.0.jar
 // kafka-console-producer.sh --bootstrap-server localhost:9092 --topic telemetry
 // {"rowkey": "sensor_001", "metric": "temperature", "value": "24.5"}
+// hbase shell: scan 'sensor_data'
