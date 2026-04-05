@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail  # exit on any error, undefined variable, or pipe failure
 
-
-
-
-
-# TODO: Hive is too old!
-
-
-
-
 # helpers
 RED='\033[0;31m'
 GREEN='\033[0;32m'
