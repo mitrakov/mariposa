@@ -1,4 +1,4 @@
-# docker build --file hadoop-base.dockerfile --tag mitrakov/hadoop-base:1.0.0 .
+# docker build --file hadoop-base.dockerfile --tag mitrakov/hadoop-base:1.0.0 . && say hola
 # java 17 is min for Spark 4.1.1
 FROM eclipse-temurin:17
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
@@ -56,8 +56,8 @@ COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/python3 /usr/local/bin/
 COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/pip3* /usr/local/bin/
 COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/airflow /usr/local/bin/
 COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/celery /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/gunicorn /usr/local/bin/
-COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/flask /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/uvicorn /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/fastapi /usr/local/bin/
 COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/alembic /usr/local/bin/
 COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/python3.12/ /usr/local/lib/python3.12/
 COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/libpython3.12* /usr/local/lib/

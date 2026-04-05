@@ -520,6 +520,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # TODO: should be visible only first time
+    sleep 1
     warn "Airflow password:"
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi

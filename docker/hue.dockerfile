@@ -1,4 +1,4 @@
-# docker build --file hue.dockerfile --tag mitrakov/hadoop-hue:1.0.0 .
+# docker build --file hue.dockerfile --tag mitrakov/hadoop-hue:1.0.0 . && say hola
 FROM python:3.11-slim-bookworm AS builder
 
 # Install build dependencies
