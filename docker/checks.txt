@@ -31,8 +31,8 @@ get /app_config
 
 
 === kafka ===
-kafka-topics.sh --create --topic mytopic --bootstrap-server namenode.host:9092
-kafka-topics.sh --list --bootstrap-server namenode.host:9092
-kafka-console-producer.sh --topic mytopic --bootstrap-server namenode.host:9092
+kafka-topics.sh --create --topic mytopic --bootstrap-server localhost:9092
+kafka-topics.sh --list --bootstrap-server localhost:9092
+kafka-console-producer.sh --topic mytopic --bootstrap-server localhost:9092
 ...
-kafka-console-consumer.sh --topic mytopic --from-beginning --bootstrap-server namenode.host:9092
+kafka-console-consumer.sh --topic mytopic --from-beginning --bootstrap-server localhost:9092
