@@ -72,4 +72,4 @@ object Kafka2HBase {
   kafka-console-producer.sh --bootstrap-server localhost:9092 --topic telemetry
   {"rowkey": "sensor_001", "metric": "temperature", "value": "24.5"}
   hbase shell: scan 'sensor_data';
-/*
+*/

@@ -22,18 +22,14 @@ RUN wget --output-document=- https://archive.apache.org/dist/hive/hive-4.1.0/apa
     tar --extract --gzip --directory /opt && mv /opt/apache-hive-4.1.0-bin $HIVE_HOME
 # download a newer Postgres driver because std Hive driver it too old and doesn't support 'scram-sha-256'
 RUN wget --directory-prefix $HIVE_HOME/lib https://jdbc.postgresql.org/download/postgresql-42.7.10.jar
-# fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
-# RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
 
-# download Apache HBase 2.5.13 (do NOT use 2.6.4, it contains a bug with WAL replay)
+# download Apache HBase 2.5.13 (2.5.13 is a latest stable release, do NOT use 2.6.4, it contains a bug with WAL replay)
 ENV HBASE_HOME=/opt/hbase
 RUN wget --output-document=- https://downloads.apache.org/hbase/2.5.13/hbase-2.5.13-bin.tar.gz | \
     tar --extract --gzip --directory /opt && mv /opt/hbase-2.5.13 $HBASE_HOME
 # add HBase-Spark connector
 RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-spark-1.1.0.jar
 RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-spark-protocol-shaded-1.1.0.jar
-# fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
-RUN rm $HBASE_HOME/lib/client-facing-thirdparty/log4j-slf4j-impl-2.17.2.jar
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
 
@@ -74,6 +70,10 @@ COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/python3.11 /usr/local/lib/p
 COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/libpython3.11* /usr/local/lib/
 RUN sed -i "s/_b64_decode_fn = getattr(base64, 'decodebytes', base64.decodestring)/_b64_decode_fn = base64.decodebytes/g" $HUE_HOME/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
 RUN sed -i "s/_b64_encode_fn = getattr(base64, 'encodebytes', base64.encodestring)/_b64_encode_fn = base64.encodebytes/g" $HUE_HOME/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
+
+# fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
+RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
+RUN rm $HBASE_HOME/lib/client-facing-thirdparty/log4j-slf4j-impl-*.jar
 
 # create user 'hadoop' and add it to sudoers (w/o password)
 RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
