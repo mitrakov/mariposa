@@ -229,6 +229,8 @@ EOF
 # spark.eventLog.*                 opt, write Spark logs to HDFS
 # spark.yarn.jars                  opt, use JARs directly from HDFS
 # spark.hadoop.hive.metastore.uris opt, HIVE support
+# spark.sql.hive.metastore.version opt, specify Metastore version for Hive
+# spark.sql.hive.metastore.jars    opt, tell Hive to take JARs from this folder
 # spark.*.extraClassPath           opt, HBASE support
 export HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.13.jar:\
 $HBASE_HOME/lib/hbase-common-2.5.13.jar:\
@@ -252,6 +254,8 @@ spark.eventLog.dir                 hdfs://$MASTER_HOST:9000/spark/logs
 spark.eventLog.enabled             true
 spark.yarn.jars                    hdfs:///spark/libs/*.jar
 spark.hadoop.hive.metastore.uris   thrift://$MASTER_HOST:9083
+spark.sql.hive.metastore.version   4.1.0
+spark.sql.hive.metastore.jars      $HIVE_HOME/lib/*
 spark.driver.extraClassPath        $HBASE_HOME/conf:$HBASE_LIBS
 spark.executor.extraClassPath      $HBASE_HOME/conf:$HBASE_LIBS
 EOF

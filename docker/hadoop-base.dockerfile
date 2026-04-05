@@ -16,14 +16,14 @@ RUN wget --output-document=- https://downloads.apache.org/hadoop/common/hadoop-3
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh
 
-# download Apache Hive (Spark uses v2.3.10)
+# download Apache Hive (4.1.0 because 4.2.0 requires jdk-21)
 ENV HIVE_HOME=/opt/hive
-RUN wget --output-document=- https://archive.apache.org/dist/hive/hive-2.3.10/apache-hive-2.3.10-bin.tar.gz | \
-    tar --extract --gzip --directory /opt && mv /opt/apache-hive-2.3.10-bin $HIVE_HOME
+RUN wget --output-document=- https://archive.apache.org/dist/hive/hive-4.1.0/apache-hive-4.1.0-bin.tar.gz | \
+    tar --extract --gzip --directory /opt && mv /opt/apache-hive-4.1.0-bin $HIVE_HOME
 # download a newer Postgres driver because std Hive driver it too old and doesn't support 'scram-sha-256'
 RUN wget --directory-prefix $HIVE_HOME/lib https://jdbc.postgresql.org/download/postgresql-42.7.10.jar
 # fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
-RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-2.17.2.jar
+# RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
 
 # download Apache HBase 2.5.13 (do NOT use 2.6.4, it contains a bug with WAL replay)
 ENV HBASE_HOME=/opt/hbase
