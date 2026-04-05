@@ -33,12 +33,12 @@ RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-sp
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
 
-# download Apache Zookeeper 3.9.5 (Spark uses 3.9.4)
+# download Apache Zookeeper 3.9.5 (needed for Hive, HBase and old-school Kafka)
 ENV ZOOKEEPER_HOME=/opt/zookeeper
 RUN wget --output-document=- https://downloads.apache.org/zookeeper/zookeeper-3.9.5/apache-zookeeper-3.9.5-bin.tar.gz | \
     tar --extract --gzip --directory /opt && mv /opt/apache-zookeeper-3.9.5-bin $ZOOKEEPER_HOME
 
-# download Apache Kafka 3.9.2 (Hadoop uses 3.9.0)
+# download Apache Kafka 3.9.2 (it's last Zookeeper-based version)
 ENV KAFKA_HOME=/opt/kafka
 RUN wget --output-document=- https://downloads.apache.org/kafka/3.9.2/kafka_2.13-3.9.2.tgz | \
     tar --extract --gzip --directory /opt && mv /opt/kafka_2.13-3.9.2 $KAFKA_HOME
