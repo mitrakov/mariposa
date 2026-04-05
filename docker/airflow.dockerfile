@@ -1,7 +1,12 @@
-# docker build --file airflow.dockerfile --tag mitrakov/hadoop-airflow:1.0.0 .
+# docker build --file airflow.dockerfile --tag mitrakov/hadoop-airflow:1.0.0 . && say hola
 FROM python:3.12-slim-bookworm AS builder
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 ENV AIRFLOW_HOME=/opt/airflow
-RUN pip install --no-cache-dir "apache-airflow[celery]==3.0.6" "psycopg2-binary" "asyncpg" \
-    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.0.6/constraints-3.12.txt"
-RUN pip install --no-cache-dir "apache-airflow-providers-apache-spark"
+
+# do NOT install "apache-airflow-providers-apache-spark" separately => it should be here so thap pip can resolve dependencies
+RUN pip install --no-cache-dir \
+    "apache-airflow[celery]==3.1.8" \
+    "apache-airflow-providers-apache-spark" \
+    "psycopg2-binary" \
+    "asyncpg" \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt"
