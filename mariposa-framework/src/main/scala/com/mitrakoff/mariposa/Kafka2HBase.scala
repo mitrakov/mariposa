@@ -65,9 +65,9 @@ object Kafka2HBase {
   }
 }
 
-// hbase shell: create 'sensor_data', 'cf1'
+// hbase shell: create 'sensor_data', 'cf1';
 // kafka-topics.sh --bootstrap-server localhost:9092 --create --topic telemetry
-// spark-submit mariposa-framework-assembly-1.0.0.jar
+// spark-submit --class com.mitrakoff.mariposa.Kafka2HBase mariposa-framework-assembly-1.0.0.jar
 // kafka-console-producer.sh --bootstrap-server localhost:9092 --topic telemetry
 // {"rowkey": "sensor_001", "metric": "temperature", "value": "24.5"}
-// hbase shell: scan 'sensor_data'
+// hbase shell: scan 'sensor_data';

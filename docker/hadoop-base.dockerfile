@@ -8,11 +8,11 @@ ENV SPARK_HOME=/opt/spark
 RUN wget --output-document=- https://downloads.apache.org/spark/spark-4.1.1/spark-4.1.1-bin-hadoop3.tgz | \
     tar --extract --gzip --directory /opt && mv /opt/spark-4.1.1-bin-hadoop3 $SPARK_HOME
 
-# download Apache Hadoop (Spark uses v3.4.2) (HADOOP_CONF_DIR is needed for Yarn)
+# download Apache Hadoop (HADOOP_CONF_DIR is needed for Yarn)
 ENV HADOOP_HOME=/opt/hadoop
 ENV HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
-RUN wget --output-document=- https://downloads.apache.org/hadoop/common/hadoop-3.4.2/hadoop-3.4.2.tar.gz | \
-    tar --extract --gzip --directory /opt && mv /opt/hadoop-3.4.2 $HADOOP_HOME
+RUN wget --output-document=- https://downloads.apache.org/hadoop/common/hadoop-3.5.0/hadoop-3.5.0.tar.gz | \
+    tar --extract --gzip --directory /opt && mv /opt/hadoop-3.5.0 $HADOOP_HOME
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh
 

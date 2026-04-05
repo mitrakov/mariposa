@@ -49,9 +49,9 @@ object Kafka2Hive {
 }
 
 
-// spark.sql("""CREATE TABLE telemetry_hive (rowkey STRING, metric STRING, value STRING) USING HIVE;""")
+// spark-shell: spark.sql("""CREATE TABLE telemetry_hive (rowkey STRING, metric STRING, value STRING) USING HIVE;""")
 // kafka-topics.sh --bootstrap-server localhost:9092 --create --topic telemetry
-// spark-submit mariposa-framework-assembly-1.0.0.jar
+// spark-submit --class com.mitrakoff.mariposa.Kafka2Hive mariposa-framework-assembly-1.0.0.jar
 // kafka-console-producer.sh --bootstrap-server localhost:9092 --topic telemetry
 // {"rowkey": "sensor_002", "metric": "temperature", "value": "25.6"}
-// spark.sql("SELECT * FROM telemetry_hive;").show(truncate = false)
+// spark-shell: spark.sql("SELECT * FROM telemetry_hive;").show(truncate = false)
