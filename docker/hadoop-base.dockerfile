@@ -38,12 +38,12 @@ ENV ZOOKEEPER_HOME=/opt/zookeeper
 RUN wget --output-document=- https://downloads.apache.org/zookeeper/zookeeper-3.9.5/apache-zookeeper-3.9.5-bin.tar.gz | \
     tar --extract --gzip --directory /opt && mv /opt/apache-zookeeper-3.9.5-bin $ZOOKEEPER_HOME
 
-# download Apache Kafka 3.9.2 (it's last Zookeeper-based version)
+# download Apache Kafka 4.2.0 (non-Zookeeper version)
 ENV KAFKA_HOME=/opt/kafka
-RUN wget --output-document=- https://downloads.apache.org/kafka/3.9.2/kafka_2.13-3.9.2.tgz | \
-    tar --extract --gzip --directory /opt && mv /opt/kafka_2.13-3.9.2 $KAFKA_HOME
+RUN wget --output-document=- https://downloads.apache.org/kafka/4.2.0/kafka_2.13-4.2.0.tgz | \
+    tar --extract --gzip --directory /opt && mv /opt/kafka_2.13-4.2.0 $KAFKA_HOME
 
-# Update PATH in your main Dockerfile or here
+# update PATH
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin:$KAFKA_HOME/bin
 
 # install sudo to start services, ssh for Hadoop, postgresql for Hive Metastore and Airflow (pin version 16), iproute/mc: optional
