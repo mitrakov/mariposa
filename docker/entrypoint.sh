@@ -450,7 +450,6 @@ zkServer.sh start
 
 # Kafka
 log "Starting Kafka Server..."
-sudo chown -R hadoop:hadoop $KAFKA_HOME/data     # fix issue when MacOS create volumes as "root"
 # KRaft storage formatting
 if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
     log "First time run. Formatting Kafka storage"
