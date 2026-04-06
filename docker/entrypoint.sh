@@ -454,9 +454,9 @@ sudo chown -R hadoop:hadoop $KAFKA_HOME/data     # fix issue when MacOS create v
 # KRaft storage formatting
 if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
     log "First time run. Formatting Kafka storage"
-    $KAFKA_HOME/bin/kafka-storage.sh format -t Mariposa20260406 -c $KAFKA_HOME/config/server.properties
+    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id Mariposa20260406 --config $KAFKA_HOME/config/server.properties
 else
-    info "OK: Kafka storage already formatted."
+    info "OK: Kafka storage already formatted"
 fi
 kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
@@ -470,7 +470,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         log "First time run. Formatting Namenode"
         hdfs namenode -format -nonInteractive
     else
-        info "OK: Namenode data detected."
+        info "OK: Namenode data detected"
     fi
 
     # start Hadoop/Spark
