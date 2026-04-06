@@ -348,19 +348,35 @@ unset IFS
 
 # setup Apache Kafka
 MY_HOST=$(hostname)
-ZK_QUORUM="$MASTER_HOST:2181"
+# format: id1@host1:9093,id2@host2:9093,id3@host3:9093 (hardcoding the master as ID 1 and workers starting from 2)
+VOTERS="1@$MASTER_HOST:9093"
+count=2
 IFS=','
 for worker in $WORKER_HOSTS; do
-    ZK_QUORUM="$ZK_QUORUM,$worker:2181"
+    VOTERS="$VOTERS,$count@$worker:9093"
+    count=$((count + 1))
 done
 unset IFS
 
 cat <<EOF > $KAFKA_HOME/config/server.properties
-listeners=PLAINTEXT://0.0.0.0:9092
+# Role: every node acts as both a Broker and a Controller for high availability
+process.roles=broker,controller
+node.id=$ZK_ID
+controller.quorum.voters=$VOTERS
+
+# Network settings
+listeners=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+inter.broker.listener.name=PLAINTEXT
 advertised.listeners=PLAINTEXT://$MY_HOST:9092
+controller.listener.names=CONTROLLER
+listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+
+# Log & Data
 log.dirs=$KAFKA_HOME/data
-broker.id=$ZK_ID
-zookeeper.connect=$ZK_QUORUM
+num.partitions=3
+offsets.topic.replication.factor=3
+transaction.state.log.replication.factor=3
+transaction.state.log.min.isr=2
 EOF
 
 # setup Hue
@@ -431,18 +447,17 @@ fi
 # ZK
 log "Starting Zookeeper..."
 zkServer.sh start
-sleep 2    # allow zk to start
-
-# Clean up stale Kafka registration in Zookeeper
-log "Checking for stale Kafka registration for Broker $ZK_ID..."
-NODE_EXISTS=$(zkCli.sh ls /brokers/ids/$ZK_ID 2>&1 | grep "Node does not exist" || true)
-if [ -z "$NODE_EXISTS" ]; then
-    zkCli.sh delete /brokers/ids/$ZK_ID     # will fail if /brokers/ids/$ZK_ID does not exist (=> wrap in "if NODE_EXISTS")
-fi
 
 # Kafka
 log "Starting Kafka Server..."
 sudo chown -R hadoop:hadoop $KAFKA_HOME/data     # fix issue when MacOS create volumes as "root"
+# KRaft storage formatting
+if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
+    log "First time run. Formatting Kafka storage"
+    $KAFKA_HOME/bin/kafka-storage.sh format -t Mariposa20260406 -c $KAFKA_HOME/config/server.properties
+else
+    info "OK: Kafka storage already formatted."
+fi
 kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 # master logic
@@ -520,7 +535,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # TODO: should be visible only first time
-    sleep 1
     warn "Airflow password:"
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi
