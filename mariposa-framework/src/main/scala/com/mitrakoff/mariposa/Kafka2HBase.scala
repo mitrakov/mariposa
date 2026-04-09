@@ -27,7 +27,7 @@ case class Kafka2HBase private (
 
     val spark = SparkSession.builder()
       .appName("KafkaToHBase-Mariposa")
-      .config("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // fix NPE: metrics(KafkaMicroBatchStream.scala:520)
+      .config("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // fix NPE: KafkaMicroBatchStream$.metrics(....scala:520)
       .getOrCreate()
 
     // define the JSON schema coming from Kafka
@@ -42,6 +42,7 @@ case class Kafka2HBase private (
       .option("kafka.bootstrap.servers", kafkaBootstrapServers)
       .option("subscribe", kafkaTopic)
       .option("startingOffsets", "latest")
+      .option("failOnDataLoss", "false") // fix error "Some data may have been lost because they are not available in Kafka any more"
       .load()
 
     // parse JSON and filter out empty rowkeys
