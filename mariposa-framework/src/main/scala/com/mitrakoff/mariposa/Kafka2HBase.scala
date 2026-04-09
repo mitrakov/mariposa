@@ -7,7 +7,7 @@ import org.apache.spark.sql.streaming.Trigger
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
 import org.slf4j.LoggerFactory
 
-case class Kafka2HBaseBuilder private (
+case class Kafka2HBase private (
     private val hbaseCatalog: String = "{}",
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
@@ -15,14 +15,15 @@ case class Kafka2HBaseBuilder private (
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  def withHBaseJsonCatalog(catalog: String): Kafka2HBaseBuilder = copy(hbaseCatalog = catalog)
-  def withKafkaTopic(topic: String): Kafka2HBaseBuilder = copy(kafkaTopic = topic)
-  def withKafkaBootstrapServers(servers: String): Kafka2HBaseBuilder = copy(kafkaBootstrapServers = servers)
-  def withPollInterval(interval: String): Kafka2HBaseBuilder = copy(pollInterval = interval)
+  def withHBaseJsonCatalog(catalog: String): Kafka2HBase = copy(hbaseCatalog = catalog)
+  def withKafkaTopic(topic: String): Kafka2HBase = copy(kafkaTopic = topic)
+  def withKafkaBootstrapServers(servers: String): Kafka2HBase = copy(kafkaBootstrapServers = servers)
+  def withPollInterval(interval: String): Kafka2HBase = copy(pollInterval = interval)
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa::Kafka2HBase ===")
     printParameters()
+    // TODO: check kafka topic and hbase table here
 
     val spark = SparkSession.builder()
       .appName("KafkaToHBase-Mariposa")
@@ -77,8 +78,8 @@ case class Kafka2HBaseBuilder private (
   }
 }
 
-object Kafka2HBaseBuilder {
-  def builder() = new Kafka2HBaseBuilder()
+object Kafka2HBase {
+  def builder() = new Kafka2HBase()
 }
 
 /*
