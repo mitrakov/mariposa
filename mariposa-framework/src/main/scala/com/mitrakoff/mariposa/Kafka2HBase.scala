@@ -27,7 +27,7 @@ case class Kafka2HBase private (
 
     val spark = SparkSession.builder()
       .appName("KafkaToHBase-Mariposa")
-      .config("spark.sql.streaming.kafka.enableMinMaxLatency", "false")     // fix "scala.Option.get()" library error
+      .config("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // fix NPE: metrics(KafkaMicroBatchStream.scala:520)
       .getOrCreate()
 
     // define the JSON schema coming from Kafka
