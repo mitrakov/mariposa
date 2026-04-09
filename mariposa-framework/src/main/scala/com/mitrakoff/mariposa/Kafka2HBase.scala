@@ -5,11 +5,28 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.streaming.Trigger
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
+import org.slf4j.LoggerFactory
 
-object Kafka2HBase {
-  def main(args: Array[String]): Unit = {
+case class Kafka2HBaseBuilder private (
+    private val hbaseCatalog: String = "{}",
+    private val kafkaTopic: String = "myTopic",
+    private val kafkaBootstrapServers: String = "localhost:9092",
+    private val pollInterval: String = "5 seconds",
+) {
+  private val logger = LoggerFactory.getLogger(getClass)
+
+  def withHBaseJsonCatalog(catalog: String): Kafka2HBaseBuilder = copy(hbaseCatalog = catalog)
+  def withKafkaTopic(topic: String): Kafka2HBaseBuilder = copy(kafkaTopic = topic)
+  def withKafkaBootstrapServers(servers: String): Kafka2HBaseBuilder = copy(kafkaBootstrapServers = servers)
+  def withPollInterval(interval: String): Kafka2HBaseBuilder = copy(pollInterval = interval)
+
+  def build(): Runnable = () => {
+    logger.info("=== Mariposa::Kafka2HBase ===")
+    printParameters()
+
     val spark = SparkSession.builder()
       .appName("KafkaToHBase-Mariposa")
+      .config("spark.sql.streaming.kafka.enableMinMaxLatency", "false")     // fix "scala.Option.get()" library error
       .getOrCreate()
 
     // define the JSON schema coming from Kafka
@@ -18,22 +35,11 @@ object Kafka2HBase {
       .add("metric", StringType)
       .add("value", StringType)
 
-    // HBase Catalog mapping
-    val catalog = s"""{
-                     |"table":{"namespace":"default", "name":"sensor_data"},
-                     |"rowkey":"key",
-                     |"columns":{
-                     |"rowkey":{"cf":"rowkey", "col":"key", "type":"string"},
-                     |"metric":{"cf":"cf1", "col":"metric", "type":"string"},
-                     |"value":{"cf":"cf1", "col":"value", "type":"string"}
-                     |}
-                     |}""".stripMargin
-
     // read from Kafka
     val kafkaDF = spark.readStream
       .format("kafka")
-      .option("kafka.bootstrap.servers", "localhost:9092")
-      .option("subscribe", "telemetry")
+      .option("kafka.bootstrap.servers", kafkaBootstrapServers)
+      .option("subscribe", kafkaTopic)
       .option("startingOffsets", "latest")
       .load()
 
@@ -52,17 +58,27 @@ object Kafka2HBase {
           batchDF.show()
 
           batchDF.write
-            .options(Map(HBaseTableCatalog.tableCatalog -> catalog))
+            .options(Map(HBaseTableCatalog.tableCatalog -> hbaseCatalog))
             .format("org.apache.hadoop.hbase.spark")
             .save()
         }
       }
-      .trigger(Trigger.ProcessingTime("5 seconds"))
+      .trigger(Trigger.ProcessingTime(pollInterval))
       .option("checkpointLocation", "/tmp/spark-checkpoints/mariposa")
       .start()
 
     query.awaitTermination()
   }
+
+  private def printParameters(): Unit = {
+    (productElementNames zip productIterator).toList sortBy (_._1) foreach { case (k, v) =>
+      logger.info("{}: {}", k, v)
+    }
+  }
+}
+
+object Kafka2HBaseBuilder {
+  def builder() = new Kafka2HBaseBuilder()
 }
 
 /*
