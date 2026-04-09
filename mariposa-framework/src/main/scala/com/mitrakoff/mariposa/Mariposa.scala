@@ -6,26 +6,31 @@ import org.slf4j.LoggerFactory
 object Mariposa extends App {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  val kafka2HBase = Kafka2HBase
-  val kafka2Hive = Kafka2Hive
+  // these values must be "def" to avoid possible NPE
+  def kafka2HBase = Kafka2HBase
+  def kafka2Hive = Kafka2Hive
 
   if (args.isEmpty) {
     logger.error("Usage: spark-submit mariposa.jar <SQL-File>")
     System.exit(1)
   }
 
-  val src = scala.io.Source.fromFile(args.head, "UTF-8")
-  val sql = src.getLines().mkString
-  src.close()
+  runSqlFile()
 
-  logger.info("SQL: {}", sql)
-  val spark = SparkSession
-    .builder()
-    .enableHiveSupport()
-    .getOrCreate()
+  private def runSqlFile(): Unit = {
+    val src = scala.io.Source.fromFile(args.head, "UTF-8")
+    val sql = src.getLines().mkString
+    src.close()
 
-  val df: DataFrame = spark.sql(sql)
-  df.show(truncate = false)
+    logger.info("SQL: {}", sql)
+    val spark = SparkSession
+      .builder()
+      .enableHiveSupport()
+      .getOrCreate()
 
-  spark.close()
+    val df: DataFrame = spark.sql(sql)
+    df.show(truncate = false)
+
+    spark.close()
+  }
 }

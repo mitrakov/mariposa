@@ -42,7 +42,7 @@ case class Kafka2Hive private (
       .option("kafka.bootstrap.servers", kafkaBootstrapServers)
       .option("subscribe", kafkaTopic)
       .option("startingOffsets", "earliest")
-      .option("failOnDataLoss", "false") // for stability
+      .option("failOnDataLoss", "false") // fix error "Some data may have been lost because they are not available in Kafka any more"
       .load()
 
     val processedDF = kafkaDF
