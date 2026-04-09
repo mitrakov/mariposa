@@ -42,9 +42,7 @@ object Main extends App {
 ```shell
 # build:
 sbt assembly
-```
 
-```shell
 # run:
 spark-submit my.jar
 ```
@@ -172,9 +170,7 @@ public class Main {
 ```shell
 # build:
 mvn package
-```
 
-```shell
 # run:
 spark-submit my.jar
 ```
