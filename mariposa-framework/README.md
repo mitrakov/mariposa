@@ -1,6 +1,19 @@
 # Mariposa project
 
-## Usage as **Library**
+## Usage with SQL file
+```shell
+spark-submit mariposa.jar file.sql
+```
+
+## Usage as a program
+```shell
+spark-submit --class com.mitrakoff.mariposa.SomeClass --driver-java-options="-Dapp.kafka.topic=mytopic ..." mariposa.jar
+```
+Available programs are:
+- com.mitrakoff.mariposa.Kafka2Hive
+- com.mitrakoff.mariposa.Kafka2HBase
+
+## Usage as Library
 ### Sbt
 ```scala
 // build.sbt
