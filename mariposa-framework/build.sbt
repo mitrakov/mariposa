@@ -15,7 +15,7 @@ lazy val root = (project in file("."))
       ("org.apache.hbase.connectors.spark" % "hbase-spark" % "1.1.0").exclude("org.glassfish", "javax.el"),
       "org.apache.hbase.connectors.spark" % "hbase-spark-protocol-shaded" % "1.1.0",
     ),
-    assembly / mainClass := Some("com.mitrakoff.mariposa.Debugger"),
+    assembly / mainClass := Some("com.mitrakoff.mariposa.Mariposa"),
     assembly / assemblyMergeStrategy := {
       case PathList("META-INF", xs*) =>
         xs match {
