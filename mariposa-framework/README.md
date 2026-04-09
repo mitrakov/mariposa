@@ -4,7 +4,7 @@
 ### Sbt
 ```scala
 // build.sbt
-name := "datamartSbt"
+name := "my"
 version := "0.1.0"
 scalaVersion := "2.13.17"
 resolvers += Resolver.mavenLocal     // TODO: publish to artifactory
@@ -50,14 +50,16 @@ spark-submit my.jar
 ```
 
 ### Maven Java
+pom.xml:
 ```xml
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.mitrakoff</groupId>
-    <artifactId>datamartSbt</artifactId> <version>0.1.0</version>
+    <groupId>your.org.name</groupId>
+    <artifactId>my</artifactId>
+    <version>0.1.0</version>
 
     <properties>
         <scala.version>2.13.17</scala.version>
@@ -82,6 +84,17 @@ spark-submit my.jar
     <build>
         <sourceDirectory>src/main/java</sourceDirectory>  <!-- src/main/java or src/main/scala -->
         <plugins>
+            <!-- Set Java-17 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                </configuration>
+            </plugin>
+
+            <!-- Scala plugin -->
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
@@ -96,6 +109,7 @@ spark-submit my.jar
                 </executions>
             </plugin>
 
+            <!-- Build Fat JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -109,30 +123,20 @@ spark-submit my.jar
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>Main</mainClass> </transformer>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                    <mainClass>Main</mainClass>
+                                </transformer>
                             </transformers>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>META-INF/*.SF</exclude>
-                                        <exclude>META-INF/*.DSA</exclude>
-                                        <exclude>META-INF/*.RSA</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>15</source>
-                    <target>15</target>
-                </configuration>
             </plugin>
         </plugins>
     </build>
