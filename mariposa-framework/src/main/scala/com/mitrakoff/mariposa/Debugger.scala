@@ -10,10 +10,16 @@ object Debugger extends App {
      "value":{"cf":"cf1", "col":"value", "type":"string"}
      }
    }"""
-  Mariposa.kafka2HBase
+//  Mariposa.kafka2HBase
+//    .builder()
+//    .withHBaseJsonCatalog(catalog)
+//    .withKafkaTopic("trix-topic")
+//    .build()
+//    .run()
+  Mariposa.kafka2Hive
     .builder()
-    .withHBaseJsonCatalog(catalog)
-    .withKafkaTopic("trix-topic")
+    .withHiveTable("students")
+    .withKafkaTopic("tommy-topic")
     .build()
     .run()
 }
