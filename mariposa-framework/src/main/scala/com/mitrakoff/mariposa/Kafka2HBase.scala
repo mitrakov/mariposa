@@ -73,6 +73,7 @@ case class Kafka2HBase private (
   }
 
   private def printParameters(): Unit = {
+    logger.info("Builder parameters are:")
     (productElementNames zip productIterator).toList sortBy (_._1) foreach { case (k, v) =>
       logger.info("{}: {}", k, v)
     }
@@ -81,6 +82,26 @@ case class Kafka2HBase private (
 
 object Kafka2HBase {
   def builder() = new Kafka2HBase()
+
+  def main(args: Array[String]): Unit = {
+    Mariposa.printProps()
+
+    val hbaseCatalog   = sys.props.getOrElse("app.hbase.json.catalog", throwErr)
+    val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
+    val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", "localhost:9092")
+    val pollInterval   = sys.props.getOrElse("app.kafka.poll.interval", "5 seconds")
+
+    builder()
+      .withHBaseJsonCatalog(Mariposa.readFileLocal(hbaseCatalog))
+      .withKafkaTopic(kafkaTopic)
+      .withKafkaBootstrapServers(kafkaBootstrap)
+      .withPollInterval(pollInterval)
+      .build()
+      .run()
+  }
+
+  private def throwErr: Nothing =
+    throw new Exception("These properties are necessary: -Dapp.hbase.json.catalog=hbase.json -Dapp.kafka.topic=my-topic")
 }
 
 /*
