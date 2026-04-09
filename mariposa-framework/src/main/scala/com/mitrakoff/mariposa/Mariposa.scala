@@ -4,11 +4,10 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.slf4j.LoggerFactory
 
 object Mariposa extends App {
-  private lazy val logger = LoggerFactory.getLogger(getClass) // must be lazy to avoid NPE when run with "--class..."
-
-  // these values must be "def" to avoid possible NPE
-  def kafka2HBase = Kafka2HBase // TODO: lazy val? check on external Sbt/Maven project
-  def kafka2Hive = Kafka2Hive    // TODO: lazy val? check on external Sbt/Maven project
+  // the following values must be "lazy" to avoid possible NPE
+  private lazy val logger = LoggerFactory.getLogger(getClass)
+  lazy val kafka2HBase = Kafka2HBase
+  lazy val kafka2Hive = Kafka2Hive
 
   if (args.isEmpty) {
     val usage = """Usage:
