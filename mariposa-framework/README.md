@@ -4,6 +4,18 @@
 ```shell
 spark-submit mariposa.jar file.sql
 ```
+SQL example:
+```sql
+UPLOAD KAFKA_STREAM 
+  TOPIC 'telemetry' 
+  SERVERS 'localhost:9092'
+INTO HBASE_TABLE 
+  CATALOG 'mycatalog.json'
+OPTIONS (
+  poll_interval = '5 seconds',
+  starting_offsets = 'latest'
+);
+```
 
 ## Usage as a program
 ```shell
