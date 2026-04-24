@@ -1,6 +1,6 @@
 package com.mitrakoff.mariposa
 
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.antlr.v4.runtime._
 import org.slf4j.LoggerFactory
 
 object Mariposa extends App {
@@ -10,7 +10,7 @@ object Mariposa extends App {
   lazy val kafka2Hive = Kafka2Hive
 
   if (args.isEmpty) {
-    val usage = """Usage:
+    System.err.println("""Usage:
       |spark-submit mariposa.jar <SQL-File>
       |or:
       |spark-submit --class com.mitrakoff.mariposa.SomeClass --driver-java-options="-Dapp.kafka.topic=mytopic ..." mariposa.jar
@@ -18,8 +18,7 @@ object Mariposa extends App {
       |Available programs are:
       |com.mitrakoff.mariposa.Kafka2Hive
       |com.mitrakoff.mariposa.Kafka2HBase
-      |""".stripMargin
-    System.err.println(usage)
+      |""".stripMargin)
     System.exit(1)
   }
 
@@ -33,6 +32,11 @@ object Mariposa extends App {
     }
   }
 
+  /**
+   * Reads file from a local File System
+   * @param path local path
+   * @return all lines as a String
+   */
   def readFileLocal(path: String): String = {
     val src = scala.io.Source.fromFile(path, "UTF-8")
     val result = src.getLines().mkString
@@ -43,15 +47,27 @@ object Mariposa extends App {
   private def runSqlFile(): Unit = {
     val sql = readFileLocal(args.head)
     logger.info("SQL: {}", sql)
+    runMariposaSql(sql)
+  }
 
-    val spark = SparkSession
-      .builder()
-      .enableHiveSupport()
-      .getOrCreate()
+  /**
+   * Run SQL in MariposaSQL dialect
+   * @param sql SQL string
+   */
+  private def runMariposaSql(sql: String): Unit = {
+    val tree = new MariposaSQLParser(new CommonTokenStream(new MariposaSQLLexer(CharStreams.fromString(sql)))).mariposaCommand()
+    if (tree.uploadCommand() != null) {
+      val cmd = tree.uploadCommand()
+      val topic = cmd.topic.getText.replace("'", "")
+      val servers = cmd.servers.getText.replace("'", "")
+      val catalogPath = cmd.catalog.getText.replace("'", "")
 
-    val df: DataFrame = spark.sql(sql)
-    df.show(truncate = false)
-
-    spark.close()
+      Kafka2HBase.builder()
+        .withKafkaTopic(topic)
+        .withKafkaBootstrapServers(servers)
+        .withHBaseJsonCatalog(readFileLocal(catalogPath))
+        .build()
+        .run()
+    }
   }
 }

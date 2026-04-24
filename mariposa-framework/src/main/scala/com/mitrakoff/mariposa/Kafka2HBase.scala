@@ -21,12 +21,12 @@ case class Kafka2HBase private (
   def withPollInterval(interval: String): Kafka2HBase = copy(pollInterval = interval)
 
   def build(): Runnable = () => {
-    logger.info("=== Mariposa::Kafka2HBase ===")
+    logger.info("=== Mariposa-Kafka2HBase ===")
     printParameters()
     // TODO: check kafka topic and hbase table here
 
     val spark = SparkSession.builder()
-      .appName("KafkaToHBase-Mariposa")
+      .appName("Mariposa-Kafka2HBase")
       .config("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // fix NPE: KafkaMicroBatchStream$.metrics(....scala:520)
       .getOrCreate()
 
@@ -70,6 +70,7 @@ case class Kafka2HBase private (
       .start()
 
     query.awaitTermination()
+    spark.close()
   }
 
   private def printParameters(): Unit = {

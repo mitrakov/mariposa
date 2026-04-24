@@ -20,12 +20,12 @@ case class Kafka2Hive private (
   def withPollInterval(interval: String): Kafka2Hive = copy(pollInterval = interval)
 
   def build(): Runnable = () => {
-    logger.info("=== Mariposa::Kafka2Hive ===")
+    logger.info("=== Mariposa-Kafka2Hive ===")
     printParameters()
     // TODO: check kafka topic and hive table here
 
     val spark = SparkSession.builder()
-      .appName("KafkaToHive-Mariposa")
+      .appName("Mariposa-Kafka2Hive")
       .config("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // fix NPE: metrics(KafkaMicroBatchStream.scala:520)
       .config("spark.sql.warehouse.dir", "/user/hive/warehouse")
       .config("hive.metastore.uris", "thrift://localhost:9083")
@@ -63,6 +63,7 @@ case class Kafka2Hive private (
       .start()
 
     query.awaitTermination()
+    spark.close()
   }
 
   private def printParameters(): Unit = {
