@@ -9,11 +9,19 @@ resolvers += Resolver.mavenLocal // TODO move to repo
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
-  "org.apache.hadoop" % "hadoop-client" % "3.4.3" % "provided", // Cluster has this
-  "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion, // Keep this (Spark doesn't ship with Kafka)
+  "org.apache.hadoop" % "hadoop-client" % "3.4.3" % "provided",
+  "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion,
   ("org.apache.hbase.connectors.spark" % "hbase-spark" % "1.1.0").exclude("org.glassfish", "javax.el"),
   "org.apache.hbase.connectors.spark" % "hbase-spark-protocol-shaded" % "1.1.0",
+  "org.antlr" % "antlr4-runtime" % "4.13.1" % "provided",     // matches Spark 4.1.1
 )
+
+// Antlr4 plugin
+Antlr4 / antlr4PackageName := Some("com.mitrakoff.mariposa")
+Antlr4 / antlr4Version := "4.13.1"                            // matches Spark 4.1.1
+enablePlugins(Antlr4Plugin)
+
+// assembly plugin
 assembly / mainClass := Some("com.mitrakoff.mariposa.Mariposa")
 assembly / assemblyMergeStrategy := {
   case PathList("META-INF", xs*) =>
