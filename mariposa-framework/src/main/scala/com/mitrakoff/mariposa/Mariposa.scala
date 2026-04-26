@@ -47,6 +47,7 @@ object Mariposa extends App {
     val result = src.getLines().mkString(System.lineSeparator())
     src.close()
     result
+    // TODO: add read from resource
   }
 
   private def runSqlFile(): Unit = {
@@ -79,7 +80,7 @@ object Mariposa extends App {
             .withHBaseJsonCatalog(readFileLocal(catalogPath))
             .withKafkaTopic(topic)
             .withKafkaBootstrapServers(servers)
-            //.withRunInfinitely(infinite) TODO
+            .withRunInfinitely(infinite)
             .withPollInterval(interval)
             .build()
             .run()
