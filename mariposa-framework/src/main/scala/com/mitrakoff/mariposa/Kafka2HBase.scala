@@ -1,6 +1,6 @@
 package com.mitrakoff.mariposa
 
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.streaming.Trigger
@@ -33,6 +33,7 @@ case class Kafka2HBase private (
 
 
 
+
     // define the JSON schema coming from Kafka
     val jsonSchema = new StructType()
       .add("rowkey", StringType)
@@ -62,6 +63,7 @@ case class Kafka2HBase private (
           logger.info(s"--- Writing Batch $batchId to HBase ($hbaseCatalog) ---")
           batchDF.show()
           batchDF.write
+            .mode(SaveMode.Overwrite)
             .options(Map(HBaseTableCatalog.tableCatalog -> hbaseCatalog))
             .format("org.apache.hadoop.hbase.spark")
             .save()
@@ -95,12 +97,14 @@ object Kafka2HBase {
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
     val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", "localhost:9092")
     val pollInterval   = sys.props.getOrElse("app.kafka.poll.interval", "5 seconds")
+    val kafkaInfinite  = sys.props.get("app.kafka.run.infinitely").flatMap(_.toBooleanOption).getOrElse(false)
 
     builder()
       .withHBaseJsonCatalog(Mariposa.readFileLocal(hbaseCatalog))
       .withKafkaTopic(kafkaTopic)
       .withKafkaBootstrapServers(kafkaBootstrap)
       .withPollInterval(pollInterval)
+      .withRunInfinitely(kafkaInfinite)
       .build()
       .run()
   }
