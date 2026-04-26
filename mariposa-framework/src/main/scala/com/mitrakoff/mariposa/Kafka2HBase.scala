@@ -25,10 +25,7 @@ case class Kafka2HBase private (
     printParameters()
     // TODO: check kafka topic and hbase table here
 
-    val spark = SparkSession.builder()
-      .appName("Mariposa-Kafka2HBase")
-      .config("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // fix NPE: KafkaMicroBatchStream$.metrics(....scala:520)
-      .getOrCreate()
+    val spark = SparkSession.builder().appName("Mariposa-Kafka2HBase").getOrCreate()
 
     // define the JSON schema coming from Kafka
     val jsonSchema = new StructType()
@@ -70,6 +67,7 @@ case class Kafka2HBase private (
       .start()
 
     query.awaitTermination()
+    logger.info("Kafka to HBase completed successfully.")
     spark.close()
   }
 
@@ -85,6 +83,7 @@ object Kafka2HBase {
   def builder() = new Kafka2HBase()
 
   def main(args: Array[String]): Unit = {
+    System.setProperty("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // Fix NPE error on Kafka-Metrics
     Mariposa.printProps()
 
     val hbaseCatalog   = sys.props.getOrElse("app.hbase.json.catalog", throwErr)

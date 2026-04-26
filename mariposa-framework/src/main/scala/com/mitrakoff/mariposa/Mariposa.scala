@@ -2,22 +2,27 @@ package com.mitrakoff.mariposa
 
 import org.antlr.v4.runtime._
 import org.slf4j.LoggerFactory
+import scala.jdk.CollectionConverters.ListHasAsScala
 
 object Mariposa extends App {
   // the following values must be "lazy" to avoid possible NPE
   private lazy val logger = LoggerFactory.getLogger(getClass)
   lazy val kafka2HBase = Kafka2HBase
   lazy val kafka2Hive = Kafka2Hive
+  lazy val hive2Kafka = Hive2Kafka
+  lazy val hbase2Kafka = HBase2Kafka
 
   if (args.isEmpty) {
     System.err.println("""Usage:
-      |spark-submit mariposa.jar <SQL-File>
+      |spark-submit mariposa.jar file.sql
       |or:
       |spark-submit --class com.mitrakoff.mariposa.SomeClass --driver-java-options="-Dapp.kafka.topic=mytopic ..." mariposa.jar
       |
       |Available programs are:
       |com.mitrakoff.mariposa.Kafka2Hive
       |com.mitrakoff.mariposa.Kafka2HBase
+      |com.mitrakoff.mariposa.Hive2Kafka
+      |com.mitrakoff.mariposa.HBase2Kafka
       |""".stripMargin)
     System.exit(1)
   }
@@ -39,7 +44,7 @@ object Mariposa extends App {
    */
   def readFileLocal(path: String): String = {
     val src = scala.io.Source.fromFile(path, "UTF-8")
-    val result = src.getLines().mkString
+    val result = src.getLines().mkString(System.lineSeparator())
     src.close()
     result
   }
@@ -56,19 +61,13 @@ object Mariposa extends App {
    */
   def runMariposaSql(sql: String): Unit = {
     val tree = new MariposaSQLParser(new CommonTokenStream(new MariposaSQLLexer(CharStreams.fromString(sql)))).mariposaCommand()
-    if (tree.uploadCommand() != null) {
-      val cmd = tree.uploadCommand()
+
+    // DOWNLOAD FROM KAFKA
+    if (tree.downloadCommand() != null) {
+      val cmd = tree.downloadCommand()
       val topic = cmd.topic.getText.replace("'", "")
       val servers = cmd.servers.getText.replace("'", "")
-
-      val options = if (cmd.optionList() != null) {
-        import scala.jdk.CollectionConverters._
-        cmd.optionList().option().asScala.map { opt =>
-          val key = opt.key.getText
-          val value = opt.value.getText.replace("'", "")
-          key -> value
-        }.toMap
-      } else Map.empty[String, String]
+      val options = extractOptions(cmd.optionList())
 
       val infinite = options.get("infinite").flatMap(_.toBooleanOption).getOrElse(false)
       val interval = options.getOrElse("pollInterval", "5 seconds")
@@ -77,23 +76,63 @@ object Mariposa extends App {
         case MariposaSQLParser.HBASE_TABLE =>
           val catalogPath = cmd.catalog.getText.replace("'", "")
           Kafka2HBase.builder()
+            .withHBaseJsonCatalog(readFileLocal(catalogPath))
             .withKafkaTopic(topic)
             .withKafkaBootstrapServers(servers)
-            .withHBaseJsonCatalog(readFileLocal(catalogPath))
+            //.withRunInfinitely(infinite) TODO
+            .withPollInterval(interval)
             .build()
             .run()
 
         case MariposaSQLParser.HIVE_TABLE =>
           val tableName = cmd.hiveTable.getText.replace("'", "")
           Kafka2Hive.builder()
+            .withHiveTable(tableName)
             .withKafkaTopic(topic)
             .withKafkaBootstrapServers(servers)
-            .withHiveTable(tableName)
             .withRunInfinitely(infinite)
             .withPollInterval(interval)
             .build()
             .run()
       }
     }
+
+    // UPLOAD TO KAFKA
+    else if (tree.uploadCommand() != null) {
+      val cmd = tree.uploadCommand()
+      val topic = cmd.topic.getText.replace("'", "")
+      val servers = cmd.servers.getText.replace("'", "")
+      val options = extractOptions(cmd.optionList())
+
+      cmd.source.getType match {
+        case MariposaSQLParser.HBASE_TABLE =>
+          val catalogPath = cmd.catalog.getText.replace("'", "")
+          HBase2Kafka.builder()
+            .withHBaseJsonCatalog(readFileLocal(catalogPath))
+            .withKafkaTopic(topic)
+            .withKafkaBootstrapServers(servers)
+            .build()
+            .run()
+
+        case MariposaSQLParser.HIVE_TABLE =>
+          val tableName = cmd.hiveTable.getText.replace("'", "")
+          Hive2Kafka.builder()
+            .withHiveTable(tableName)
+            .withKafkaTopic(topic)
+            .withKafkaBootstrapServers(servers)
+            .build()
+            .run()
+      }
+    }
+  }
+
+  private def extractOptions(ctx: MariposaSQLParser.OptionListContext): Map[String, String] = {
+    if (ctx != null) {
+      ctx.option().asScala.map { opt =>
+        val key = opt.key.getText
+        val value = opt.value.getText.replace("'", "")
+        key -> value
+      }.toMap
+    } else Map.empty
   }
 }

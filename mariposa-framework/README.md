@@ -6,24 +6,20 @@ spark-submit mariposa.jar file.sql
 ```
 SQL example:
 ```sql
-UPLOAD KAFKA_STREAM 
-  TOPIC 'telemetry' 
-  SERVERS 'localhost:9092'
-INTO HBASE_TABLE 
-  CATALOG 'mycatalog.json'
+DOWNLOAD FROM KAFKA TOPIC 'telemetry' SERVERS 'localhost:9092' INTO HIVE TABLE 'my_table'
+OPTIONS (
+  pollInterval = '10 seconds'
+);
+
+DOWNLOAD FROM KAFKA TOPIC 'telemetry' SERVERS 'localhost:9092' INTO HBASE CATALOG 'mycatalog.json'
 OPTIONS (
   poll_interval = '5 seconds',
   starting_offsets = 'latest'
 );
 
-UPLOAD KAFKA_STREAM 
-  TOPIC 'telemetry' 
-  SERVERS 'localhost:9092' 
-INTO HIVE_TABLE 
-  TABLE 'telemetry_hive'
-OPTIONS (
-  pollInterval = '10 seconds'
-);
+UPLOAD TO KAFKA FROM HIVE TABLE 'my_table' TOPIC 'telemetry' SERVERS 'localhost:9092';
+
+UPLOAD TO KAFKA FROM HBASE CATALOG 'mycatalog.json' TOPIC 'telemetry' SERVERS 'localhost:9092';
 ```
 
 ## Usage as a program
@@ -33,6 +29,8 @@ spark-submit --class com.mitrakoff.mariposa.SomeClass --driver-java-options="-Da
 Available programs are:
 - com.mitrakoff.mariposa.Kafka2Hive
 - com.mitrakoff.mariposa.Kafka2HBase
+- com.mitrakoff.mariposa.Hive2Kafka
+- com.mitrakoff.mariposa.HBase2Kafka
 
 ## Usage as Library
 ### Sbt

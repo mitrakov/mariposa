@@ -7,11 +7,11 @@ import org.apache.spark.sql.streaming.Trigger
 import org.slf4j.LoggerFactory
 
 case class Kafka2Hive private (
-   private val hiveTable: String = "myTable",
-   private val kafkaTopic: String = "myTopic",
-   private val kafkaBootstrapServers: String = "localhost:9092",
-   private val pollInterval: String = "5 seconds",
-   private val infinite: Boolean = false
+    private val hiveTable: String = "myTable",
+    private val kafkaTopic: String = "myTopic",
+    private val kafkaBootstrapServers: String = "localhost:9092",
+    private val pollInterval: String = "5 seconds",
+    private val infinite: Boolean = false
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -60,10 +60,11 @@ case class Kafka2Hive private (
         }
       }
       .trigger(if (infinite) Trigger.ProcessingTime(pollInterval) else Trigger.AvailableNow())
-      .option("checkpointLocation", s"/tmp/spark-checkpoints/mariposa-hive-${kafkaTopic}") // TODO: /tmp/?
+      .option("checkpointLocation", s"/tmp/spark-checkpoints/mariposa-hive-$kafkaTopic") // TODO: /tmp/?
       .start()
 
     query.awaitTermination()
+    logger.info("Kafka to Hive completed successfully.")
     spark.stop()
   }
 
