@@ -63,7 +63,7 @@ case class Kafka2HBase private (
           logger.info(s"--- Writing Batch $batchId to HBase ($hbaseCatalog) ---")
           batchDF.show()
           batchDF.write
-            .mode(SaveMode.Overwrite)
+            .mode(SaveMode.Append)
             .options(Map(HBaseTableCatalog.tableCatalog -> hbaseCatalog))
             .format("org.apache.hadoop.hbase.spark")
             .save()
