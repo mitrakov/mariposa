@@ -63,7 +63,7 @@ case class Kafka2Hive  private (
           logger.info(s"--- Writing Batch $batchId to Hive ($hiveTable) ---")
           batchDF.show()
           batchDF.write
-            .mode(SaveMode.Overwrite)
+            .mode(SaveMode.Append)
             .insertInto(hiveTable)
 
 
