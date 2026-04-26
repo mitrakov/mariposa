@@ -2,8 +2,8 @@ package com.mitrakoff.mariposa
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.{col, struct, to_json}
-import org.slf4j.LoggerFactory
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
+import org.slf4j.LoggerFactory
 
 case class HBase2Kafka private (
     private val hbaseCatalog: String = "{}",

@@ -1,8 +1,8 @@
 package com.mitrakoff.mariposa
 
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.functions.{col, from_json}
+import org.apache.spark.sql.types.{StringType, StructType}
 import org.apache.spark.sql.streaming.Trigger
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
 import org.slf4j.LoggerFactory

@@ -2,8 +2,8 @@ package com.mitrakoff.mariposa
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.{col, struct, to_json}
-import org.slf4j.LoggerFactory
 
+import org.slf4j.LoggerFactory
 
 case class Hive2Kafka  private (
     private val hiveTable: String = "myTable",

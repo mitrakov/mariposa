@@ -7,12 +7,12 @@ import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import java.util.{Collections, Properties}
 import java.time.Duration
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsJava}
 
 // kafka-topics.sh --bootstrap-server localhost:9092 --create --topic test-topic-1
 // kafka-topics.sh --bootstrap-server localhost:9092 --create --topic test-topic-2
 // kafka-topics.sh --bootstrap-server localhost:9092 --create --topic test-topic-3
-// spark.sql("""CREATE TABLE test_table (rowkey STRING, metric STRING, value STRING) USING HIVE;""")
+// spark-shell: spark.sql("""CREATE TABLE test_table (rowkey STRING, metric STRING, value STRING) USING HIVE;""")
 // spark-submit --class com.mitrakoff.mariposa.Test mariposa-assembly-1.0.0.jar
 // test_catalog.json:
 /*{
