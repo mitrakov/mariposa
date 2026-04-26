@@ -27,6 +27,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsJava}
 }
 */
 // spark-submit --class com.mitrakoff.mariposa.Test mariposa-assembly-1.0.0.jar
+// TODO: unstable test!
 object Test extends App {
   Main.run("classpath:features", "--glue", "com.mitrakoff.mariposa")
 }

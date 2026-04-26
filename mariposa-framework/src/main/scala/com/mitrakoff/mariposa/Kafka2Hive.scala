@@ -118,6 +118,7 @@ object Kafka2Hive {
   kafka-topics.sh --bootstrap-server localhost:9092 --create --topic telemetry
   spark-submit --class com.mitrakoff.mariposa.Kafka2Hive  mariposa-framework-assembly-1.0.0.jar
   kafka-console-producer.sh --bootstrap-server localhost:9092 --topic telemetry
+  kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic test-topic-1 --from-beginning
   {"rowkey": "sensor_002", "metric": "temperature", "value": "25.6"}
   spark-shell: spark.sql("SELECT * FROM telemetry_hive;").show(truncate = false)
 */
