@@ -27,7 +27,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsJava}
 }
 */
 // spark-submit --class com.mitrakoff.mariposa.Test mariposa-assembly-1.0.0.jar
-// TODO: unstable test!
+// TODO: For some reason, first attempt always fail; all subsequent attempts are OK. Check why.
 object Test extends App {
   Main.run("classpath:features", "--glue", "com.mitrakoff.mariposa")
 }
@@ -43,7 +43,6 @@ class Test extends ScalaDsl with EN {
     "key.deserializer"   -> strDeserializer,
     "value.deserializer" -> strDeserializer,
     "group.id" -> "mariposa-test-group", // fix InvalidGroupIdException: To use the group management or offset commit APIs...
-    "auto.offset.reset" -> "earliest",   // check why test fails without this prop
   ).asJava)
 
   Given("""a message is sent to Kafka topic {string}:""") { (topic: String, dataTable: DataTable) =>
