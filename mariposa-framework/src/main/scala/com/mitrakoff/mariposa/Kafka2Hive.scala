@@ -11,7 +11,7 @@ case class Kafka2Hive private (
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
     private val pollInterval: String = "5 seconds",
-    private val infinite: Boolean = false
+    private val infinite: Boolean = false,
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -38,25 +38,32 @@ case class Kafka2Hive private (
       .add("metric", StringType)
       .add("value", StringType)
 
+    // read from Kafka
     val kafkaDF = spark.readStream
       .format("kafka")
       .option("kafka.bootstrap.servers", kafkaBootstrapServers)
       .option("subscribe", kafkaTopic)
-      .option("startingOffsets", "earliest")
+      .option("startingOffsets", "latest")
       .option("failOnDataLoss", "false") // fix error "Some data may have been lost because they are not available in Kafka any more"
       .load()
 
+    // parse JSON and filter out empty rowkeys
     val processedDF = kafkaDF
       .selectExpr("CAST(value AS STRING) as json_payload")
       .select(from_json(col("json_payload"), jsonSchema).as("data"))
       .select("data.*")
       .filter("rowkey IS NOT NULL")
 
+    // processing every batch
     val query = processedDF.writeStream
       .foreachBatch { (batchDF: DataFrame, batchId: Long) =>
         if (!batchDF.isEmpty) {
-          logger.info(s"--- Committing Batch $batchId to Hive ($hiveTable) ---")
-          batchDF.write.mode("append").insertInto(hiveTable)
+          logger.info(s"--- Writing Batch $batchId to Hive ($hiveTable) ---")
+          batchDF.show()
+          batchDF.write
+            .mode("append")
+            .insertInto(hiveTable)
+
         }
       }
       .trigger(if (infinite) Trigger.ProcessingTime(pollInterval) else Trigger.AvailableNow())
@@ -65,7 +72,7 @@ case class Kafka2Hive private (
 
     query.awaitTermination()
     logger.info("Kafka to Hive completed successfully.")
-    spark.stop()
+    spark.close()
   }
 
   private def printParameters(): Unit = {

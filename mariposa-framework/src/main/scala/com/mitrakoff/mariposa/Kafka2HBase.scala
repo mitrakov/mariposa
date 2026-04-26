@@ -12,6 +12,7 @@ case class Kafka2HBase private (
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
     private val pollInterval: String = "5 seconds",
+    private val infinite: Boolean = false,
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -19,13 +20,18 @@ case class Kafka2HBase private (
   def withKafkaTopic(topic: String): Kafka2HBase = copy(kafkaTopic = topic)
   def withKafkaBootstrapServers(servers: String): Kafka2HBase = copy(kafkaBootstrapServers = servers)
   def withPollInterval(interval: String): Kafka2HBase = copy(pollInterval = interval)
+  def withRunInfinitely(infinite: Boolean): Kafka2HBase = copy(infinite = infinite)
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa-Kafka2HBase ===")
     printParameters()
     // TODO: check kafka topic and hbase table here
 
-    val spark = SparkSession.builder().appName("Mariposa-Kafka2HBase").getOrCreate()
+    val spark = SparkSession.builder()
+      .appName("Mariposa-Kafka2HBase")
+      .getOrCreate()
+
+
 
     // define the JSON schema coming from Kafka
     val jsonSchema = new StructType()
@@ -47,23 +53,22 @@ case class Kafka2HBase private (
       .selectExpr("CAST(value AS STRING) as json_payload")
       .select(from_json(col("json_payload"), jsonSchema).as("data"))
       .select("data.*")
-      .filter("rowkey IS NOT NULL AND rowkey != ''")
+      .filter("rowkey IS NOT NULL")
 
-    // 2rite to HBase with a 5-second trigger
+    // processing every batch
     val query = processedDF.writeStream
       .foreachBatch { (batchDF: DataFrame, batchId: Long) =>
         if (!batchDF.isEmpty) {
-          println(s"--- Writing Batch $batchId to HBase ---")
+          logger.info(s"--- Writing Batch $batchId to HBase ($hbaseCatalog) ---")
           batchDF.show()
-
           batchDF.write
             .options(Map(HBaseTableCatalog.tableCatalog -> hbaseCatalog))
             .format("org.apache.hadoop.hbase.spark")
             .save()
         }
       }
-      .trigger(Trigger.ProcessingTime(pollInterval))
-      .option("checkpointLocation", "/tmp/spark-checkpoints/mariposa")
+      .trigger(if (infinite) Trigger.ProcessingTime(pollInterval) else Trigger.AvailableNow())
+      .option("checkpointLocation", s"/tmp/spark-checkpoints/mariposa-hbase-$kafkaTopic") // TODO: /tmp/?
       .start()
 
     query.awaitTermination()
