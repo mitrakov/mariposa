@@ -54,7 +54,7 @@ object Mariposa extends App {
    * Run SQL in MariposaSQL dialect
    * @param sql SQL string
    */
-  private def runMariposaSql(sql: String): Unit = {
+  def runMariposaSql(sql: String): Unit = {
     val tree = new MariposaSQLParser(new CommonTokenStream(new MariposaSQLLexer(CharStreams.fromString(sql)))).mariposaCommand()
     if (tree.uploadCommand() != null) {
       val cmd = tree.uploadCommand()
@@ -68,7 +68,10 @@ object Mariposa extends App {
           val value = opt.value.getText.replace("'", "")
           key -> value
         }.toMap
-      } else Map.empty[String, String] // TODO: integrate
+      } else Map.empty[String, String]
+
+      val infinite = options.get("infinite").flatMap(_.toBooleanOption).getOrElse(false)
+      val interval = options.getOrElse("pollInterval", "5 seconds")
 
       cmd.target.getType match {
         case MariposaSQLParser.HBASE_TABLE =>
@@ -86,6 +89,8 @@ object Mariposa extends App {
             .withKafkaTopic(topic)
             .withKafkaBootstrapServers(servers)
             .withHiveTable(tableName)
+            .withRunInfinitely(infinite)
+            .withPollInterval(interval)
             .build()
             .run()
       }
