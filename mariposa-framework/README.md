@@ -64,8 +64,8 @@ import com.mitrakoff.mariposa.Mariposa
 object Main extends App {
   Mariposa.kafka2Hive
     .builder()
-    .withKafkaTopic("my-topic")
     .withHiveTable("myTable")
+    .withKafkaTopic("my-topic")
     .build()
     .run()
 }
@@ -191,8 +191,8 @@ public class Main {
            }""";
         Mariposa.kafka2HBase()
             .builder()
-            .withKafkaTopic("my-topic")
             .withHBaseJsonCatalog(catalog)
+            .withKafkaTopic("my-topic")
             .build()
             .run();
     }
@@ -221,13 +221,13 @@ object Main extends App {
      "columns":{
      "rowkey":{"cf":"rowkey", "col":"key", "type":"string"},
      "metric":{"cf":"cf1", "col":"metric", "type":"string"},
-     "value":{"cf":"cf1", "col":"value", "type":"string"}
+     "value": {"cf":"cf1", "col":"value",  "type":"string"}
      }
    }"""
   Mariposa.kafka2HBase
     .builder()
-    .withKafkaTopic("my-topic")
     .withHBaseJsonCatalog(catalog)
+    .withKafkaTopic("my-topic")
     .build()
     .run()
 }

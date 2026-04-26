@@ -1,8 +1,7 @@
 package com.mitrakoff.mariposa
 
-import org.antlr.v4.runtime._
+import org.antlr.v4.runtime.{CharStreams, CommonTokenStream}
 import org.slf4j.LoggerFactory
-import scala.jdk.CollectionConverters.ListHasAsScala
 
 object Mariposa extends App {
   // the following values must be "lazy" to avoid possible NPE
@@ -128,6 +127,7 @@ object Mariposa extends App {
   }
 
   private def extractOptions(ctx: MariposaSQLParser.OptionListContext): Map[String, String] = {
+    import scala.jdk.CollectionConverters.ListHasAsScala
     if (ctx != null) {
       ctx.option().asScala.map { opt =>
         val key = opt.key.getText
