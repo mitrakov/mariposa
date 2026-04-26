@@ -1,12 +1,13 @@
 package com.mitrakoff.mariposa
 
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.streaming.Trigger
+
 import org.slf4j.LoggerFactory
 
-case class Kafka2Hive private (
+case class Kafka2Hive  private (
     private val hiveTable: String = "myTable",
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
@@ -16,10 +17,10 @@ case class Kafka2Hive private (
   private val logger = LoggerFactory.getLogger(getClass)
 
   def withHiveTable(table: String): Kafka2Hive = copy(hiveTable = table)
-  def withKafkaTopic(topic: String): Kafka2Hive = copy(kafkaTopic = topic)
-  def withKafkaBootstrapServers(servers: String): Kafka2Hive = copy(kafkaBootstrapServers = servers)
-  def withPollInterval(interval: String): Kafka2Hive = copy(pollInterval = interval)
-  def withRunInfinitely(infinite: Boolean): Kafka2Hive = copy(infinite = infinite)
+  def withKafkaTopic(topic: String): Kafka2Hive  = copy(kafkaTopic = topic)
+  def withKafkaBootstrapServers(servers: String): Kafka2Hive  = copy(kafkaBootstrapServers = servers)
+  def withPollInterval(interval: String): Kafka2Hive  = copy(pollInterval = interval)
+  def withRunInfinitely(infinite: Boolean): Kafka2Hive  = copy(infinite = infinite)
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa-Kafka2Hive ===")
@@ -33,6 +34,7 @@ case class Kafka2Hive private (
       .enableHiveSupport()
       .getOrCreate()
 
+    // define the JSON schema coming from Kafka
     val jsonSchema = new StructType()
       .add("rowkey", StringType)
       .add("metric", StringType)
@@ -61,8 +63,9 @@ case class Kafka2Hive private (
           logger.info(s"--- Writing Batch $batchId to Hive ($hiveTable) ---")
           batchDF.show()
           batchDF.write
-            .mode("append")
+            .mode(SaveMode.Overwrite)
             .insertInto(hiveTable)
+
 
         }
       }
@@ -71,7 +74,7 @@ case class Kafka2Hive private (
       .start()
 
     query.awaitTermination()
-    logger.info("Kafka to Hive completed successfully.")
+    logger.info("Kafka to Hive  completed successfully.")
     spark.close()
   }
 
@@ -113,7 +116,7 @@ object Kafka2Hive {
 /*
   spark-shell: spark.sql("""CREATE TABLE telemetry_hive (rowkey STRING, metric STRING, value STRING) USING HIVE;""")
   kafka-topics.sh --bootstrap-server localhost:9092 --create --topic telemetry
-  spark-submit --class com.mitrakoff.mariposa.Kafka2Hive mariposa-framework-assembly-1.0.0.jar
+  spark-submit --class com.mitrakoff.mariposa.Kafka2Hive  mariposa-framework-assembly-1.0.0.jar
   kafka-console-producer.sh --bootstrap-server localhost:9092 --topic telemetry
   {"rowkey": "sensor_002", "metric": "temperature", "value": "25.6"}
   spark-shell: spark.sql("SELECT * FROM telemetry_hive;").show(truncate = false)
