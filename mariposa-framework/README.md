@@ -15,6 +15,15 @@ OPTIONS (
   poll_interval = '5 seconds',
   starting_offsets = 'latest'
 );
+
+UPLOAD KAFKA_STREAM 
+  TOPIC 'telemetry' 
+  SERVERS 'localhost:9092' 
+INTO HIVE_TABLE 
+  TABLE 'telemetry_hive'
+OPTIONS (
+  pollInterval = '10 seconds'
+);
 ```
 
 ## Usage as a program

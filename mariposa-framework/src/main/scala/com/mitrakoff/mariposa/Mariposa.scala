@@ -60,14 +60,35 @@ object Mariposa extends App {
       val cmd = tree.uploadCommand()
       val topic = cmd.topic.getText.replace("'", "")
       val servers = cmd.servers.getText.replace("'", "")
-      val catalogPath = cmd.catalog.getText.replace("'", "")
 
-      Kafka2HBase.builder()
-        .withKafkaTopic(topic)
-        .withKafkaBootstrapServers(servers)
-        .withHBaseJsonCatalog(readFileLocal(catalogPath))
-        .build()
-        .run()
+      val options = if (cmd.optionList() != null) {
+        import scala.jdk.CollectionConverters._
+        cmd.optionList().option().asScala.map { opt =>
+          val key = opt.key.getText
+          val value = opt.value.getText.replace("'", "")
+          key -> value
+        }.toMap
+      } else Map.empty[String, String] // TODO: integrate
+
+      cmd.target.getType match {
+        case MariposaSQLParser.HBASE_TABLE =>
+          val catalogPath = cmd.catalog.getText.replace("'", "")
+          Kafka2HBase.builder()
+            .withKafkaTopic(topic)
+            .withKafkaBootstrapServers(servers)
+            .withHBaseJsonCatalog(readFileLocal(catalogPath))
+            .build()
+            .run()
+
+        case MariposaSQLParser.HIVE_TABLE =>
+          val tableName = cmd.hiveTable.getText.replace("'", "")
+          Kafka2Hive.builder()
+            .withKafkaTopic(topic)
+            .withKafkaBootstrapServers(servers)
+            .withHiveTable(tableName)
+            .build()
+            .run()
+      }
     }
   }
 }
