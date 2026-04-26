@@ -12,10 +12,11 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsJava}
 // kafka-topics.sh --bootstrap-server localhost:9092 --create --topic test-topic-1
 // kafka-topics.sh --bootstrap-server localhost:9092 --create --topic test-topic-2
 // kafka-topics.sh --bootstrap-server localhost:9092 --create --topic test-topic-3
+// hbase shell: create 'sensor_data', 'cf1';
 // spark-shell: spark.sql("""CREATE TABLE test_table (rowkey STRING, metric STRING, value STRING) USING HIVE;""")
-// spark-submit --class com.mitrakoff.mariposa.Test mariposa-assembly-1.0.0.jar
 // test_catalog.json:
-/*{
+/*
+{
   "table":{"namespace":"default", "name":"sensor_data"},
   "rowkey":"key",
   "columns":{
@@ -23,7 +24,9 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsJava}
     "metric":{"cf":"cf1", "col":"metric", "type":"string"},
     "value": {"cf":"cf1", "col":"value",  "type":"string"}
   }
-}*/
+}
+*/
+// spark-submit --class com.mitrakoff.mariposa.Test mariposa-assembly-1.0.0.jar
 object Test extends App {
   Main.run("classpath:features", "--glue", "com.mitrakoff.mariposa")
 }
