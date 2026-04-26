@@ -18,11 +18,13 @@ case class Hive2Kafka  private (
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa-Hive2Kafka ===")
+    printParameters()
 
     val spark = SparkSession.builder()
       .appName("Mariposa-Hive2Kafka")
       .enableHiveSupport()
       .getOrCreate()
+    // TODO! Check table and kafka topic!
 
     val hiveDF = spark.table(hiveTable)
 
@@ -40,6 +42,13 @@ case class Hive2Kafka  private (
 
     logger.info("Hive  to Kafka completed successfully.")
     spark.stop()
+  }
+
+  private def printParameters(): Unit = {
+    logger.info("Builder parameters are:")
+    (productElementNames zip productIterator).toList sortBy (_._1) foreach { case (k, v) =>
+      logger.info("{}: {}", k, v)
+    }
   }
 }
 

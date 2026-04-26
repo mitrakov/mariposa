@@ -18,10 +18,20 @@ case class HBase2Kafka private (
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa-HBase2Kafka ===")
+    printParameters()
 
     val spark = SparkSession.builder()
       .appName("Mariposa-HBase2Kafka")
       .getOrCreate()
+    // TODO! Check table and kafka topic! Otherwise you will get stupid errors like:
+    //  java.lang.NoClassDefFoundError: org/apache/hadoop/hbase/CompatibilityFactory
+    /*
+    val conn = ConnectionFactory.createConnection(spark.sparkContext.hadoopConfiguration)
+    if (!conn.getAdmin.tableExists(TableName.valueOf("sensor_data"))) {
+      logger.error("¡La tabla sensor_data no existe en HBase!")
+    }
+    conn.close()
+    */
 
 
     val hbaseDF = spark.read
@@ -40,6 +50,13 @@ case class HBase2Kafka private (
 
     logger.info("HBase to Kafka completed successfully.")
     spark.stop()
+  }
+
+  private def printParameters(): Unit = {
+    logger.info("Builder parameters are:")
+    (productElementNames zip productIterator).toList sortBy (_._1) foreach { case (k, v) =>
+      logger.info("{}: {}", k, v)
+    }
   }
 }
 
