@@ -8,12 +8,13 @@ val sparkVersion = "4.1.1"
 resolvers += Resolver.mavenLocal // TODO move to repo
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-  "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
-  "org.apache.hadoop" % "hadoop-client" % "3.4.3" % "provided",
   "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion,
+  "org.apache.hadoop" % "hadoop-client" % "3.4.3" % "provided", // 3.5.0 doesn't work, check why later
   ("org.apache.hbase.connectors.spark" % "hbase-spark" % "1.1.0").exclude("org.glassfish", "javax.el"),
   "org.apache.hbase.connectors.spark" % "hbase-spark-protocol-shaded" % "1.1.0",
   "org.antlr" % "antlr4-runtime" % "4.13.1" % "provided",     // matches Spark 4.1.1
+  "io.cucumber" %% "cucumber-scala" % "8.36.0",               // v8.37 requires Scala 2.13.18+
+  "org.scalatest" %% "scalatest" % "3.2.20" % Test,
 )
 
 // Antlr4 plugin
