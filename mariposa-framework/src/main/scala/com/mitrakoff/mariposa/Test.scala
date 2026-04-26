@@ -41,7 +41,8 @@ class Test extends ScalaDsl with EN {
     "value.serializer"   -> strSerializer,
     "key.deserializer"   -> strDeserializer,
     "value.deserializer" -> strDeserializer,
-    "group.id" -> "mariposa-test-group", // fix InvalidGroupIdException: To use the group management or offset commit APIs
+    "group.id" -> "mariposa-test-group", // fix InvalidGroupIdException: To use the group management or offset commit APIs...
+    "auto.offset.reset" -> "earliest",   // check why test fails without this prop
   ).asJava)
 
   Given("""a message is sent to Kafka topic {string}:""") { (topic: String, dataTable: DataTable) =>
