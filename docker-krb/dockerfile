@@ -1,0 +1,6 @@
+# docker build --tag mitrakov/hadoop-krb:1.0.0 .
+FROM mitrakov/hadoop-krb-base:1.0.0
+LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
+
+COPY entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
