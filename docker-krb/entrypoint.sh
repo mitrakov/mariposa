@@ -47,10 +47,6 @@ cat << EOF | sudo tee /etc/krb5.conf
         kdc = namenode.host
         admin_server = namenode.host
     }
-
-[domain_realm]
-    .mariposa.com = MARIPOSA.COM
-    mariposa.com = MARIPOSA.COM
 EOF
 
 cat << EOF | sudo tee /etc/krb5kdc/kdc.conf
@@ -91,14 +87,9 @@ cat <<'EOF' > $HADOOP_CONF_DIR/core-site.xml
     <property>
         <name>hadoop.security.auth_to_local</name>
         <value>
-            RULE:[2:$1@$0](dn/.*@MARIPOSA.COM)s/.*/hadoop/
-            RULE:[2:$1@$0](nn/.*@MARIPOSA.COM)s/.*/hadoop/
+            RULE:[2:$1@$0](.*@MARIPOSA.COM)s/.*/hadoop/
             DEFAULT
         </value>
-    </property>
-    <property>
-        <name>hadoop.security.group.mapping</name>
-        <value>org.apache.hadoop.security.ShellBasedUnixGroupsMapping</value>
     </property>
 </configuration>
 EOF
@@ -160,14 +151,6 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
       <description>Required for some Hadoop versions to allow SASL on high ports</description>
     </property>
     <property>
-        <name>dfs.web.authentication.kerberos.principal</name>
-        <value>HTTP/_HOST@MARIPOSA.COM</value>
-    </property>
-    <property>
-        <name>dfs.web.authentication.kerberos.keytab</name>
-        <value>/etc/security/keytabs/nn.keytab</value>
-    </property>
-    <property>
         <name>dfs.namenode.http-address</name>
         <value>0.0.0.0:9870</value>
     </property>
@@ -175,33 +158,6 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
         <name>dfs.namenode.datanode.registration.ip-hostname-check</name>
         <value>false</value>
         <description>Turn off strict hostname checking in Docker networks</description>
-    </property>
-    <property>
-        <name>dfs.namenode.kerberos.principal.pattern</name>
-        <value>*</value>
-    </property>
-</configuration>
-EOF
-
-# fix hostname resolution:
-# Add this to your entrypoint.sh before starting HDFS
-cat <<EOF > $HADOOP_CONF_DIR/hadoop-policy.xml
-<configuration>
-    <property>
-        <name>security.datanode.protocol.acl</name>
-        <value>hadoop</value>
-    </property>
-    <property>
-        <name>security.client.datanode.protocol.acl</name>
-        <value>*</value>
-    </property>
-    <property>
-        <name>security.inter.datanode.protocol.acl</name>
-        <value>hadoop</value>
-    </property>
-    <property>
-        <name>security.namenode.protocol.acl</name>
-        <value>hadoop</value>
     </property>
 </configuration>
 EOF
@@ -228,22 +184,6 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     <property>
         <name>yarn.nodemanager.keytab</name>
         <value>/etc/security/keytabs/dn.keytab</value>
-    </property>
-    <property>
-        <name>yarn.resourcemanager.webapp.spnego-principal</name>
-        <value>HTTP/_HOST@MARIPOSA.COM</value>
-    </property>
-    <property>
-        <name>yarn.resourcemanager.webapp.spnego-keytab-file</name>
-        <value>/etc/security/keytabs/nn.keytab</value>
-    </property>
-    <property>
-        <name>yarn.resourcemanager.process-priority</name>
-        <value>0</value>
-    </property>
-    <property>
-        <name>yarn.nodemanager.process-priority</name>
-        <value>0</value>
     </property>
 </configuration>
 EOF
@@ -310,12 +250,11 @@ else      # WORKERs
     sed -i "s|/etc/security/keytabs/dn.keytab|$MY_KEYTAB|g" $HADOOP_CONF_DIR/yarn-site.xml
 
     log "Starting HDFS..."
-    # hadoop --config $HADOOP_CONF_DIR org.apache.hadoop.hdfs.server.datanode.DataNode > $HADOOP_HOME/logs/datanode.log 2>&1 &
-    hadoop --config $HADOOP_CONF_DIR org.apache.hadoop.hdfs.server.datanode.DataNode
+    hadoop --config $HADOOP_CONF_DIR org.apache.hadoop.hdfs.server.datanode.DataNode > $HADOOP_HOME/logs/datanode.log 2>&1 &
     #yarn --daemon start nodemanager
 fi
 
 # infinite loop
-# kinit -kt /etc/security/keytabs/nn.keytab nn/namenode.host@MARIPOSA.COM
+# kinit -kt /etc/security/keytabs/nn.keytab nn/namenode.host@MARIPOSA.COM && klist && hdfs dfsadmin -report
 log "Done!"
 tail -f /dev/null
