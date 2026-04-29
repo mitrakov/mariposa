@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# entrypoint.sh for image: mitrakov/hadoop-krb:1.0.0
 set -euo pipefail  # exit on any error, undefined variable, or pipe failure
 
 # helpers
@@ -24,93 +25,10 @@ function error() {
     message="[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $1"
     echo -e "${RED}${message}${NC}"
 }
-function check_env() {
-    if [[ -z "${!1:-}" ]]; then
-        error "Error: environment variable '$1' is not set or empty"
-        exit 1
-    else
-        local lower_name=$(echo "$1" | tr '[:upper:]' '[:lower:]')
-        if [[ "$lower_name" == *"password"* ]]; then
-            info "$1: **********"
-        else
-            info "$1: ${!1}"
-        fi
-    fi
-}
-function check_os() {
-    local result=""
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        result="MacOS $(sw_vers -productVersion) (Build: $(sw_vers -buildVersion))"
-    elif [[ -f /etc/os-release ]]; then
-        # linux distributions with /etc/os-release
-        source /etc/os-release
-        result="$ID $VERSION_ID ($PRETTY_NAME)"
-    elif [[ -f /etc/redhat-release ]]; then
-        # fallback for older RHEL systems without /etc/os-release
-        result=$(cat /etc/redhat-release)
-    else
-        error "Unable to detect operating system"
-        exit 1
-    fi
 
-    info "OS: $result"
-}
-function check_primary_ip() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS - use route and ifconfig
-        primary_interface=$(route get default | grep interface | awk '{print $2}')
-        ipv4_addr=$(ifconfig "$primary_interface" | grep 'inet ' | awk '{print $2}')
-    else
-        # Linux - use ip command
-        primary_interface=$(ip route | grep default | awk '{print $5}' | head -1)
-        ipv4_addr=$(ip -4 addr show "$primary_interface" | grep inet | awk '{print $2}' | cut -d'/' -f1 | head -1)
-    fi
-    
-    info "Default IPv4 address: $ipv4_addr"
-}
-function check_hostname() {
-    info "Hostname: $(hostname)"
-}
-function check_java() {
-    if command -v java &> /dev/null; then
-        java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-    
-        if [[ -n "$java_version" ]]; then
-            info "Java version: $java_version"
-        else
-            warn "Cannot detect Java version"
-        fi
-    else
-        warn "'java' command not found"
-    fi
-}
-
-
-
-# =====
-# todo: remove this shit
-export HADOOP_NICENESS=0
-export HADOOP_SKIP_NICE=1
-export HDFS_DATANODE_SECURE_EXTRA_OPTS="-Dhadoop.security.dns.interface=default"
-# todo: rm renice from xmls
 
 
 # checks
-check_env "JAVA_HOME"
-check_env "HADOOP_HOME"
-check_env "HADOOP_CONF_DIR"
-check_env "IS_MASTER"
-check_env "MASTER_HOST"
-check_env "WORKER_HOSTS"
-check_os
-check_hostname
-check_primary_ip
-check_java
-
-# todo: do we need it?
-log "Update renice..."
-echo -e '#!/bin/sh\nexit 0' | sudo tee /usr/local/bin/renice
-sudo chmod +x /usr/local/bin/renice
 
 log "Creating configs..."
 
@@ -155,12 +73,12 @@ EOF
 echo "*/admin@MARIPOSA.COM *" | sudo tee /etc/krb5kdc/kadm5.acl
 
 # minimal setup for HDFS
-cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
+# Quote 'EOF' to prevent shell expansion inside the heredoc
+cat <<'EOF' > $HADOOP_CONF_DIR/core-site.xml
 <configuration>
     <property>
         <name>fs.defaultFS</name>
-        <value>hdfs://$MASTER_HOST:9000</value>
-        <description>give the datanodes address of the namenode</description>
+        <value>hdfs://namenode.host:9000</value>
     </property>
     <property>
         <name>hadoop.security.authentication</name>
@@ -168,20 +86,24 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
     </property>
     <property>
         <name>hadoop.security.authorization</name>
-        <value>true</value>
+        <value>false</value>
     </property>
     <property>
-      <name>hadoop.proxyuser.hue.hosts</name>
-      <value>*</value>
-      <description>add permissions for HUE</description>
+        <name>hadoop.security.auth_to_local</name>
+        <value>
+            RULE:[2:$1@$0](dn/.*@MARIPOSA.COM)s/.*/hadoop/
+            RULE:[2:$1@$0](nn/.*@MARIPOSA.COM)s/.*/hadoop/
+            DEFAULT
+        </value>
     </property>
     <property>
-      <name>hadoop.proxyuser.hue.groups</name>
-      <value>*</value>
-      <description>add permissions for HUE</description>
+        <name>hadoop.security.group.mapping</name>
+        <value>org.apache.hadoop.security.ShellBasedUnixGroupsMapping</value>
     </property>
 </configuration>
 EOF
+
+
 
 # minimal HDFS setup
 # Hadoop replaces _HOST with the actual hostname automatically
@@ -190,17 +112,14 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     <property>
         <name>dfs.replication</name>
         <value>2</value>
-        <description>replication factor (default 3)</description>
     </property>
     <property>
         <name>dfs.namenode.name.dir</name>
         <value>$HADOOP_HOME/dfs/name</value>
-        <description>switch default "/tmp/hadoop-hadoop/dfs/name" to stable path</description>
     </property>
     <property>
         <name>dfs.datanode.data.dir</name>
         <value>$HADOOP_HOME/dfs/data</value>
-        <description>switch default "/tmp/hadoop-hadoop/dfs/data" to stable path</description>
     </property>
     <property>
         <name>dfs.namenode.kerberos.principal</name>
@@ -220,11 +139,11 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     </property>
     <property>
         <name>dfs.datanode.address</name>
-        <value>0.0.0.0:1004</value>
+        <value>0.0.0.0:10019</value>
     </property>
     <property>
         <name>dfs.datanode.http.address</name>
-        <value>0.0.0.0:1006</value>
+        <value>0.0.0.0:10022</value>
     </property>
     <property>
         <name>dfs.data.transfer.protection</name>
@@ -236,30 +155,95 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
         <description>Enable Block Access Tokens (for Kerberos)</description>
     </property>
     <property>
-        <name>dfs.webhdfs.enabled</name>
-        <value>true</value>
-        <description>Enable WebHDFS for HUE</description>
+      <name>ignore.secure.ports.for.testing</name>
+      <value>true</value>
+      <description>Required for some Hadoop versions to allow SASL on high ports</description>
+    </property>
+    <property>
+        <name>dfs.web.authentication.kerberos.principal</name>
+        <value>HTTP/_HOST@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>dfs.web.authentication.kerberos.keytab</name>
+        <value>/etc/security/keytabs/nn.keytab</value>
+    </property>
+    <property>
+        <name>dfs.namenode.http-address</name>
+        <value>0.0.0.0:9870</value>
+    </property>
+    <property>
+        <name>dfs.namenode.datanode.registration.ip-hostname-check</name>
+        <value>false</value>
+        <description>Turn off strict hostname checking in Docker networks</description>
+    </property>
+    <property>
+        <name>dfs.namenode.kerberos.principal.pattern</name>
+        <value>*</value>
     </property>
 </configuration>
 EOF
 
-# minimal setup for Yarn
+# fix hostname resolution:
+# Add this to your entrypoint.sh before starting HDFS
+cat <<EOF > $HADOOP_CONF_DIR/hadoop-policy.xml
+<configuration>
+    <property>
+        <name>security.datanode.protocol.acl</name>
+        <value>hadoop</value>
+    </property>
+    <property>
+        <name>security.client.datanode.protocol.acl</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>security.inter.datanode.protocol.acl</name>
+        <value>hadoop</value>
+    </property>
+    <property>
+        <name>security.namenode.protocol.acl</name>
+        <value>hadoop</value>
+    </property>
+</configuration>
+EOF
+
+# Kerberos setup for Yarn
 cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
 <configuration>
     <property>
         <name>yarn.resourcemanager.hostname</name>
         <value>$MASTER_HOST</value>
-        <description>Tell Yarn the namenode address</description>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.principal</name>
+        <value>nn/_HOST@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.keytab</name>
+        <value>/etc/security/keytabs/nn.keytab</value>
+    </property>
+    <property>
+        <name>yarn.nodemanager.principal</name>
+        <value>dn/_HOST@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>yarn.nodemanager.keytab</name>
+        <value>/etc/security/keytabs/dn.keytab</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.webapp.spnego-principal</name>
+        <value>HTTP/_HOST@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.webapp.spnego-keytab-file</name>
+        <value>/etc/security/keytabs/nn.keytab</value>
     </property>
     <property>
         <name>yarn.resourcemanager.process-priority</name>
         <value>0</value>
-        <description>Do not try to change priority of Res-Manager</description>
     </property>
     <property>
         <name>yarn.nodemanager.process-priority</name>
         <value>0</value>
-        <description>Do not try to change priority of Node managers</description>
     </property>
 </configuration>
 EOF
@@ -274,7 +258,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # initialize Kerberos KDC Database
     if [ ! -f "/var/lib/krb5kdc/principal" ]; then
         log "First time run. Initializing Kerberos KDC..."
-        check_env "KRB5_PASSWORD"
         sudo kdb5_util create -s -P "$KRB5_PASSWORD"
         
         # create Principals and their proper keytabs
@@ -312,25 +295,27 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
     # start Hadoop
     log "Starting HDFS..."
-    HADOOP_NICENESS=0 nice -n 0 hdfs --daemon start namenode
-    HADOOP_NICENESS=0 nice -n 0 yarn --daemon start resourcemanager
+    hdfs --daemon start namenode
+    yarn --daemon start resourcemanager
 else      # WORKERs
-    # wait for the master to create our specific keytab
     MY_HOSTNAME=$(hostname)
-    while [ ! -f "/etc/security/keytabs/$MY_HOSTNAME.keytab" ]; do
-      log "Waiting for /etc/security/keytabs/$MY_HOSTNAME.keytab..."
+    MY_KEYTAB="/etc/security/keytabs/$MY_HOSTNAME.keytab"
+    while [ ! -f "$MY_KEYTAB" ]; do
+      log "Waiting for $MY_KEYTAB..."
       sleep 2
     done
 
-    # rename worker-specific keytab to the generic name HDFS expects in hdfs-site.xml
-    mv -fv "/etc/security/keytabs/$MY_HOSTNAME.keytab" /etc/security/keytabs/dn.keytab
+    # add keytabs
+    sed -i "s|/etc/security/keytabs/dn.keytab|$MY_KEYTAB|g" $HADOOP_CONF_DIR/hdfs-site.xml
+    sed -i "s|/etc/security/keytabs/dn.keytab|$MY_KEYTAB|g" $HADOOP_CONF_DIR/yarn-site.xml
 
     log "Starting HDFS..."
-    # we use sudo because the process MUST start as root to grab port 1004
-    sudo env "PATH=$PATH" HADOOP_NICENESS=0 nice -n 0 hdfs --daemon start datanode
-    HADOOP_NICENESS=0 nice -n 0 yarn --daemon start nodemanager
+    # hadoop --config $HADOOP_CONF_DIR org.apache.hadoop.hdfs.server.datanode.DataNode > $HADOOP_HOME/logs/datanode.log 2>&1 &
+    hadoop --config $HADOOP_CONF_DIR org.apache.hadoop.hdfs.server.datanode.DataNode
+    #yarn --daemon start nodemanager
 fi
 
 # infinite loop
+# kinit -kt /etc/security/keytabs/nn.keytab nn/namenode.host@MARIPOSA.COM
 log "Done!"
 tail -f /dev/null
