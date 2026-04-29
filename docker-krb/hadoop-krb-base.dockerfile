@@ -10,13 +10,14 @@ RUN wget --output-document=- https://downloads.apache.org/hadoop/common/hadoop-3
     tar --extract --gzip --directory /opt && mv /opt/hadoop-3.5.0 $HADOOP_HOME
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh
-RUN echo "export JSVC_HOME=/usr/bin"   >> $HADOOP_CONF_DIR/hadoop-env.sh
 
 # update PATH
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
 
-# install sudo to start services, ssh for Hadoop, postgresql for Hive Metastore and Airflow (pin version 16), iproute/mc: optional
-RUN apt update && apt install -y sudo openssh-server postgresql-16 krb5-kdc krb5-admin-server krb5-user jsvc iproute2 mc && apt clean
+# install packages
+RUN apt update && apt install -y sudo openssh-server postgresql-16 krb5-kdc krb5-admin-server krb5-user iproute2 mc
+
+# TODO: apt clean
 
 # create user 'hadoop' and add it to sudoers (w/o password)
 RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
@@ -26,4 +27,8 @@ RUN mkdir $HADOOP_HOME/dfs $HADOOP_HOME/logs && \
     chown -R hadoop:hadoop $HADOOP_HOME
 
 RUN echo "export HDFS_DATANODE_SECURE_USER=hadoop" >> $HADOOP_CONF_DIR/hadoop-env.sh
+
+RUN apt install -y libsnappy-dev libssl-dev
+
 USER hadoop
+WORKDIR /home/hadoop
