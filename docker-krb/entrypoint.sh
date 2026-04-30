@@ -57,11 +57,6 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
         <name>hadoop.security.authentication</name>
         <value>kerberos</value>
     </property>
-    <property>
-        <name>hadoop.security.authorization</name>
-        <value>false</value>
-        <description>TODO: enable later</description>
-    </property>
 </configuration>
 EOF
 
