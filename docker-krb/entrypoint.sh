@@ -108,11 +108,6 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
       <value>true</value>
       <description>TODO: disable later</description>
     </property>
-    <property>
-        <name>dfs.namenode.datanode.registration.ip-hostname-check</name>
-        <value>false</value>
-        <description>TODO: enable later</description>
-    </property>
 </configuration>
 EOF
 
@@ -138,11 +133,6 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     <property>
         <name>yarn.nodemanager.keytab</name>
         <value>/etc/security/keytabs/$MY_HOSTNAME.keytab</value>
-    </property>
-    <property>
-        <name>yarn.resourcemanager.principal.hostname-check</name>
-        <value>false</value>
-        <description>TODO: enable later</description>
     </property>
 </configuration>
 EOF
