@@ -32,6 +32,7 @@ function error() {
 # checks
 
 log "Creating configs..."
+MY_HOSTNAME=$(hostname)
 
 # setup Kerberos
 cat << EOF | sudo tee /etc/krb5.conf
@@ -45,8 +46,8 @@ cat << EOF | sudo tee /etc/krb5.conf
 
 [realms]
     MARIPOSA.COM = {
-        kdc = namenode.host
-        admin_server = namenode.host
+        kdc = $MASTER_HOST
+        admin_server = $MASTER_HOST
     }
 EOF
 
@@ -71,11 +72,11 @@ echo "*/admin@MARIPOSA.COM *" | sudo tee /var/lib/krb5kdc/kadm5.acl
 
 # minimal setup for HDFS
 # Quote 'EOF' to prevent shell expansion inside the heredoc
-cat <<'EOF' > $HADOOP_CONF_DIR/core-site.xml
+cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 <configuration>
     <property>
         <name>fs.defaultFS</name>
-        <value>hdfs://namenode.host:9000</value>
+        <value>hdfs://$MASTER_HOST:9000</value>
     </property>
     <property>
         <name>hadoop.security.authentication</name>
@@ -120,7 +121,7 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     </property>
     <property>
         <name>dfs.datanode.keytab.file</name>
-        <value>/etc/security/keytabs/dn.keytab</value>
+        <value>/etc/security/keytabs/$MY_HOSTNAME.keytab</value>
     </property>
     <property>
         <name>dfs.datanode.address</name>
@@ -157,7 +158,7 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.resourcemanager.principal</name>
-        <value>nn/namenode.host@MARIPOSA.COM</value>
+        <value>nn/$MASTER_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.resourcemanager.keytab</name>
@@ -169,7 +170,7 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.nodemanager.keytab</name>
-        <value>/etc/security/keytabs/dn.keytab</value>
+        <value>/etc/security/keytabs/$MY_HOSTNAME.keytab</value>
     </property>
     <property>
         <name>yarn.resourcemanager.principal.hostname-check</name>
@@ -226,16 +227,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
     hdfs --daemon start namenode
     yarn --daemon start resourcemanager
 else      # WORKERs
-    MY_HOSTNAME=$(hostname)
-    MY_KEYTAB="/etc/security/keytabs/$MY_HOSTNAME.keytab"
-    while [ ! -f "$MY_KEYTAB" ]; do
-      log "Waiting for $MY_KEYTAB..."
+    # make sure keytab files are available
+    while [ ! -f "/etc/security/keytabs/$MY_HOSTNAME.keytab" ]; do
+      log "Waiting for $MY_HOSTNAME.keytab"
       sleep 2
     done
-
-    # update hdfs-site.xml/yarn-site.xml with proper keytabs
-    sed -i "s|/etc/security/keytabs/dn.keytab|$MY_KEYTAB|g" $HADOOP_CONF_DIR/hdfs-site.xml
-    sed -i "s|/etc/security/keytabs/dn.keytab|$MY_KEYTAB|g" $HADOOP_CONF_DIR/yarn-site.xml
 
     log "Starting HDFS..."
     # use this commands instead of "hdfs start namenode" to avoid run-on-privilidged-port exception
