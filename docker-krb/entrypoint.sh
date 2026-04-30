@@ -85,21 +85,6 @@ cat <<'EOF' > $HADOOP_CONF_DIR/core-site.xml
         <name>hadoop.security.authorization</name>
         <value>false</value>
     </property>
-    <property>
-        <name>hadoop.security.auth_to_local</name>
-        <value>
-            RULE:[2:$1@$0](.*@MARIPOSA.COM)s/.*/hadoop/
-            DEFAULT
-        </value>
-    </property>
-    <property>
-        <name>hadoop.security.dns.interface</name>
-        <value>default</value>
-    </property>
-    <property>
-        <name>hadoop.security.dns.nameserver</name>
-        <value>default</value>
-    </property>
 </configuration>
 EOF
 
@@ -258,11 +243,12 @@ else      # WORKERs
       sleep 2
     done
 
-    # add keytabs
+    # update hdfs-site.xml/yarn-site.xml with proper keytabs
     sed -i "s|/etc/security/keytabs/dn.keytab|$MY_KEYTAB|g" $HADOOP_CONF_DIR/hdfs-site.xml
     sed -i "s|/etc/security/keytabs/dn.keytab|$MY_KEYTAB|g" $HADOOP_CONF_DIR/yarn-site.xml
 
     log "Starting HDFS..."
+    # use this commands instead of "hdfs start namenode" to avoid run-on-privilidged-port exception
     hadoop --config $HADOOP_CONF_DIR org.apache.hadoop.hdfs.server.datanode.DataNode > $HADOOP_HOME/logs/datanode.log 2>&1 &
     yarn --daemon start nodemanager
 fi
