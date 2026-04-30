@@ -58,16 +58,16 @@ cat << EOF | sudo tee /etc/krb5kdc/kdc.conf
 [realms]
     MARIPOSA.COM = {
         database_name = /var/lib/krb5kdc/principal
-        admin_keytab = /etc/krb5kdc/kadm5.keytab
-        acl_file = /etc/krb5kdc/kadm5.acl
-        key_stash_file = /etc/krb5kdc/stash
+        admin_keytab = /var/lib/krb5kdc/kadm5.keytab
+        acl_file = /var/lib/krb5kdc/kadm5.acl
+        key_stash_file = /var/lib/krb5kdc/stash
         kdc_ports = 88
         max_life = 10h 0m 0s
         max_renewable_life = 7d 0h 0m 0s
     }
 EOF
 
-echo "*/admin@MARIPOSA.COM *" | sudo tee /etc/krb5kdc/kadm5.acl
+echo "*/admin@MARIPOSA.COM *" | sudo tee /var/lib/krb5kdc/kadm5.acl
 
 # minimal setup for HDFS
 # Quote 'EOF' to prevent shell expansion inside the heredoc

@@ -8,6 +8,7 @@ services:
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - KRB5_PASSWORD=marip0sa_kRb
     volumes:
+      - ~/hadoop/kdc_data:/var/lib/krb5kdc
       - ~/hadoop/keytabs:/etc/security/keytabs
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
       - ~/hadoop/workspace:/home/hadoop/workspace
