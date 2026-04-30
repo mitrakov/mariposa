@@ -11,8 +11,9 @@ services:
     volumes:
       - ~/hadoop/kdc_conf:/etc/krb5kdc
       - ~/hadoop/kdc_data:/var/lib/krb5kdc
-      - ~/hadoop/keytabs:/etc/security/keytabs
+      - ~/hadoop/keytabs:/etc/security/keytabs       # shared across all
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
+      - ~/hadoop/certs1:/opt/hadoop/etc/hadoop/certs
       - ~/hadoop/workspace:/home/hadoop/workspace
     ports:
       - "9870:9870"   # HDFS UI
@@ -27,8 +28,9 @@ services:
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - JKS_PASSWORD=marip0sa_jKs
     volumes:
-      - ~/hadoop/keytabs:/etc/security/keytabs
+      - ~/hadoop/keytabs:/etc/security/keytabs       # shared across all
       - ~/hadoop/hdfs2_data:/opt/hadoop/dfs/data
+      - ~/hadoop/certs2:/opt/hadoop/etc/hadoop/certs
     ports:
       - "8042:8042"   # NodeManager
 
@@ -41,7 +43,8 @@ services:
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - JKS_PASSWORD=marip0sa_jKs
     volumes:
-      - ~/hadoop/keytabs:/etc/security/keytabs
+      - ~/hadoop/keytabs:/etc/security/keytabs       # shared across all
       - ~/hadoop/hdfs3_data:/opt/hadoop/dfs/data
+      - ~/hadoop/certs3:/opt/hadoop/etc/hadoop/certs
     ports:
       - "8043:8042"   # NodeManager
