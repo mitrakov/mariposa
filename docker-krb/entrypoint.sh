@@ -118,7 +118,7 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.resourcemanager.principal</name>
-        <value>namenode/$MASTER_HOST@MARIPOSA.COM</value>
+        <value>namenode/_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.resourcemanager.keytab</name>
