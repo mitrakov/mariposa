@@ -45,8 +45,6 @@ cat << EOF | sudo tee /etc/krb5.conf
     }
 EOF
 
-echo "*/admin@MARIPOSA.COM *" | sudo tee /var/lib/krb5kdc/kadm5.acl
-
 # minimal setup for HDFS
 # Quote 'EOF' to prevent shell expansion inside the heredoc
 cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
