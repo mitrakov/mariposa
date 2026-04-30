@@ -127,10 +127,6 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
         <value>0.0.0.0:10019</value>
     </property>
     <property>
-        <name>dfs.datanode.http.address</name>
-        <value>0.0.0.0:10022</value>
-    </property>
-    <property>
         <name>dfs.data.transfer.protection</name>
         <value>authentication</value>
     </property>
@@ -143,10 +139,6 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
       <name>ignore.secure.ports.for.testing</name>
       <value>true</value>
       <description>Required for some Hadoop versions to allow SASL on high ports</description>
-    </property>
-    <property>
-        <name>dfs.namenode.http-address</name>
-        <value>0.0.0.0:9870</value>
     </property>
     <property>
         <name>dfs.namenode.datanode.registration.ip-hostname-check</name>
@@ -201,13 +193,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
         # create Principals and their proper keytabs
         # -randkey means we don't want a human password; we'll use keytabs
         sudo kadmin.local -q "addprinc -randkey nn/$MASTER_HOST@MARIPOSA.COM"
-        sudo kadmin.local -q "addprinc -randkey HTTP/$MASTER_HOST@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k /etc/security/keytabs/nn.keytab nn/$MASTER_HOST@MARIPOSA.COM HTTP/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k /etc/security/keytabs/nn.keytab nn/$MASTER_HOST@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
             sudo kadmin.local -q "addprinc -randkey dn/$worker@MARIPOSA.COM"
-            sudo kadmin.local -q "addprinc -randkey HTTP/$worker@MARIPOSA.COM"
-            sudo kadmin.local -q "xst -k /etc/security/keytabs/$worker.keytab dn/$worker@MARIPOSA.COM HTTP/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "xst -k /etc/security/keytabs/$worker.keytab dn/$worker@MARIPOSA.COM"
         done
         unset IFS
 
