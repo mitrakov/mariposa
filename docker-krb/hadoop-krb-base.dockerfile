@@ -11,8 +11,13 @@ RUN wget --output-document=- https://downloads.apache.org/hadoop/common/hadoop-3
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh
 
+# download Apache Spark 4.1.1 (with Scala 2.13.17)
+ENV SPARK_HOME=/opt/spark
+RUN wget --output-document=- https://downloads.apache.org/spark/spark-4.1.1/spark-4.1.1-bin-hadoop3.tgz | \
+    tar --extract --gzip --directory /opt && mv /opt/spark-4.1.1-bin-hadoop3 $SPARK_HOME
+
 # update PATH
-ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin
 
 # install packages
 RUN apt update && apt install -y sudo openssh-server krb5-kdc krb5-admin-server iproute2 mc && apt clean
