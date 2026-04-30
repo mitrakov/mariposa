@@ -45,6 +45,9 @@ cat << EOF | sudo tee /etc/krb5.conf
     }
 EOF
 
+# create simple kadm5.acl to avoid startup errors
+echo "*/admin@MARIPOSA.COM *" | sudo tee /etc/krb5kdc/kadm5.acl
+
 # minimal setup for HDFS
 # Quote 'EOF' to prevent shell expansion inside the heredoc
 cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
@@ -102,11 +105,6 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
         <name>dfs.block.access.token.enable</name>
         <value>true</value>
         <description>FIX: Security is enabled but block access tokens aren't enabled</description>
-    </property>
-    <property>
-      <name>ignore.secure.ports.for.testing</name>
-      <value>true</value>
-      <description>TODO: disable later</description>
     </property>
 </configuration>
 EOF
