@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # entrypoint.sh for image: mitrakov/hadoop-krb:1.0.0
+# kinit -kt /etc/security/keytabs/nn.keytab nn/namenode.host@MARIPOSA.COM
 set -euo pipefail  # exit on any error, undefined variable, or pipe failure
 
 # helpers
@@ -91,6 +92,14 @@ cat <<'EOF' > $HADOOP_CONF_DIR/core-site.xml
             DEFAULT
         </value>
     </property>
+    <property>
+        <name>hadoop.security.dns.interface</name>
+        <value>default</value>
+    </property>
+    <property>
+        <name>hadoop.security.dns.nameserver</name>
+        <value>default</value>
+    </property>
 </configuration>
 EOF
 
@@ -171,7 +180,7 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.resourcemanager.principal</name>
-        <value>nn/_HOST@MARIPOSA.COM</value>
+        <value>nn/namenode.host@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.resourcemanager.keytab</name>
@@ -184,6 +193,10 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     <property>
         <name>yarn.nodemanager.keytab</name>
         <value>/etc/security/keytabs/dn.keytab</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.principal.hostname-check</name>
+        <value>false</value>
     </property>
 </configuration>
 EOF
@@ -251,10 +264,9 @@ else      # WORKERs
 
     log "Starting HDFS..."
     hadoop --config $HADOOP_CONF_DIR org.apache.hadoop.hdfs.server.datanode.DataNode > $HADOOP_HOME/logs/datanode.log 2>&1 &
-    #yarn --daemon start nodemanager
+    yarn --daemon start nodemanager
 fi
 
 # infinite loop
-# kinit -kt /etc/security/keytabs/nn.keytab nn/namenode.host@MARIPOSA.COM && klist && hdfs dfsadmin -report
 log "Done!"
 tail -f /dev/null
