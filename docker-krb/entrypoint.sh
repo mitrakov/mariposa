@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # entrypoint.sh for image: mitrakov/hadoop-krb:1.0.0
-# kinit -kt /etc/security/keytabs/nn.keytab nn/namenode.host@MARIPOSA.COM
+# kinit -kt /etc/security/keytabs/$(hostname).keytab namenode/$(hostname)@MARIPOSA.COM
 set -euo pipefail  # exit on any error, undefined variable, or pipe failure
 
 # helpers
@@ -92,7 +92,7 @@ EOF
 
 
 # minimal HDFS setup
-# Hadoop replaces _HOST with the actual hostname automatically
+# DO NOT use _HOST for keytabs! Use $MY_HOSTNAME instead
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
     <property>
@@ -109,15 +109,15 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     </property>
     <property>
         <name>dfs.namenode.kerberos.principal</name>
-        <value>nn/_HOST@MARIPOSA.COM</value>
+        <value>namenode/_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>dfs.namenode.keytab.file</name>
-        <value>/etc/security/keytabs/nn.keytab</value>
+        <value>/etc/security/keytabs/$MASTER_HOST.keytab</value>
     </property>
     <property>
         <name>dfs.datanode.kerberos.principal</name>
-        <value>dn/_HOST@MARIPOSA.COM</value>
+        <value>datanode/_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>dfs.datanode.keytab.file</name>
@@ -158,15 +158,15 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.resourcemanager.principal</name>
-        <value>nn/$MASTER_HOST@MARIPOSA.COM</value>
+        <value>namenode/$MASTER_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.resourcemanager.keytab</name>
-        <value>/etc/security/keytabs/nn.keytab</value>
+        <value>/etc/security/keytabs/$MASTER_HOST.keytab</value>
     </property>
     <property>
         <name>yarn.nodemanager.principal</name>
-        <value>dn/_HOST@MARIPOSA.COM</value>
+        <value>datanode/_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.nodemanager.keytab</name>
@@ -193,12 +193,12 @@ if [[ "$IS_MASTER" == "true" ]]; then
         
         # create Principals and their proper keytabs
         # -randkey means we don't want a human password; we'll use keytabs
-        sudo kadmin.local -q "addprinc -randkey nn/$MASTER_HOST@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k /etc/security/keytabs/nn.keytab nn/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "addprinc -randkey namenode/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k /etc/security/keytabs/$MASTER_HOST.keytab namenode/$MASTER_HOST@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
-            sudo kadmin.local -q "addprinc -randkey dn/$worker@MARIPOSA.COM"
-            sudo kadmin.local -q "xst -k /etc/security/keytabs/$worker.keytab dn/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "addprinc -randkey datanode/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "xst -k /etc/security/keytabs/$worker.keytab datanode/$worker@MARIPOSA.COM"
         done
         unset IFS
 
