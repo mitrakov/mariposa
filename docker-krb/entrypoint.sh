@@ -38,28 +38,10 @@ MY_HOSTNAME=$(hostname)
 cat << EOF | sudo tee /etc/krb5.conf
 [libdefaults]
     default_realm = MARIPOSA.COM
-    renew_lifetime = 7d
 
 [realms]
     MARIPOSA.COM = {
         kdc = $MASTER_HOST
-    }
-EOF
-
-cat << EOF | sudo tee /etc/krb5kdc/kdc.conf
-[kdcdefaults]
-    kdc_ports = 88
-    kdc_tcp_ports = 88
-
-[realms]
-    MARIPOSA.COM = {
-        database_name = /var/lib/krb5kdc/principal
-        admin_keytab = /var/lib/krb5kdc/kadm5.keytab
-        acl_file = /var/lib/krb5kdc/kadm5.acl
-        key_stash_file = /var/lib/krb5kdc/stash
-        kdc_ports = 88
-        max_life = 10h 0m 0s
-        max_renewable_life = 7d 0h 0m 0s
     }
 EOF
 
