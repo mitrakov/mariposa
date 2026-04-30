@@ -99,10 +99,6 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
         <value>/etc/security/keytabs/$MY_HOSTNAME.keytab</value>
     </property>
     <property>
-        <name>dfs.datanode.address</name>
-        <value>0.0.0.0:10019</value>
-    </property>
-    <property>
         <name>dfs.data.transfer.protection</name>
         <value>authentication</value>
     </property>
