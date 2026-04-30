@@ -15,9 +15,7 @@ RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
 
 # install packages
-RUN apt update && apt install -y sudo openssh-server postgresql-16 krb5-kdc krb5-admin-server krb5-user iproute2 mc
-
-# TODO: apt clean
+RUN apt update && apt install -y sudo openssh-server krb5-kdc krb5-admin-server iproute2 mc && apt clean
 
 # create user 'hadoop' and add it to sudoers (w/o password)
 RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
@@ -26,9 +24,4 @@ RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOP
 RUN mkdir $HADOOP_HOME/dfs $HADOOP_HOME/logs && \
     chown -R hadoop:hadoop $HADOOP_HOME
 
-RUN echo "export HDFS_DATANODE_SECURE_USER=hadoop" >> $HADOOP_CONF_DIR/hadoop-env.sh
-
-RUN apt install -y libsnappy-dev libssl-dev
-
 USER hadoop
-WORKDIR /home/hadoop
