@@ -25,6 +25,7 @@ services:
       - IS_MASTER=false
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
+      - JKS_PASSWORD=marip0sa_jKs
     volumes:
       - ~/hadoop/keytabs:/etc/security/keytabs
       - ~/hadoop/hdfs2_data:/opt/hadoop/dfs/data
@@ -38,6 +39,7 @@ services:
       - IS_MASTER=false
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
+      - JKS_PASSWORD=marip0sa_jKs
     volumes:
       - ~/hadoop/keytabs:/etc/security/keytabs
       - ~/hadoop/hdfs3_data:/opt/hadoop/dfs/data
