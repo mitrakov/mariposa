@@ -60,6 +60,7 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
     <property>
         <name>hadoop.security.authorization</name>
         <value>false</value>
+        <description>TODO: enable later</description>
     </property>
 </configuration>
 EOF
@@ -105,17 +106,17 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     <property>
         <name>dfs.block.access.token.enable</name>
         <value>true</value>
-        <description>Enable Block Access Tokens (for Kerberos)</description>
+        <description>FIX: Security is enabled but block access tokens aren't enabled</description>
     </property>
     <property>
       <name>ignore.secure.ports.for.testing</name>
       <value>true</value>
-      <description>Required for some Hadoop versions to allow SASL on high ports</description>
+      <description>TODO: disable later</description>
     </property>
     <property>
         <name>dfs.namenode.datanode.registration.ip-hostname-check</name>
         <value>false</value>
-        <description>Turn off strict hostname checking in Docker networks</description>
+        <description>TODO: enable later</description>
     </property>
 </configuration>
 EOF
@@ -146,6 +147,7 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     <property>
         <name>yarn.resourcemanager.principal.hostname-check</name>
         <value>false</value>
+        <description>TODO: enable later</description>
     </property>
 </configuration>
 EOF
