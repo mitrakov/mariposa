@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # entrypoint.sh for image: mitrakov/hadoop-krb:1.0.0
-# kinit -kt /etc/security/keytabs/$(hostname).keytab namenode/$(hostname)@MARIPOSA.COM
 set -euo pipefail  # exit on any error, undefined variable, or pipe failure
 
 # helpers
@@ -31,24 +30,25 @@ function error() {
 
 # checks
 
-log "Generate SSL certificates..."
+
 # DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
 MY_HOSTNAME=$(hostname)
 
 # generate temp self-signed SSL certificate to enable SASL to auth data transfer protocol
 # https://cwiki.apache.org/confluence/display/HADOOP/Secure+DataNode
 if [ ! -f "$HADOOP_CONF_DIR/certs/keystore.jks" ]; then
-  keytool -genkeypair \
-    -alias hadoop \
-    -keyalg RSA \
-    -keysize 2048 \
-    -validity 9999 \
-    -keystore $HADOOP_CONF_DIR/certs/keystore.jks \
-    -storepass $JKS_PASSWORD \
-    -keypass $JKS_PASSWORD \
-    -dname "CN=$MY_HOSTNAME" \
-    -storetype PKCS12 \
-    -noprompt
+    log "Generate SSL certificates..."
+    keytool -genkeypair \
+        -alias hadoop \
+        -keyalg RSA \
+        -keysize 2048 \
+        -validity 9999 \
+        -keystore $HADOOP_CONF_DIR/certs/keystore.jks \
+        -storepass $JKS_PASSWORD \
+        -keypass $JKS_PASSWORD \
+        -dname "CN=$MY_HOSTNAME" \
+        -storetype PKCS12 \
+        -noprompt
 else
     info "OK. The keystore.jks found for $MY_HOSTNAME."
 fi
@@ -103,7 +103,7 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     </property>
     <property>
         <name>dfs.namenode.kerberos.principal</name>
-        <value>namenode/$MASTER_HOST@MARIPOSA.COM</value>
+        <value>hadoop/$MASTER_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>dfs.namenode.keytab.file</name>
@@ -111,7 +111,7 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     </property>
     <property>
         <name>dfs.datanode.kerberos.principal</name>
-        <value>datanode/$MY_HOSTNAME@MARIPOSA.COM</value>
+        <value>hadoop/$MY_HOSTNAME@MARIPOSA.COM</value>
     </property>
     <property>
         <name>dfs.datanode.keytab.file</name>
@@ -148,7 +148,7 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.resourcemanager.principal</name>
-        <value>namenode/$MASTER_HOST@MARIPOSA.COM</value>
+        <value>hadoop/$MASTER_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.resourcemanager.keytab</name>
@@ -156,7 +156,7 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.nodemanager.principal</name>
-        <value>datanode/$MY_HOSTNAME@MARIPOSA.COM</value>
+        <value>hadoop/$MY_HOSTNAME@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.nodemanager.keytab</name>
@@ -183,6 +183,26 @@ cat <<EOF > $HADOOP_CONF_DIR/ssl-server.xml
 </configuration>
 EOF
 
+# setup Apache Spark
+# spark.master                     YARN is a master
+# spark.history.fs.logDirectory    must-have
+# spark.eventLog.*                 opt, write Spark logs to HDFS
+# spark.yarn.jars                  opt, use JARs directly from HDFS
+# spark.kerberos.*                 Kerberos setup
+# spark.history.kerberos.*         Kerberos setup
+cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
+spark.master                       yarn
+spark.history.fs.logDirectory      hdfs://$MASTER_HOST:9000/spark/logs
+spark.eventLog.dir                 hdfs://$MASTER_HOST:9000/spark/logs
+spark.eventLog.enabled             true
+spark.yarn.jars                    hdfs:///spark/libs/*.jar
+spark.kerberos.principal           hadoop/$MY_HOSTNAME@MARIPOSA.COM
+spark.kerberos.keytab              /etc/security/keytabs/$MY_HOSTNAME.keytab
+spark.history.kerberos.enabled     true
+spark.history.kerberos.principal   hadoop/$MY_HOSTNAME@MARIPOSA.COM
+spark.history.kerberos.keytab      /etc/security/keytabs/$MY_HOSTNAME.keytab
+EOF
+
 
 
 # =========================
@@ -197,12 +217,12 @@ if [[ "$IS_MASTER" == "true" ]]; then
         
         # create Principals and their proper keytabs
         # -randkey means we don't want a human password; we'll use keytabs
-        sudo kadmin.local -q "addprinc -randkey namenode/$MASTER_HOST@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k /etc/security/keytabs/$MASTER_HOST.keytab namenode/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "addprinc -randkey hadoop/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k /etc/security/keytabs/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
-            sudo kadmin.local -q "addprinc -randkey datanode/$worker@MARIPOSA.COM"
-            sudo kadmin.local -q "xst -k /etc/security/keytabs/$worker.keytab datanode/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "addprinc -randkey hadoop/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "xst -k /etc/security/keytabs/$worker.keytab hadoop/$worker@MARIPOSA.COM"
         done
         unset IFS
 
@@ -230,6 +250,23 @@ if [[ "$IS_MASTER" == "true" ]]; then
     log "Starting HDFS..."
     hdfs --daemon start namenode
     yarn --daemon start resourcemanager
+
+    # start Spark
+    log "Starting Spark History Server..."
+    kinit -kt /etc/security/keytabs/$MASTER_HOST.keytab $(whoami)/$MASTER_HOST@MARIPOSA.COM
+    klist
+    sleep 2   # small pause for datanodes to get started with Kerberos
+    hdfs dfs -mkdir -p /spark/logs        # must-have
+    start-history-server.sh
+
+    # opt: copy Spark libs to HDFS for better performance
+    if ! hdfs dfs -test -e /spark/libs; then
+        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
+        hdfs dfs -mkdir -p /spark/libs
+        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
+    else
+        info "OK: Spark JARs already loaded into HDFS"
+    fi
 else      # WORKERs
     # make sure keytab files are available
     while [ ! -f "/etc/security/keytabs/$MY_HOSTNAME.keytab" ]; do
@@ -237,9 +274,9 @@ else      # WORKERs
       sleep 2
     done
 
+    # start Hadoop
     log "Starting HDFS..."
-    # use this commands instead of "hdfs start namenode" to avoid run-on-privilidged-port exception
-    hadoop --config $HADOOP_CONF_DIR org.apache.hadoop.hdfs.server.datanode.DataNode > $HADOOP_HOME/logs/datanode.log 2>&1 &
+    hdfs --daemon start datanode
     yarn --daemon start nodemanager
 fi
 
