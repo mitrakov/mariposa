@@ -31,23 +31,29 @@ function error() {
 
 # checks
 
-log "Creating configs..."
+log "Generate SSL certificates..."
 # DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
 MY_HOSTNAME=$(hostname)
 
 # generate temp self-signed SSL certificate to enable SASL to auth data transfer protocol
 # https://cwiki.apache.org/confluence/display/HADOOP/Secure+DataNode
-keytool -genkeypair \
-  -alias hadoop \
-  -keyalg RSA \
-  -keysize 2048 \
-  -validity 9999 \
-  -keystore $HADOOP_CONF_DIR/keystore.jks \
-  -storepass $JKS_PASSWORD \
-  -keypass $JKS_PASSWORD \
-  -dname "CN=$MY_HOSTNAME" \
-  -storetype PKCS12 \
-  -noprompt
+if [ ! -f "$HADOOP_CONF_DIR/certs/keystore.jks" ]; then
+  keytool -genkeypair \
+    -alias hadoop \
+    -keyalg RSA \
+    -keysize 2048 \
+    -validity 9999 \
+    -keystore $HADOOP_CONF_DIR/certs/keystore.jks \
+    -storepass $JKS_PASSWORD \
+    -keypass $JKS_PASSWORD \
+    -dname "CN=$MY_HOSTNAME" \
+    -storetype PKCS12 \
+    -noprompt
+else
+    info "OK. The keystore.jks found for $MY_HOSTNAME."
+fi
+
+log "Creating configs..."
 
 # setup Kerberos
 cat << EOF | sudo tee /etc/krb5.conf
@@ -164,7 +170,7 @@ cat <<EOF > $HADOOP_CONF_DIR/ssl-server.xml
 <configuration>
   <property>
     <name>ssl.server.keystore.location</name>
-    <value>$HADOOP_CONF_DIR/keystore.jks</value>
+    <value>$HADOOP_CONF_DIR/certs/keystore.jks</value>
   </property>
   <property>
     <name>ssl.server.keystore.password</name>
