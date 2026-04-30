@@ -32,7 +32,22 @@ function error() {
 # checks
 
 log "Creating configs..."
+# DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
 MY_HOSTNAME=$(hostname)
+
+# generate temp self-signed SSL certificate to enable SASL to auth data transfer protocol
+# https://cwiki.apache.org/confluence/display/HADOOP/Secure+DataNode
+keytool -genkeypair \
+  -alias hadoop \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 9999 \
+  -keystore $HADOOP_CONF_DIR/keystore.jks \
+  -storepass $JKS_PASSWORD \
+  -keypass $JKS_PASSWORD \
+  -dname "CN=$MY_HOSTNAME" \
+  -storetype PKCS12 \
+  -noprompt
 
 # setup Kerberos
 cat << EOF | sudo tee /etc/krb5.conf
@@ -66,7 +81,6 @@ EOF
 
 
 # minimal HDFS setup
-# DO NOT use _HOST for keytabs! Use $MY_HOSTNAME instead
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
     <property>
@@ -83,7 +97,7 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     </property>
     <property>
         <name>dfs.namenode.kerberos.principal</name>
-        <value>namenode/_HOST@MARIPOSA.COM</value>
+        <value>namenode/$MASTER_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>dfs.namenode.keytab.file</name>
@@ -91,7 +105,7 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     </property>
     <property>
         <name>dfs.datanode.kerberos.principal</name>
-        <value>datanode/_HOST@MARIPOSA.COM</value>
+        <value>datanode/$MY_HOSTNAME@MARIPOSA.COM</value>
     </property>
     <property>
         <name>dfs.datanode.keytab.file</name>
@@ -100,6 +114,16 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     <property>
         <name>dfs.data.transfer.protection</name>
         <value>authentication</value>
+    </property>
+    <property>
+        <name>dfs.datanode.address</name>
+        <value>0.0.0.0:10019</value>
+        <description>https://cwiki.apache.org/confluence/display/HADOOP/Secure+DataNode</description>
+    </property>
+    <property>
+        <name>dfs.http.policy</name>
+        <value>HTTPS_ONLY</value>
+        <description>https://cwiki.apache.org/confluence/display/HADOOP/Secure+DataNode</description>
     </property>
     <property>
         <name>dfs.block.access.token.enable</name>
@@ -118,7 +142,7 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.resourcemanager.principal</name>
-        <value>namenode/_HOST@MARIPOSA.COM</value>
+        <value>namenode/$MASTER_HOST@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.resourcemanager.keytab</name>
@@ -126,12 +150,30 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.nodemanager.principal</name>
-        <value>datanode/_HOST@MARIPOSA.COM</value>
+        <value>datanode/$MY_HOSTNAME@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.nodemanager.keytab</name>
         <value>/etc/security/keytabs/$MY_HOSTNAME.keytab</value>
     </property>
+</configuration>
+EOF
+
+# this is necessary for SASL data-transfer protocol to enable https
+cat <<EOF > $HADOOP_CONF_DIR/ssl-server.xml
+<configuration>
+  <property>
+    <name>ssl.server.keystore.location</name>
+    <value>$HADOOP_CONF_DIR/keystore.jks</value>
+  </property>
+  <property>
+    <name>ssl.server.keystore.password</name>
+    <value>$JKS_PASSWORD</value>
+  </property>
+  <property>
+    <name>ssl.server.keystore.keypassword</name>
+    <value>$JKS_PASSWORD</value>
+  </property>
 </configuration>
 EOF
 

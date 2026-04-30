@@ -7,6 +7,7 @@ services:
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - KRB5_PASSWORD=marip0sa_kRb
+      - JKS_PASSWORD=marip0sa_jKs
     volumes:
       - ~/hadoop/kdc_conf:/etc/krb5kdc
       - ~/hadoop/kdc_data:/var/lib/krb5kdc
