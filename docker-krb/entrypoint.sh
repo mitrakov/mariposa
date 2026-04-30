@@ -38,16 +38,11 @@ MY_HOSTNAME=$(hostname)
 cat << EOF | sudo tee /etc/krb5.conf
 [libdefaults]
     default_realm = MARIPOSA.COM
-    dns_lookup_realm = false
-    dns_lookup_kdc = false
-    ticket_lifetime = 24h
     renew_lifetime = 7d
-    forwardable = true
 
 [realms]
     MARIPOSA.COM = {
         kdc = $MASTER_HOST
-        admin_server = $MASTER_HOST
     }
 EOF
 
