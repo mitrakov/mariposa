@@ -6,6 +6,7 @@ services:
       - IS_MASTER=true
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
+      - HIVE_DB_PASSWORD=marip0sa_pGs
       - KRB5_PASSWORD=marip0sa_kRb
       - JKS_PASSWORD=marip0sa_jKs
     volumes:
@@ -13,6 +14,7 @@ services:
       - ~/hadoop/kdc_data:/var/lib/krb5kdc
       - ~/hadoop/keytabs:/etc/security/keytabs       # shared across all
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
+      - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
       - ~/hadoop/certs1:/opt/hadoop/etc/hadoop/certs
       - ~/hadoop/workspace:/home/hadoop/workspace
     ports:
