@@ -8,27 +8,12 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;36m'
 PURPLE='\033[0;35m'
-NC='\033[0m' # no colour
-function debug() {
-    message="$(date +'%Y-%m-%d %H:%M:%S') [DEBUG] $1"
-    echo -e "${PURPLE}${message}${NC}"
-}
-function log() {
-    message="$(date +'%Y-%m-%d %H:%M:%S') [LOG]   $1"
-    echo -e "${GREEN}${message}${NC}"
-}
-function info() {
-    message="$(date +'%Y-%m-%d %H:%M:%S') [INFO]  $1"
-    echo -e "${BLUE}${message}${NC}"
-}
-function warn() {
-    message="$(date +'%Y-%m-%d %H:%M:%S') [WARN]  $1"
-    echo -e "${YELLOW}${message}${NC}"
-}
-function error() {
-    message="$(date +'%Y-%m-%d %H:%M:%S') [ERROR] $1"
-    echo -e "${RED}${message}${NC}"
-}
+NC='\033[0m'
+function debug() { echo -e "${PURPLE}$(date +'%Y-%m-%d %H:%M:%S') [DEBUG] $1${NC}"; }
+function log()   { echo -e "${GREEN}$(date +'%Y-%m-%d %H:%M:%S') [LOG]   $1${NC}"; }
+function info()  { echo -e "${BLUE}$(date +'%Y-%m-%d %H:%M:%S') [INFO]  $1${NC}"; }
+function warn()  { echo -e "${YELLOW}$(date +'%Y-%m-%d %H:%M:%S') [WARN]  $1${NC}"; }
+function error() { echo -e "${RED}$(date +'%Y-%m-%d %H:%M:%S') [ERROR] $1${NC}"; }
 function check_env() {
     if [[ -z "${!1:-}" ]]; then
         error "Error: environment variable '$1' is not set or empty"
@@ -51,7 +36,7 @@ check_env "SPARK_HOME"
 check_env "HADOOP_HOME"
 check_env "HIVE_HOME"
 check_env "ZOOKEEPER_HOME"
-#check_env "HBASE_HOME"
+check_env "HBASE_HOME"
 #check_env "KAFKA_HOME"
 #check_env "AIRFLOW_HOME"
 #check_env "HUE_HOME"
@@ -61,7 +46,7 @@ check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "JKS_PASSWORD"
-#check_env "ZK_ID"
+check_env "ZK_ID"
 
 
 
@@ -324,7 +309,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     </property>
     <property>
         <name>hive.metastore.kerberos.keytab.file</name>
-        <value>$KEYTABS_DIR/hive.keytab</value>
+        <value>$KEYTABS_DIR/$MASTER_HOST.keytab</value>
     </property>
 </configuration>
 EOF
@@ -340,6 +325,55 @@ else      # for workers
 EOF
 fi
 
+
+# ZOOKEEPER
+# setup ZK for each node (ZK_ID must be a unique number for every node, e.g. 1,2,3)
+echo "$ZK_ID" > $ZOOKEEPER_HOME/data/myid
+{
+  echo 'export SERVER_JVMFLAGS="$SERVER_JVMFLAGS -Djava.security.auth.login.config=$ZOOKEEPER_HOME/conf/jaas.conf"'
+  echo 'export CLIENT_JVMFLAGS="$CLIENT_JVMFLAGS -Djava.security.auth.login.config=$ZOOKEEPER_HOME/conf/jaas.conf"'
+} >> $ZOOKEEPER_HOME/bin/zkEnv.sh
+
+cat <<EOF > $ZOOKEEPER_HOME/conf/zoo.cfg
+tickTime=1000
+initLimit=10
+syncLimit=5
+dataDir=$ZOOKEEPER_HOME/data
+clientPort=2181
+
+authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
+requireClientAuthScheme=sasl
+
+server.1=$MASTER_HOST:2888:3888
+EOF
+
+count=2     # "1" is already set for $MASTER_HOST
+IFS=','
+for worker in $WORKER_HOSTS; do
+    echo "server.$count=$worker:2888:3888" >> $ZOOKEEPER_HOME/conf/zoo.cfg
+    count=$((count + 1))
+done
+unset IFS
+
+cat <<EOF > $ZOOKEEPER_HOME/conf/jaas.conf
+Server {
+    com.sun.security.auth.module.Krb5LoginModule required
+    useKeyTab=true
+    useTicketCache=false
+    keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
+    principal="zookeeper/$MY_HOSTNAME@MARIPOSA.COM"
+    storeKey=true;
+};
+
+Client {
+    com.sun.security.auth.module.Krb5LoginModule required
+    useKeyTab=true
+    useTicketCache=false
+    keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
+    principal="zookeeper/$MY_HOSTNAME@MARIPOSA.COM"
+    storeKey=true;
+};
+EOF
 
 
 # =========================
@@ -357,12 +391,13 @@ if [[ "$IS_MASTER" == "true" ]]; then
         # -randkey means we don't want a human password; we'll use keytabs
         sudo kadmin.local -q "addprinc -randkey hadoop/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hive/$MASTER_HOST@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k $KEYTABS_DIR/hive.keytab hive/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "addprinc -randkey zookeeper/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
             sudo kadmin.local -q "addprinc -randkey hadoop/$worker@MARIPOSA.COM"
-            sudo kadmin.local -q "xst -k $KEYTABS_DIR/$worker.keytab hadoop/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "addprinc -randkey zookeeper/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "xst -k $KEYTABS_DIR/$worker.keytab hadoop/$worker@MARIPOSA.COM zookeeper/$worker@MARIPOSA.COM"
         done
         unset IFS
 
@@ -377,6 +412,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     log "Starting Kerberos..."
     sudo service krb5-kdc start
     sudo service krb5-admin-server start
+    until nc -zv $MASTER_HOST 88; do sleep 1; done
 
     # format HDFS
     if [ ! -f "$HADOOP_HOME/dfs/name/current/VERSION" ]; then
@@ -390,14 +426,14 @@ if [[ "$IS_MASTER" == "true" ]]; then
     log "Starting HDFS..."
     hdfs --daemon start namenode
     yarn --daemon start resourcemanager
-    until nc -zv $MASTER_HOST 9000; do
-        debug "Waiting for NameNode RPC at $MASTER_HOST:9000..."
-        sleep 2
-    done
+    until nc -zv $MASTER_HOST 9000; do sleep 1; done
+
+    # start Zookeeper
+    zkServer.sh start
 
     # start Spark
     log "Waiting for HDFS to exit safe mode..."
-    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab $(whoami)/$MASTER_HOST@MARIPOSA.COM
+    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM
     klist
     hdfs dfsadmin -safemode wait
 
@@ -426,15 +462,16 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: Spark JARs already loaded into HDFS"
     fi
 else      # WORKERs
-    until nc -zv $MASTER_HOST 88; do
-      debug "Waiting for KDC at $MASTER_HOST:88..."
-      sleep 4
-    done
+    # wait for KDC first
+    until nc -zv $MASTER_HOST 88; do sleep 1; done
 
     # start Hadoop
     log "Starting HDFS..."
     hdfs --daemon start datanode
     yarn --daemon start nodemanager
+
+    # start Zookeeper
+    zkServer.sh start
 fi
 
 # infinite loop
