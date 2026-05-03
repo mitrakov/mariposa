@@ -240,7 +240,23 @@ cat <<EOF > $HADOOP_CONF_DIR/ssl-server.xml
 </configuration>
 EOF
 
+
 # setup Apache Spark
+export HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-common-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-protocol-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-protocol-shaded-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-server-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-mapreduce-2.5.13.jar:\
+$HBASE_HOME/lib/hbase-shaded-miscellaneous-4.1.12.jar:\
+$HBASE_HOME/lib/hbase-shaded-protobuf-4.1.12.jar:\
+$HBASE_HOME/lib/hbase-shaded-netty-4.1.12.jar:\
+$HBASE_HOME/lib/hbase-unsafe-4.1.12.jar:\
+$HBASE_HOME/lib/protobuf-java-2.5.0.jar:\
+$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-api-1.49.0.jar:\
+$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-context-1.49.0.jar:\
+$HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-semconv-1.29.0-alpha.jar"
+
 # spark.master                     YARN is a master
 # spark.history.fs.logDirectory    must-have
 # spark.eventLog.*                               write Spark logs to HDFS
@@ -252,6 +268,7 @@ EOF
 # spark.sql.hive.metastore.jars                  tell Hive to take JARs from this folder
 # spark.kerberos.*                               Kerberos setup
 # spark.history.kerberos.*                       Kerberos setup
+# spark.*.extraClassPath                         HBASE support
 cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
 spark.master                                   yarn
 spark.history.fs.logDirectory                  hdfs://$MASTER_HOST:9000/spark/logs
@@ -268,6 +285,8 @@ spark.kerberos.keytab                          $KEYTABS_DIR/$MY_HOSTNAME.keytab
 spark.history.kerberos.enabled                 true
 spark.history.kerberos.principal               hadoop/$MY_HOSTNAME@MARIPOSA.COM
 spark.history.kerberos.keytab                  $KEYTABS_DIR/$MY_HOSTNAME.keytab
+spark.driver.extraClassPath                    $HBASE_HOME/conf:$HBASE_LIBS
+spark.executor.extraClassPath                  $HBASE_HOME/conf:$HBASE_LIBS
 EOF
 
 # setup Hive
@@ -376,6 +395,90 @@ Client {
 EOF
 
 
+# setup HBase
+# Fix: https://issues.apache.org/jira/browse/HDFS-16644
+# TODO: refine
+rm -f $HBASE_HOME/lib/hadoop-annotations-*.jar
+rm -f $HBASE_HOME/lib/hadoop-auth-*.jar
+rm -f $HBASE_HOME/lib/hadoop-client-*.jar
+rm -f $HBASE_HOME/lib/hadoop-common-*.jar
+rm -f $HBASE_HOME/lib/hadoop-hdfs-*.jar
+rm -f $HBASE_HOME/lib/hadoop-mapreduce-client-core-*.jar
+rm -f $HBASE_HOME/lib/hadoop-yarn-common-*.jar
+rm -f $HBASE_HOME/lib/hadoop-yarn-api-*.jar
+rm -f $HBASE_HOME/lib/guava-*.jar
+ln -sf $HADOOP_HOME/share/hadoop/yarn/hadoop-yarn-common-*.jar $HBASE_HOME/lib/
+ln -sf $HADOOP_HOME/share/hadoop/yarn/hadoop-yarn-api-*.jar $HBASE_HOME/lib/
+ln -sf $HADOOP_HOME/share/hadoop/hdfs/hadoop-hdfs-*.jar $HBASE_HOME/lib/
+ln -sf $HADOOP_HOME/share/hadoop/hdfs/hadoop-hdfs-client-*.jar $HBASE_HOME/lib/
+ln -sf $HADOOP_HOME/share/hadoop/common/hadoop-common-*.jar $HBASE_HOME/lib/
+ln -sf $HADOOP_HOME/share/hadoop/common/lib/hadoop-auth-*.jar $HBASE_HOME/lib/
+ln -sf $HADOOP_HOME/share/hadoop/common/lib/hadoop-annotations-*.jar $HBASE_HOME/lib/
+ln -sf $HADOOP_HOME/share/hadoop/common/lib/guava-*.jar $HBASE_HOME/lib/
+ln -sf $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-client-core-*.jar $HBASE_HOME/lib/
+
+cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
+<configuration>
+    <property>
+        <name>hbase.cluster.distributed</name>
+        <value>true</value>
+        <description>use HDFS instead of standalone local FS</description>
+    </property>
+    <property>
+        <name>hbase.rootdir</name>
+        <value>hdfs://$MASTER_HOST:9000/hbase</value>
+        <description>link to a Namenode</description>
+    </property>
+    <property>
+        <name>hbase.zookeeper.quorum</name>
+        <value>$MASTER_HOST,$WORKER_HOSTS</value>
+        <description>Zookeeper full quorum list</description>
+    </property>
+    <property>
+        <name>hbase.zookeeper.property.clientPort</name>
+        <value>2181</value>
+    </property>
+    <property>
+        <name>hbase.wal.provider</name>
+        <value>filesystem</value>
+        <description>fix java-17 Netty error: IllegalArgumentException: object is not an instance of declaring class</description>
+    </property>
+
+    <property>
+        <name>hbase.security.authentication</name>
+        <value>simple</value>
+        <description>TODO: switch to kerberos</description>
+    </property>
+    <property>
+        <name>hbase.security.authorization</name>
+        <value>false</value>
+        <description>TODO: switch to true</description>
+    </property>
+    <property>
+        <name>hbase.ipc.client.fallback-to-simple-auth-allowed</name>
+        <value>true</value>
+        <description>TODO: switch to false or remove</description>
+    </property>
+    <property>
+        <name>hbase.master.kerberos.principal</name>
+        <value>hbase/$MASTER_HOST@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>hbase.master.keytab.file</name>
+        <value>$KEYTABS_DIR/$MASTER_HOST.keytab</value>
+    </property>
+    <property>
+        <name>hbase.regionserver.kerberos.principal</name>
+        <value>hbase/$MY_HOSTNAME@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>hbase.regionserver.keytab.file</name>
+        <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
+    </property>
+</configuration>
+EOF
+
+
 # =========================
 # === starting services ===
 # =========================
@@ -392,12 +495,14 @@ if [[ "$IS_MASTER" == "true" ]]; then
         sudo kadmin.local -q "addprinc -randkey hadoop/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hive/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey zookeeper/$MASTER_HOST@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "addprinc -randkey hbase/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
             sudo kadmin.local -q "addprinc -randkey hadoop/$worker@MARIPOSA.COM"
             sudo kadmin.local -q "addprinc -randkey zookeeper/$worker@MARIPOSA.COM"
-            sudo kadmin.local -q "xst -k $KEYTABS_DIR/$worker.keytab hadoop/$worker@MARIPOSA.COM zookeeper/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "addprinc -randkey hbase/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "xst -k $KEYTABS_DIR/$worker.keytab hadoop/$worker@MARIPOSA.COM zookeeper/$worker@MARIPOSA.COM hbase/$worker@MARIPOSA.COM"
         done
         unset IFS
 
@@ -461,6 +566,12 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: Spark JARs already loaded into HDFS"
     fi
+
+    # start HBase
+    log "Starting HBase Master..."
+    hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
+    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM
+    hbase-daemon.sh start master
 else      # WORKERs
     # wait for KDC first
     until nc -zv $MASTER_HOST 88; do sleep 1; done
@@ -472,9 +583,15 @@ else      # WORKERs
 
     # start Zookeeper
     zkServer.sh start
+
+    # start HBase
+    log "Starting HBase RegionServer..."
+    kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM
+    hbase-daemon.sh start regionserver
 fi
 
 # infinite loop
+# cat /opt/hbase/logs/hbase--*.host.log
 sleep 1
 log "Done!"
 tail -f /dev/null
