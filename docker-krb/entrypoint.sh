@@ -37,7 +37,7 @@ check_env "HADOOP_HOME"
 check_env "HIVE_HOME"
 check_env "ZOOKEEPER_HOME"
 check_env "HBASE_HOME"
-#check_env "KAFKA_HOME"
+check_env "KAFKA_HOME"
 #check_env "AIRFLOW_HOME"
 #check_env "HUE_HOME"
 check_env "HADOOP_CONF_DIR"
@@ -393,6 +393,73 @@ Client {
     storeKey=true;
 };
 EOF
+# example: zkCli.sh -server $(hostname)
+
+
+# setup Apache Kafka
+# format: id1@host1:9093,id2@host2:9093,id3@host3:9093 (hardcoding the master as ID 1 and workers starting from 2)
+VOTERS="1@$MASTER_HOST:9093"
+count=2
+IFS=','
+for worker in $WORKER_HOSTS; do
+    VOTERS="$VOTERS,$count@$worker:9093"
+    count=$((count + 1))
+done
+unset IFS
+
+cat <<EOF > $KAFKA_HOME/config/server.properties
+# Role: every node acts as both a Broker and a Controller
+process.roles=broker,controller
+node.id=$ZK_ID
+controller.quorum.voters=$VOTERS
+
+# Network settings
+listeners=SASL_PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+inter.broker.listener.name=SASL_PLAINTEXT
+advertised.listeners=SASL_PLAINTEXT://$MY_HOSTNAME:9092
+controller.listener.names=CONTROLLER
+listener.security.protocol.map=CONTROLLER:SASL_PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT
+
+# Kerberos settings
+sasl.enabled.mechanisms=GSSAPI
+sasl.mechanism.inter.broker.protocol=GSSAPI
+sasl.mechanism.controller.protocol=GSSAPI
+sasl.kerberos.service.name=kafka
+
+# Log & Data
+log.dirs=$KAFKA_HOME/data
+num.partitions=3
+offsets.topic.replication.factor=3
+transaction.state.log.replication.factor=3
+transaction.state.log.min.isr=2
+EOF
+
+cat <<EOF > $KAFKA_HOME/config/kafka_jaas.conf
+KafkaServer {
+    com.sun.security.auth.module.Krb5LoginModule required
+    useKeyTab=true
+    storeKey=true
+    keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
+    principal="kafka/$MY_HOSTNAME@MARIPOSA.COM";
+};
+
+KafkaClient {
+    com.sun.security.auth.module.Krb5LoginModule required
+    useKeyTab=true
+    storeKey=true
+    keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
+    principal="kafka/$MY_HOSTNAME@MARIPOSA.COM";
+};
+EOF
+
+export KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
+cat <<EOF > $KAFKA_HOME/config/sasl.properties
+security.protocol=SASL_PLAINTEXT
+sasl.kerberos.service.name=kafka
+EOF
+# example:
+# export KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
+# kafka-topics.sh --list --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties
 
 
 # setup HBase
@@ -493,16 +560,18 @@ if [[ "$IS_MASTER" == "true" ]]; then
         # create Principals and their proper keytabs
         # -randkey means we don't want a human password; we'll use keytabs
         sudo kadmin.local -q "addprinc -randkey hadoop/$MASTER_HOST@MARIPOSA.COM"
-        sudo kadmin.local -q "addprinc -randkey hive/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey zookeeper/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hbase/$MASTER_HOST@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "addprinc -randkey kafka/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "addprinc -randkey hive/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM kafka/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
             sudo kadmin.local -q "addprinc -randkey hadoop/$worker@MARIPOSA.COM"
             sudo kadmin.local -q "addprinc -randkey zookeeper/$worker@MARIPOSA.COM"
             sudo kadmin.local -q "addprinc -randkey hbase/$worker@MARIPOSA.COM"
-            sudo kadmin.local -q "xst -k $KEYTABS_DIR/$worker.keytab hadoop/$worker@MARIPOSA.COM zookeeper/$worker@MARIPOSA.COM hbase/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "addprinc -randkey kafka/$worker@MARIPOSA.COM"
+            sudo kadmin.local -q "xst -k $KEYTABS_DIR/$worker.keytab hadoop/$worker@MARIPOSA.COM zookeeper/$worker@MARIPOSA.COM hbase/$worker@MARIPOSA.COM kafka/$worker@MARIPOSA.COM"
         done
         unset IFS
 
@@ -589,6 +658,17 @@ else      # WORKERs
     kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM
     hbase-daemon.sh start regionserver
 fi
+
+# start Kafka on all nodes
+log "Starting Kafka Server..."
+if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
+    log "First time run. Formatting Kafka storage"
+    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id Mariposa20260406 --config $KAFKA_HOME/config/server.properties
+else
+    info "OK: Kafka storage already formatted"
+fi
+kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
+
 
 # infinite loop
 # cat /opt/hbase/logs/hbase--*.host.log
