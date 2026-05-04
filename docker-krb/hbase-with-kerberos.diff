@@ -1,0 +1,67 @@
+diff --git a/docker-krb/entrypoint.sh b/docker-krb/entrypoint.sh
+index cc21b70..5768436 100755
+--- a/docker-krb/entrypoint.sh
++++ b/docker-krb/entrypoint.sh
+@@ -446,17 +446,17 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
+ 
+     <property>
+         <name>hbase.security.authentication</name>
+-        <value>simple</value>
++        <value>kerberos</value>
+         <description>TODO: switch to kerberos</description>
+     </property>
+     <property>
+         <name>hbase.security.authorization</name>
+-        <value>false</value>
++        <value>true</value>
+         <description>TODO: switch to true</description>
+     </property>
+     <property>
+         <name>hbase.ipc.client.fallback-to-simple-auth-allowed</name>
+-        <value>true</value>
++        <value>false</value>
+         <description>TODO: switch to false or remove</description>
+     </property>
+     <property>
+@@ -475,9 +475,32 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
+         <name>hbase.regionserver.keytab.file</name>
+         <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
+     </property>
++    <property>
++      <name>hbase.zookeeper.client.keytab.file</name>
++      <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
++    </property>
++    <property>
++      <name>hbase.zookeeper.client.kerberos.principal</name>
++      <value>zookeeper/$MY_HOSTNAME@MARIPOSA.COM</value>
++    </property>
+ </configuration>
+ EOF
+ 
++cat <<EOF > $HBASE_HOME/conf/hbase-jaas.conf
++Client {
++  com.sun.security.auth.module.Krb5LoginModule required
++  useKeyTab=true
++  useTicketCache=false
++  keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
++  principal="zookeeper/$MY_HOSTNAME@MARIPOSA.COM"
++  storeKey=true;
++};
++EOF
++
++COMMON_JARS="-Djava.security.auth.login.config=$HBASE_HOME/conf/hbase-jaas.conf -Dzookeeper.sasl.client.username=zookeeper"
++export HBASE_OPTS="${HBASE_OPTS:-} $COMMON_JARS"
++export HBASE_MASTER_OPTS="${HBASE_MASTER_OPTS:-} $COMMON_JARS"
++export HBASE_REGIONSERVER_OPTS="${HBASE_REGIONSERVER_OPTS:-} $COMMON_JARS"
+ 
+ # =========================
+ # === starting services ===
+@@ -569,7 +592,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
+ 
+     # start HBase
+     log "Starting HBase Master..."
+-    hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
++    hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase && hdfs dfs -chmod 777 /hbase    # must-have
+     kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM
+     hbase-daemon.sh start master
+ else      # WORKERs
