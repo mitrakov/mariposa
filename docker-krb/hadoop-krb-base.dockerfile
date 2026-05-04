@@ -44,12 +44,27 @@ RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-sp
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
 
 
+# download Apache Kafka 4.2.0 (non-Zookeeper version)
+ENV KAFKA_HOME=/opt/kafka
+RUN wget --output-document=- https://downloads.apache.org/kafka/4.2.0/kafka_2.13-4.2.0.tgz | \
+    tar --extract --gzip --directory /opt && mv /opt/kafka_2.13-4.2.0 $KAFKA_HOME
+
+
 # update PATH
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin:$KAFKA_HOME/bin
 
 
-# install packages (netcat for nc)
+# install sudo to start services, postgresql for Hive Metastore and Airflow (pin version 16), krb5 for Kerberos, netcat for nc, openssh/iproute/mc: optional
 RUN apt update && apt install --yes sudo openssh-server krb5-kdc krb5-admin-server postgresql-16 netcat-openbsd iproute2 mc && apt clean
+
+
+# copy-paste Apache Airflow
+ENV AIRFLOW_HOME=/opt/airflow
+
+
+# copy-paste HUE and fix "encodebytes" function
+ENV HUE_HOME=/opt/hue
+
 
 # fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
 RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
@@ -61,13 +76,19 @@ RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOP
 
 
 # switch ownership to 'hadoop'
-RUN mkdir $HADOOP_HOME/dfs $HADOOP_HOME/logs && \
+RUN mkdir $HADOOP_HOME/dfs && \
+    mkdir $HADOOP_HOME/logs && \
     mkdir $ZOOKEEPER_HOME/data && \
+    mkdir $KAFKA_HOME/data && \
+    mkdir -p $AIRFLOW_HOME/dags && \
     chown -R hadoop:hadoop $HADOOP_HOME && \
-    chown -R hadoop:hadoop $ZOOKEEPER_HOME && \
     chown -R hadoop:hadoop $HIVE_HOME && \
-    chown -R hadoop:hadoop $HBASE_HOME
+    chown -R hadoop:hadoop $HBASE_HOME && \
+    chown -R hadoop:hadoop $ZOOKEEPER_HOME && \
+    chown -R hadoop:hadoop $KAFKA_HOME
 
+
+# extra useful env variables
 ENV KEYTABS_DIR=/etc/security/keytabs
 
 USER hadoop

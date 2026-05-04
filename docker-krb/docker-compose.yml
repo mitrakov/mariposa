@@ -16,6 +16,7 @@ services:
       - ~/hadoop/keytabs:/etc/security/keytabs       # shared across all
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
       - ~/hadoop/zk1_data:/opt/zookeeper/data
+      - ~/hadoop/kafka1_data:/opt/kafka/data
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
       - ~/hadoop/certs1:/opt/hadoop/etc/hadoop/certs
       - ~/hadoop/workspace:/home/hadoop/workspace
@@ -36,6 +37,7 @@ services:
       - ~/hadoop/keytabs:/etc/security/keytabs       # shared across all
       - ~/hadoop/hdfs2_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk2_data:/opt/zookeeper/data
+      - ~/hadoop/kafka2_data:/opt/kafka/data
       - ~/hadoop/certs2:/opt/hadoop/etc/hadoop/certs
     ports:
       - "8042:8042"   # NodeManager
@@ -53,6 +55,7 @@ services:
       - ~/hadoop/keytabs:/etc/security/keytabs       # shared across all
       - ~/hadoop/hdfs3_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk3_data:/opt/zookeeper/data
+      - ~/hadoop/kafka3_data:/opt/kafka/data
       - ~/hadoop/certs3:/opt/hadoop/etc/hadoop/certs
     ports:
       - "8043:8042"   # NodeManager
