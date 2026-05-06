@@ -3,6 +3,8 @@
 cat /opt/hbase/logs/hbase--*.host.log
 zkCli.sh -server $(hostname)
 kafka-topics.sh --list --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties
+keytool -list -v -keystore $(hostname).keystore.jks -storepass marip0sa_jKs
+keytool -list -v -keystore truststore.jks -storepass marip0sa_jKs
 ```
 
 # Tommy
