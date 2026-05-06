@@ -56,22 +56,35 @@ MY_HOSTNAME=$(hostname)
 
 # generate temp self-signed SSL certificate to enable SASL to auth data transfer protocol
 # https://cwiki.apache.org/confluence/display/HADOOP/Secure+DataNode
-if [ ! -f "$HADOOP_CONF_DIR/certs/keystore.jks" ]; then
-    log "Generate SSL certificates..."
-    keytool -genkeypair \
-        -alias hadoop \
-        -keyalg RSA \
-        -keysize 2048 \
-        -validity 9999 \
-        -keystore $HADOOP_CONF_DIR/certs/keystore.jks \
-        -storepass $JKS_PASSWORD \
-        -keypass $JKS_PASSWORD \
-        -dname "CN=$MY_HOSTNAME" \
-        -storetype PKCS12 \
-        -noprompt
+MY_KEYSTORE="$HADOOP_CONF_DIR/certs/$MY_HOSTNAME.keystore.jks"
+TRUSTSTORE="$HADOOP_CONF_DIR/certs/truststore.jks"
+
+if [ ! -f "$MY_KEYSTORE" ]; then
+    log "Generating SSL for $MY_HOSTNAME..."
+
+    # 1. Create node-specific keystore
+    keytool -genkeypair -alias "$MY_HOSTNAME" -keyalg RSA -keysize 2048 -validity 9999 \
+      -keystore "$MY_KEYSTORE" \
+      -storepass "$JKS_PASSWORD" -keypass "$JKS_PASSWORD" \
+      -dname "CN=$MY_HOSTNAME" -ext "SAN=dns:$MY_HOSTNAME" \
+      -storetype PKCS12 -noprompt
+
+    # 2. Export this node's certificate
+    keytool -export -alias "$MY_HOSTNAME" \
+      -file "$HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer" \
+      -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD"
+
+    # 3. Import into the SHARED truststore
+    # Note: 'keytool' is thread-safe enough for this in a small cluster
+    sleep $ZK_ID    # must-have to avoid race-conditions!
+    keytool -import -alias "$MY_HOSTNAME" \
+      -file "$HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer" \
+      -keystore "$TRUSTSTORE" \
+      -storepass "$JKS_PASSWORD" -noprompt
 else
-    info "OK. The keystore.jks found for $MY_HOSTNAME."
+    info "OK: Keystore for $MY_HOSTNAME already exists."
 fi
+
 
 # start Postgres
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -223,11 +236,12 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
 EOF
 
 # this is necessary for SASL data-transfer protocol to enable https
+# TODO: check if we need truststore
 cat <<EOF > $HADOOP_CONF_DIR/ssl-server.xml
 <configuration>
   <property>
     <name>ssl.server.keystore.location</name>
-    <value>$HADOOP_CONF_DIR/certs/keystore.jks</value>
+    <value>$MY_KEYSTORE</value>
   </property>
   <property>
     <name>ssl.server.keystore.password</name>
@@ -235,6 +249,28 @@ cat <<EOF > $HADOOP_CONF_DIR/ssl-server.xml
   </property>
   <property>
     <name>ssl.server.keystore.keypassword</name>
+    <value>$JKS_PASSWORD</value>
+  </property>
+  <property>
+    <name>ssl.server.truststore.location</name>
+    <value>$TRUSTSTORE</value>
+  </property>
+  <property>
+    <name>ssl.server.truststore.password</name>
+    <value>$JKS_PASSWORD</value>
+  </property>
+</configuration>
+EOF
+
+# TODO: check if we need this sh*t
+cat <<EOF > $HADOOP_CONF_DIR/ssl-client.xml
+<configuration>
+  <property>
+    <name>ssl.client.truststore.location</name>
+    <value>$TRUSTSTORE</value>
+  </property>
+  <property>
+    <name>ssl.client.truststore.password</name>
     <value>$JKS_PASSWORD</value>
   </property>
 </configuration>
@@ -414,11 +450,11 @@ node.id=$ZK_ID
 controller.quorum.voters=$VOTERS
 
 # Network settings
-listeners=SASL_PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-inter.broker.listener.name=SASL_PLAINTEXT
-advertised.listeners=SASL_PLAINTEXT://$MY_HOSTNAME:9092
+listeners=SASL_SSL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+inter.broker.listener.name=SASL_SSL
+advertised.listeners=SASL_SSL://$MY_HOSTNAME:9092
 controller.listener.names=CONTROLLER
-listener.security.protocol.map=CONTROLLER:SASL_PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT
+listener.security.protocol.map=CONTROLLER:SASL_SSL,SASL_SSL:SASL_SSL
 
 # Kerberos settings
 sasl.enabled.mechanisms=GSSAPI
@@ -426,12 +462,18 @@ sasl.mechanism.inter.broker.protocol=GSSAPI
 sasl.mechanism.controller.protocol=GSSAPI
 sasl.kerberos.service.name=kafka
 
+# SSL Settings
+ssl.keystore.location=$MY_KEYSTORE
+ssl.keystore.password=$JKS_PASSWORD
+ssl.key.password=$JKS_PASSWORD
+ssl.truststore.location=$TRUSTSTORE
+ssl.truststore.password=$JKS_PASSWORD
+ssl.endpoint.identification.algorithm=HTTPS
+
 # Log & Data
 log.dirs=$KAFKA_HOME/data
 num.partitions=3
 offsets.topic.replication.factor=3
-transaction.state.log.replication.factor=3
-transaction.state.log.min.isr=2
 EOF
 
 cat <<EOF > $KAFKA_HOME/config/kafka_jaas.conf
@@ -454,8 +496,10 @@ EOF
 
 export KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
 cat <<EOF > $KAFKA_HOME/config/sasl.properties
-security.protocol=SASL_PLAINTEXT
+security.protocol=SASL_SSL
 sasl.kerberos.service.name=kafka
+ssl.truststore.location=$TRUSTSTORE
+ssl.truststore.password=$JKS_PASSWORD
 EOF
 # example:
 # export KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
