@@ -2,5 +2,14 @@
 FROM mitrakov/hadoop-krb-base:1.0.0
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
+# tmp
+USER root
+
+ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
+
+RUN useradd --create-home --shell /bin/bash tommy && echo "tommy ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER hadoop
+
 COPY entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

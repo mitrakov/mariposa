@@ -494,16 +494,12 @@ KafkaClient {
 };
 EOF
 
-export KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
 cat <<EOF > $KAFKA_HOME/config/sasl.properties
 security.protocol=SASL_SSL
 sasl.kerberos.service.name=kafka
 ssl.truststore.location=$TRUSTSTORE
 ssl.truststore.password=$JKS_PASSWORD
 EOF
-# example:
-# export KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
-# kafka-topics.sh --list --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties
 
 
 # setup HBase
@@ -588,6 +584,7 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
     </property>
 </configuration>
 EOF
+# TODO: to start auth with Kerberos, play with HBASE_OPTS="${HBASE_OPTS:-} -Djava.security.auth.login.config=/path/to/hbase_client_jaas.conf"
 
 
 # =========================
@@ -608,7 +605,9 @@ if [[ "$IS_MASTER" == "true" ]]; then
         sudo kadmin.local -q "addprinc -randkey hbase/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey kafka/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hive/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "addprinc -randkey tommy@MARIPOSA.COM"
         sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM kafka/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k $KEYTABS_DIR/tommy.keytab tommy@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
             sudo kadmin.local -q "addprinc -randkey hadoop/$worker@MARIPOSA.COM"
@@ -621,6 +620,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
         # set keytabs to be read-only by hadoop
         sudo chown hadoop:hadoop $KEYTABS_DIR/*.keytab
+        sudo chown tommy:hadoop  $KEYTABS_DIR/tommy.keytab
         sudo chmod 400 $KEYTABS_DIR/*.keytab
         
         log "Kerberos Principals and keytabs created."
@@ -696,6 +696,7 @@ else      # WORKERs
 
     # start Zookeeper
     zkServer.sh start
+    sleep 5    # wait a bit for Zookeeper to get started
 
     # start HBase
     log "Starting HBase RegionServer..."
@@ -715,7 +716,6 @@ kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 
 # infinite loop
-# cat /opt/hbase/logs/hbase--*.host.log
 sleep 1
 log "Done!"
 tail -f /dev/null
