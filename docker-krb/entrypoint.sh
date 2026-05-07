@@ -38,7 +38,7 @@ check_env "HIVE_HOME"
 check_env "ZOOKEEPER_HOME"
 check_env "HBASE_HOME"
 check_env "KAFKA_HOME"
-#check_env "AIRFLOW_HOME"
+check_env "AIRFLOW_HOME"
 #check_env "HUE_HOME"
 check_env "HADOOP_CONF_DIR"
 check_env "KEYTABS_DIR"
@@ -111,6 +111,17 @@ if [[ "$IS_MASTER" == "true" ]]; then
         log "PostgreSQL user 'hive' and database 'metastore_db' created."
     else
         info "OK: user 'hive' exists"
+    fi
+
+    USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='airflow';")
+    if [ "$USER_EXISTS" != "1" ]; then
+        log "First time run. Creating 'airflow' user and 'airflow_db'..."
+        sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD 'airflow_pass';"
+        sudo -u postgres psql --command "CREATE DATABASE airflow_db OWNER airflow;"
+        sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE airflow_db TO airflow;"
+        log "PostgreSQL user 'airflow' and database 'airflow_db' created."
+    else
+        info "OK: user 'airflow' exists"
     fi
 fi
 
@@ -587,6 +598,37 @@ EOF
 # TODO: to start auth with Kerberos, play with HBASE_OPTS="${HBASE_OPTS:-} -Djava.security.auth.login.config=/path/to/hbase_client_jaas.conf"
 
 
+# opt: add a simple Spark DAG to Airflow
+if [[ "$IS_MASTER" == "true" ]]; then
+    cat <<EOF > $AIRFLOW_HOME/dags/spark_connection_test.py
+import os
+import glob
+from airflow import DAG
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+
+# find the Spark examples JAR dynamically
+SPARK_HOME = os.getenv('SPARK_HOME', '/opt/spark')
+JAR_PATTERN = f"{SPARK_HOME}/examples/jars/spark-examples_*.jar"
+found_jars = glob.glob(JAR_PATTERN)
+EXAMPLES_JAR = found_jars[0] if found_jars else "NOT_FOUND"
+
+MASTER_HOST = os.getenv('MASTER_HOST', 'namenode.host')
+KEYTABS_DIR = os.getenv('KEYTABS_DIR', '/etc/security/keytabs')
+
+with DAG(dag_id='spark_connection_test') as dag:
+    submit_job = SparkSubmitOperator(
+        task_id='submit_spark_pi',
+        application=EXAMPLES_JAR,
+        java_class='org.apache.spark.examples.SparkPi',
+        application_args=['10'],
+        principal=f'hadoop/{MASTER_HOST}@MARIPOSA.COM',
+        keytab=f"{KEYTABS_DIR}/{MASTER_HOST}.keytab",
+        name='airflow-spark-test-pi'
+    )
+EOF
+fi
+
+
 # =========================
 # === starting services ===
 # =========================
@@ -685,6 +727,24 @@ if [[ "$IS_MASTER" == "true" ]]; then
     hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
     kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM
     hbase-daemon.sh start master
+
+    # apache Airflow
+    if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
+        log "Starting Apache Airflow..."
+        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
+        export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
+        export AIRFLOW__API__BASE_URL=http://localhost:8085             # used by DAG executor
+        export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085    # used by DAG updater
+
+        airflow db migrate
+        airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
+    else
+        warn "SKIP_AIRFLOW is true => Airflow is not started"
+    fi
+    sleep 2
+    warn "Airflow password:" # TODO: should be visible only first time
+    cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
+
 else      # WORKERs
     # wait for KDC first
     until nc -zv $MASTER_HOST 88; do sleep 1; done
@@ -696,7 +756,7 @@ else      # WORKERs
 
     # start Zookeeper
     zkServer.sh start
-    sleep 5    # wait a bit for Zookeeper to get started
+    sleep 4    # wait a bit for Zookeeper to get started
 
     # start HBase
     log "Starting HBase RegionServer..."

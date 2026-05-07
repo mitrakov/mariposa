@@ -60,10 +60,26 @@ RUN apt update && apt install --yes sudo openssh-server krb5-kdc krb5-admin-serv
 
 # copy-paste Apache Airflow
 ENV AIRFLOW_HOME=/opt/airflow
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/python3.12 /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/python3 /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/pip3* /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/airflow /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/celery /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/uvicorn /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/fastapi /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/bin/alembic /usr/local/bin/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/python3.12/ /usr/local/lib/python3.12/
+COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/libpython3.12* /usr/local/lib/
 
 
 # copy-paste HUE and fix "encodebytes" function
 ENV HUE_HOME=/opt/hue
+COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/bin/python3.11 /usr/local/bin/python3.11
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/python3.11 /usr/local/lib/python3.11
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/libpython3.11* /usr/local/lib/
+RUN sed -i "s/_b64_decode_fn = getattr(base64, 'decodebytes', base64.decodestring)/_b64_decode_fn = base64.decodebytes/g" $HUE_HOME/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
+RUN sed -i "s/_b64_encode_fn = getattr(base64, 'encodebytes', base64.encodestring)/_b64_encode_fn = base64.encodebytes/g" $HUE_HOME/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
 
 
 # fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
@@ -73,6 +89,7 @@ RUN rm $HBASE_HOME/lib/client-facing-thirdparty/log4j-slf4j-impl-*.jar
 
 # create user 'hadoop' and add it to sudoers (w/o password)
 RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN useradd --create-home --shell /bin/bash tommy  && echo "tommy  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 
 # switch ownership to 'hadoop'
@@ -85,10 +102,13 @@ RUN mkdir $HADOOP_HOME/dfs && \
     chown -R hadoop:hadoop $HIVE_HOME && \
     chown -R hadoop:hadoop $HBASE_HOME && \
     chown -R hadoop:hadoop $ZOOKEEPER_HOME && \
-    chown -R hadoop:hadoop $KAFKA_HOME
+    chown -R hadoop:hadoop $KAFKA_HOME && \
+    chown -R hadoop:hadoop $AIRFLOW_HOME && \
+    chown -R hadoop:hadoop $HUE_HOME
 
 
 # extra useful env variables
 ENV KEYTABS_DIR=/etc/security/keytabs
+ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
 
 USER hadoop
