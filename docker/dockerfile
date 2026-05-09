@@ -1,6 +1,10 @@
 # docker build --tag mitrakov/hadoop:1.0.0 .
-FROM mitrakov/hadoop-base:1.0.0
+FROM mitrakov/hadoop-krb-base:1.0.0
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
+
+# SSH passwordless login for Hadoop
+USER hadoop
+RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 
 COPY entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

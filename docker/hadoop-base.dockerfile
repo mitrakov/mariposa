@@ -1,3 +1,4 @@
+# DEPRECATED! USE "docker-krb/hadoop-krb-base.dockerfile"
 # docker build --file hadoop-base.dockerfile --tag mitrakov/hadoop-base:1.0.0 .; say hola
 # java 17 is min for Spark 4.1.1
 FROM eclipse-temurin:17
@@ -92,7 +93,5 @@ RUN mkdir $HADOOP_HOME/dfs && \
     chown -R hadoop:hadoop $AIRFLOW_HOME && \
     chown -R hadoop:hadoop $HUE_HOME
 
-USER hadoop
 
-# SSH passwordless login for Hadoop
-RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+# in your image, add "USER hadoop"

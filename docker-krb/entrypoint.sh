@@ -129,6 +129,8 @@ log "Creating configs..."
 cat << EOF | sudo tee /etc/krb5.conf
 [libdefaults]
     default_realm = MARIPOSA.COM
+    ticket_lifetime = 24h
+    renew_lifetime = 7d
 
 [realms]
     MARIPOSA.COM = {
@@ -140,6 +142,7 @@ EOF
 cat << EOF | sudo tee /etc/krb5kdc/kdc.conf
 [realms]
     MARIPOSA.COM = {
+        max_life = 24h 0m 0s
         max_renewable_life = 7d 0h 0m 0s
     }
 EOF
@@ -833,7 +836,7 @@ else      # WORKERs
     zkServer.sh start
 
     # start HBase
-    sleep 15     # simple sync with master
+    sleep 25     # simple sync with master
     log "Starting HBase RegionServer..."
     kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM
     hbase-daemon.sh start regionserver
