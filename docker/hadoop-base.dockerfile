@@ -1,4 +1,4 @@
-# docker build --file hadoop-base.dockerfile --tag mitrakov/hadoop-base:1.0.0 . && say hola
+# docker build --file hadoop-base.dockerfile --tag mitrakov/hadoop-base:1.0.0 .; say hola
 # java 17 is min for Spark 4.1.1
 FROM eclipse-temurin:17
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"

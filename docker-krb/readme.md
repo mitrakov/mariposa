@@ -1,5 +1,6 @@
 # Common
 ```sh
+kinit -kt $KEYTABS_DIR/$(hostname).keytab hadoop/$(hostname)@MARIPOSA.COM
 cat /opt/hbase/logs/hbase--*.host.log
 zkCli.sh -server $(hostname)
 kafka-topics.sh --list --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties

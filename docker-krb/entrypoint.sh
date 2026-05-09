@@ -39,7 +39,7 @@ check_env "ZOOKEEPER_HOME"
 check_env "HBASE_HOME"
 check_env "KAFKA_HOME"
 check_env "AIRFLOW_HOME"
-#check_env "HUE_HOME"
+check_env "HUE_HOME"
 check_env "HADOOP_CONF_DIR"
 check_env "KEYTABS_DIR"
 check_env "IS_MASTER"
@@ -47,8 +47,6 @@ check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "JKS_PASSWORD"
 check_env "ZK_ID"
-
-
 
 
 # DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
@@ -138,6 +136,14 @@ cat << EOF | sudo tee /etc/krb5.conf
     }
 EOF
 
+# for HUE to renew TGT
+cat << EOF | sudo tee /etc/krb5kdc/kdc.conf
+[realms]
+    MARIPOSA.COM = {
+        max_renewable_life = 7d 0h 0m 0s
+    }
+EOF
+
 # create simple kadm5.acl to avoid startup errors
 echo "*/admin@MARIPOSA.COM *" | sudo tee /etc/krb5kdc/kadm5.acl
 
@@ -162,6 +168,16 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
         <value>*</value>
         <description>FIX: User: hive/namenode.host@MARIPOSA.COM is not allowed to impersonate hadoop/datanode1.host@MARIPOSA.COM</description>
     </property>
+    <property>
+        <name>hadoop.proxyuser.hue.groups</name>
+        <value>*</value>
+        <description>same for HUE</description>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.hue.hosts</name>
+        <value>*</value>
+        <description>same for HUE</description>
+    </property>
 </configuration>
 EOF
 
@@ -181,6 +197,11 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     <property>
         <name>dfs.datanode.data.dir</name>
         <value>$HADOOP_HOME/dfs/data</value>
+    </property>
+    <property>
+        <name>dfs.webhdfs.enabled</name>
+        <value>true</value>
+        <description>Enable WebHDFS for HUE</description>
     </property>
     <property>
         <name>dfs.namenode.kerberos.principal</name>
@@ -598,6 +619,40 @@ EOF
 # TODO: to start auth with Kerberos, play with HBASE_OPTS="${HBASE_OPTS:-} -Djava.security.auth.login.config=/path/to/hbase_client_jaas.conf"
 
 
+# setup Hue
+if [[ "$IS_MASTER" == "true" ]]; then
+    cat <<EOF > $HUE_HOME/desktop/conf/hue.ini
+[desktop]
+  http_host=0.0.0.0
+  http_port=8888
+  secret_key=spark_hadoop_secret_key
+  [[kerberos]]
+    hue_keytab=$KEYTABS_DIR/$MASTER_HOST.keytab
+    hue_principal=hue/$MASTER_HOST@MARIPOSA.COM
+
+[hadoop]
+  [[hdfs_clusters]]
+    [[[default]]]
+      fs_defaultfs=hdfs://$MASTER_HOST:9000
+      webhdfs_url=https://$MASTER_HOST:9871/webhdfs/v1
+      ssl_cert_ca_verify=false
+      security_enabled=true
+
+  [[yarn_clusters]]
+    [[[default]]]
+      resourcemanager_host=$MASTER_HOST
+      resourcemanager_port=8032
+      submit_to=True
+
+[beeswax]
+  hive_server_host=$MASTER_HOST
+  hive_server_port=9083
+  security_enabled=true
+  hive_server_principal=hive/$MASTER_HOST@MARIPOSA.COM
+EOF
+fi
+
+
 # opt: add a simple Spark DAG to Airflow
 if [[ "$IS_MASTER" == "true" ]]; then
     cat <<EOF > $AIRFLOW_HOME/dags/spark_connection_test.py
@@ -647,8 +702,9 @@ if [[ "$IS_MASTER" == "true" ]]; then
         sudo kadmin.local -q "addprinc -randkey hbase/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey kafka/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hive/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "addprinc -randkey hue/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey tommy@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM kafka/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM kafka/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM hue/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "xst -k $KEYTABS_DIR/tommy.keytab tommy@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
@@ -691,14 +747,15 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # start Zookeeper
     zkServer.sh start
 
-    # start Spark
-    log "Waiting for HDFS to exit safe mode..."
+    # login with Kerberos
     kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM
     klist
-    hdfs dfsadmin -safemode wait
 
+    # start Spark
     log "Starting Spark History Server..."
+    sleep 1
     hdfs dfs -mkdir -p /spark/logs        # must-have
+    hdfs dfs -mkdir -p /user/hadoop       # opt, for HUE
     start-history-server.sh
 
     # start Hive Metastore (in bg)
@@ -713,21 +770,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
     hive --service metastore &
 
-    # opt: copy Spark libs to HDFS for better performance
-    if ! hdfs dfs -test -e /spark/libs; then
-        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
-        hdfs dfs -mkdir -p /spark/libs
-        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
-    else
-        info "OK: Spark JARs already loaded into HDFS"
-    fi
-
-    # start HBase
-    log "Starting HBase Master..."
-    hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
-    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM
-    hbase-daemon.sh start master
-
     # apache Airflow
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
         log "Starting Apache Airflow..."
@@ -741,10 +783,43 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         warn "SKIP_AIRFLOW is true => Airflow is not started"
     fi
-    sleep 2
-    warn "Airflow password:" # TODO: should be visible only first time
-    cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 
+    # HUE
+    if [[ ${SKIP_HUE:-} != "true" ]]; then
+        log "Starting HUE..."
+
+        sudo mkdir -p /var/run/hue
+        sudo chown hadoop:hadoop /var/run/hue
+        sudo chmod 755 /var/run/hue
+
+
+        # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py (or Gemini suggested to use Postgresql instead)
+        # simple "if (!migrated) then migrate" doesn't work
+        (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
+        (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue kt_renewer > $HUE_HOME/logs/kt_renewer.log 2>&1 &)
+        (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
+    else
+        warn "SKIP_HUE is true => HUE is not started"
+    fi
+
+    # opt: copy Spark libs to HDFS for better performance
+    if ! hdfs dfs -test -e /spark/libs; then
+        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
+        hdfs dfs -mkdir -p /spark/libs
+        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
+    else
+        info "OK: Spark JARs already loaded into HDFS"
+    fi
+
+    # start HBase with a new kinit
+    log "Starting HBase Master..."
+    hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
+    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM
+    hbase-daemon.sh start master
+
+    # TODO: should be visible only first time
+    warn "Airflow password:"
+    cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 else      # WORKERs
     # wait for KDC first
     until nc -zv $MASTER_HOST 88; do sleep 1; done
@@ -756,9 +831,9 @@ else      # WORKERs
 
     # start Zookeeper
     zkServer.sh start
-    sleep 4    # wait a bit for Zookeeper to get started
 
     # start HBase
+    sleep 15     # simple sync with master
     log "Starting HBase RegionServer..."
     kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM
     hbase-daemon.sh start regionserver
