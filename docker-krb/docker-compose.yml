@@ -10,6 +10,7 @@ services:
       - HIVE_DB_PASSWORD=marip0sa_pGs
       - KRB5_PASSWORD=marip0sa_kRb
       - JKS_PASSWORD=marip0sa_jKs
+      - SKIP_AIRFLOW=true
     volumes:
       - ~/hadoop/kdc_conf:/etc/krb5kdc
       - ~/hadoop/kdc_data:/var/lib/krb5kdc
