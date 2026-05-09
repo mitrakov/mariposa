@@ -1,4 +1,4 @@
-# docker build --file hadoop-krb-base.dockerfile --tag mitrakov/hadoop-krb-base:1.0.0 . && say hola
+# docker build --file hadoop-krb-base.dockerfile --tag mitrakov/hadoop-krb-base:1.0.0 .; say hola
 # java 17 is min for Spark 4.1.1
 FROM eclipse-temurin:17
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
@@ -55,6 +55,9 @@ ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sb
 
 
 # install sudo to start services, postgresql for Hive Metastore and Airflow (pin version 16), krb5 for Kerberos, netcat for nc, openssh/iproute/mc: optional
+RUN apt update && apt install lsb-release
+RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 RUN apt update && apt install --yes sudo openssh-server krb5-kdc krb5-admin-server postgresql-16 netcat-openbsd iproute2 mc && apt clean
 
 
@@ -74,12 +77,9 @@ COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/libpython3.12* /usr/loc
 
 # copy-paste HUE and fix "encodebytes" function
 ENV HUE_HOME=/opt/hue
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/bin/python3.11 /usr/bin/python3.11
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/lib/python3.11 /usr/lib/python3.11
 COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/bin/python3.11 /usr/local/bin/python3.11
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/python3.11 /usr/local/lib/python3.11
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/local/lib/libpython3.11* /usr/local/lib/
-RUN sed -i "s/_b64_decode_fn = getattr(base64, 'decodebytes', base64.decodestring)/_b64_decode_fn = base64.decodebytes/g" $HUE_HOME/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
-RUN sed -i "s/_b64_encode_fn = getattr(base64, 'encodebytes', base64.encodestring)/_b64_encode_fn = base64.encodebytes/g" $HUE_HOME/desktop/core/ext-py3/pysaml2-5.0.0/src/saml2/saml.py
 
 
 # fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
@@ -107,8 +107,4 @@ RUN mkdir $HADOOP_HOME/dfs && \
     chown -R hadoop:hadoop $HUE_HOME
 
 
-# extra useful env variables
-ENV KEYTABS_DIR=/etc/security/keytabs
-ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
-
-USER hadoop
+# in your image, add "USER hadoop"
