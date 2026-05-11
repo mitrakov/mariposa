@@ -540,24 +540,17 @@ EOF
 # setup HBase
 # Fix: https://issues.apache.org/jira/browse/HDFS-16644
 # TODO: refine
-rm -f $HBASE_HOME/lib/hadoop-annotations-*.jar
-rm -f $HBASE_HOME/lib/hadoop-auth-*.jar
-rm -f $HBASE_HOME/lib/hadoop-client-*.jar
-rm -f $HBASE_HOME/lib/hadoop-common-*.jar
-rm -f $HBASE_HOME/lib/hadoop-hdfs-*.jar
-rm -f $HBASE_HOME/lib/hadoop-mapreduce-client-core-*.jar
-rm -f $HBASE_HOME/lib/hadoop-yarn-common-*.jar
-rm -f $HBASE_HOME/lib/hadoop-yarn-api-*.jar
-rm -f $HBASE_HOME/lib/guava-*.jar
-ln -sf $HADOOP_HOME/share/hadoop/yarn/hadoop-yarn-common-*.jar $HBASE_HOME/lib/
-ln -sf $HADOOP_HOME/share/hadoop/yarn/hadoop-yarn-api-*.jar $HBASE_HOME/lib/
-ln -sf $HADOOP_HOME/share/hadoop/hdfs/hadoop-hdfs-*.jar $HBASE_HOME/lib/
-ln -sf $HADOOP_HOME/share/hadoop/hdfs/hadoop-hdfs-client-*.jar $HBASE_HOME/lib/
-ln -sf $HADOOP_HOME/share/hadoop/common/hadoop-common-*.jar $HBASE_HOME/lib/
-ln -sf $HADOOP_HOME/share/hadoop/common/lib/hadoop-auth-*.jar $HBASE_HOME/lib/
-ln -sf $HADOOP_HOME/share/hadoop/common/lib/hadoop-annotations-*.jar $HBASE_HOME/lib/
-ln -sf $HADOOP_HOME/share/hadoop/common/lib/guava-*.jar $HBASE_HOME/lib/
-ln -sf $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-client-core-*.jar $HBASE_HOME/lib/
+find $HBASE_HOME/lib -name "hadoop-*.jar" -delete
+find $HBASE_HOME/lib -name "guava-*.jar" -delete
+find $HBASE_HOME/lib -name "hbase-shaded-client-*.jar" -delete
+cp -v $HADOOP_HOME/share/hadoop/common/lib/guava-*.jar $HBASE_HOME/lib/
+
+{
+  echo "export HBASE_CLASSPATH_PREFIX=\"/opt/hbase/lib/mariposa-hbase-patch-2.5.13.jar\""
+  echo "export HBASE_DISABLE_HADOOP_CLASSPATH_LOOKUP=\"true\""
+  echo "export HBASE_PREPEND_CLASSES=\"true\""
+  echo "export HBASE_CLASSPATH=\"$HADOOP_CONF_DIR:$(hadoop classpath)\""
+} >> $HBASE_HOME/conf/hbase-env.sh
 
 cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
 <configuration>
@@ -836,7 +829,7 @@ else      # WORKERs
     zkServer.sh start
 
     # start HBase
-    sleep 25     # simple sync with master
+    sleep 15     # simple sync with master
     log "Starting HBase RegionServer..."
     kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM
     hbase-daemon.sh start regionserver

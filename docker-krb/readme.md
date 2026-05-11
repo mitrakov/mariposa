@@ -43,3 +43,14 @@ kinit -kt $KEYTABS_DIR/tommy.keytab $(whoami)@MARIPOSA.COM
 kafka-topics.sh --list --bootstrap-server $(hostname):9092 --command-config ~/kafka.properties
 kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic the-topic --command-config ~/kafka.properties
 ```
+
+## Building HBase patch
+- download sources for exact HBase version (e.g. 2.5.13)
+- find shitty method, e.g. `"FSDataInputStreamWrapper::updateInputStreamStatistics()"` and skip it (e.g. `if (true) return;`)
+- copy-paste this file into your docker container, following the full java path (e.g. `org/apache/hadoop/hbase/io/FSDataInputStreamWrapper.java`)
+- run:
+
+```sh
+javac -cp "$(hbase classpath)" $PATCH_DIR/org/apache/hadoop/hbase/io/FSDataInputStreamWrapper.java
+jar cvf mariposa-hbase-patch-2.5.13.jar -C $PATCH_DIR .
+```

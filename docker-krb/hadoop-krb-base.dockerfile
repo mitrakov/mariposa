@@ -42,6 +42,7 @@ RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-sp
 RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-spark-protocol-shaded-1.1.0.jar
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
+COPY mariposa-hbase-patch-2.5.13.jar $HBASE_HOME/lib/
 
 
 # download Apache Kafka 4.2.0 (non-Zookeeper version)
