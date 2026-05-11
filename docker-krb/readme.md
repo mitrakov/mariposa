@@ -4,14 +4,9 @@ kinit -kt $KEYTABS_DIR/$(hostname).keytab hadoop/$(hostname)@MARIPOSA.COM
 cat /opt/hbase/logs/hbase--*.host.log
 zkCli.sh -server $(hostname)
 kafka-topics.sh --list --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties
+kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic the-topic --command-config $KAFKA_HOME/config/sasl.properties
 keytool -list -v -keystore $(hostname).keystore.jks -storepass marip0sa_jKs
 keytool -list -v -keystore truststore.jks -storepass marip0sa_jKs
-```
-
-# Tommy
-```sh
-kinit -kt $KEYTABS_DIR/tommy.keytab $(whoami)@MARIPOSA.COM
-hdfs dfs -ls /
 ```
 
 ## Spark
@@ -21,7 +16,11 @@ spark.sql("INSERT INTO hello_world VALUES (1, 'It is working')")
 spark.sql("SELECT * FROM hello_world").show()
 ```
 
-## Kafka
+# Tommy
+```sh
+kinit -kt $KEYTABS_DIR/tommy.keytab $(whoami)@MARIPOSA.COM
+hdfs dfs -ls /
+```
 /home/tommy/kafka_jaas.conf:
 ```sh
 KafkaClient {
@@ -37,14 +36,14 @@ ssl.truststore.location=/opt/hadoop/etc/hadoop/certs/truststore.jks
 ssl.truststore.password=marip0sa_jKs
 ```
 
-```
+```sh
 export KAFKA_OPTS="-Djava.security.auth.login.config=/home/tommy/kafka_jaas.conf"
 kinit -kt $KEYTABS_DIR/tommy.keytab $(whoami)@MARIPOSA.COM
 kafka-topics.sh --list --bootstrap-server $(hostname):9092 --command-config ~/kafka.properties
 kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic the-topic --command-config ~/kafka.properties
 ```
 
-## Building HBase patch
+# Building HBase patch
 - download sources for exact HBase version (e.g. 2.5.13)
 - find shitty method, e.g. `"FSDataInputStreamWrapper::updateInputStreamStatistics()"` and skip it (e.g. `if (true) return;`)
 - copy-paste this file into your docker container, following the full java path (e.g. `org/apache/hadoop/hbase/io/FSDataInputStreamWrapper.java`)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # entrypoint.sh for image: mitrakov/hadoop-krb:1.0.0
-set -euo pipefail  # exit on any error, undefined variable, or pipe failure
+set -euo pipefail
 
 # helpers
 RED='\033[0;31m'
@@ -46,6 +46,7 @@ check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "JKS_PASSWORD"
+check_env "KAFKA_CLUSTER_ID"
 check_env "ZK_ID"
 
 
@@ -61,7 +62,7 @@ if [ ! -f "$MY_KEYSTORE" ]; then
     log "Generating SSL for $MY_HOSTNAME..."
 
     # 1. Create node-specific keystore
-    keytool -genkeypair -alias "$MY_HOSTNAME" -keyalg RSA -keysize 2048 -validity 9999 \
+    keytool -genkeypair -alias "$MY_HOSTNAME" -keyalg RSA -validity 9999 \
       -keystore "$MY_KEYSTORE" \
       -storepass "$JKS_PASSWORD" -keypass "$JKS_PASSWORD" \
       -dname "CN=$MY_HOSTNAME" -ext "SAN=dns:$MY_HOSTNAME" \
@@ -69,18 +70,20 @@ if [ ! -f "$MY_KEYSTORE" ]; then
 
     # 2. Export this node's certificate
     keytool -export -alias "$MY_HOSTNAME" \
-      -file "$HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer" \
+      -file $HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer \
       -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD"
 
     # 3. Import into the SHARED truststore
-    # Note: 'keytool' is thread-safe enough for this in a small cluster
     sleep $ZK_ID    # must-have to avoid race-conditions!
     keytool -import -alias "$MY_HOSTNAME" \
-      -file "$HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer" \
+      -file $HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer \
       -keystore "$TRUSTSTORE" \
       -storepass "$JKS_PASSWORD" -noprompt
+
+    rm -vf $HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer
+    info "SSL certificates stored in $MY_KEYSTORE"
 else
-    info "OK: Keystore for $MY_HOSTNAME already exists."
+    info "OK: Keystore already exists: $MY_KEYSTORE"
 fi
 
 
@@ -106,7 +109,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         sudo -u postgres psql --command "CREATE USER hive WITH PASSWORD '$HIVE_DB_PASSWORD';"
         sudo -u postgres psql --command "CREATE DATABASE metastore_db OWNER hive;"
         sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE metastore_db TO hive;"
-        log "PostgreSQL user 'hive' and database 'metastore_db' created."
+        info "PostgreSQL user 'hive' and database 'metastore_db' created"
     else
         info "OK: user 'hive' exists"
     fi
@@ -117,7 +120,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD 'airflow_pass';"
         sudo -u postgres psql --command "CREATE DATABASE airflow_db OWNER airflow;"
         sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE airflow_db TO airflow;"
-        log "PostgreSQL user 'airflow' and database 'airflow_db' created."
+        info "PostgreSQL user 'airflow' and database 'airflow_db' created"
     else
         info "OK: user 'airflow' exists"
     fi
@@ -174,12 +177,12 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
     <property>
         <name>hadoop.proxyuser.hue.groups</name>
         <value>*</value>
-        <description>same for HUE</description>
+        <description>FIX: User: hue is not allowed to impersonate hadoop</description>
     </property>
     <property>
         <name>hadoop.proxyuser.hue.hosts</name>
         <value>*</value>
-        <description>same for HUE</description>
+        <description>FIX: User: hue is not allowed to impersonate hadoop</description>
     </property>
 </configuration>
 EOF
@@ -200,11 +203,6 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     <property>
         <name>dfs.datanode.data.dir</name>
         <value>$HADOOP_HOME/dfs/data</value>
-    </property>
-    <property>
-        <name>dfs.webhdfs.enabled</name>
-        <value>true</value>
-        <description>Enable WebHDFS for HUE</description>
     </property>
     <property>
         <name>dfs.namenode.kerberos.principal</name>
@@ -271,7 +269,6 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
 EOF
 
 # this is necessary for SASL data-transfer protocol to enable https
-# TODO: check if we need truststore
 cat <<EOF > $HADOOP_CONF_DIR/ssl-server.xml
 <configuration>
   <property>
@@ -284,28 +281,6 @@ cat <<EOF > $HADOOP_CONF_DIR/ssl-server.xml
   </property>
   <property>
     <name>ssl.server.keystore.keypassword</name>
-    <value>$JKS_PASSWORD</value>
-  </property>
-  <property>
-    <name>ssl.server.truststore.location</name>
-    <value>$TRUSTSTORE</value>
-  </property>
-  <property>
-    <name>ssl.server.truststore.password</name>
-    <value>$JKS_PASSWORD</value>
-  </property>
-</configuration>
-EOF
-
-# TODO: check if we need this sh*t
-cat <<EOF > $HADOOP_CONF_DIR/ssl-client.xml
-<configuration>
-  <property>
-    <name>ssl.client.truststore.location</name>
-    <value>$TRUSTSTORE</value>
-  </property>
-  <property>
-    <name>ssl.client.truststore.password</name>
     <value>$JKS_PASSWORD</value>
   </property>
 </configuration>
@@ -328,8 +303,8 @@ $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-api-1.49.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-context-1.49.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-semconv-1.29.0-alpha.jar"
 
-# spark.master                     YARN is a master
-# spark.history.fs.logDirectory    must-have
+# spark.master                                   YARN is a master
+# spark.history.fs.logDirectory                  must-have
 # spark.eventLog.*                               write Spark logs to HDFS
 # spark.yarn.jars                                use JARs directly from HDFS
 # spark.hadoop.hive.metastore.uris               HIVE support
@@ -341,23 +316,23 @@ $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-semconv-1.29.0-alpha.jar"
 # spark.history.kerberos.*                       Kerberos setup
 # spark.*.extraClassPath                         HBASE support
 cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
-spark.master                                   yarn
-spark.history.fs.logDirectory                  hdfs://$MASTER_HOST:9000/spark/logs
-spark.eventLog.dir                             hdfs://$MASTER_HOST:9000/spark/logs
-spark.eventLog.enabled                         true
-spark.yarn.jars                                hdfs:///spark/libs/*.jar
-spark.hadoop.hive.metastore.uris               thrift://$MASTER_HOST:9083
-spark.hadoop.hive.metastore.sasl.enabled       true
-spark.hadoop.hive.metastore.kerberos.principal hive/$MASTER_HOST@MARIPOSA.COM
-spark.sql.hive.metastore.version               4.1.0
-spark.sql.hive.metastore.jars                  $HIVE_HOME/lib/*
-spark.kerberos.principal                       hadoop/$MY_HOSTNAME@MARIPOSA.COM
-spark.kerberos.keytab                          $KEYTABS_DIR/$MY_HOSTNAME.keytab
-spark.history.kerberos.enabled                 true
-spark.history.kerberos.principal               hadoop/$MY_HOSTNAME@MARIPOSA.COM
-spark.history.kerberos.keytab                  $KEYTABS_DIR/$MY_HOSTNAME.keytab
-spark.driver.extraClassPath                    $HBASE_HOME/conf:$HBASE_LIBS
-spark.executor.extraClassPath                  $HBASE_HOME/conf:$HBASE_LIBS
+spark.master                                     yarn
+spark.history.fs.logDirectory                    hdfs://$MASTER_HOST:9000/spark/logs
+spark.eventLog.dir                               hdfs://$MASTER_HOST:9000/spark/logs
+spark.eventLog.enabled                           true
+spark.yarn.jars                                  hdfs:///spark/libs/*.jar
+spark.hadoop.hive.metastore.uris                 thrift://$MASTER_HOST:9083
+spark.hadoop.hive.metastore.sasl.enabled         true
+spark.hadoop.hive.metastore.kerberos.principal   hive/$MASTER_HOST@MARIPOSA.COM
+spark.sql.hive.metastore.version                 4.1.0
+spark.sql.hive.metastore.jars                    $HIVE_HOME/lib/*
+spark.kerberos.principal                         hadoop/$MY_HOSTNAME@MARIPOSA.COM
+spark.kerberos.keytab                            $KEYTABS_DIR/$MY_HOSTNAME.keytab
+spark.history.kerberos.enabled                   true
+spark.history.kerberos.principal                 hadoop/$MY_HOSTNAME@MARIPOSA.COM
+spark.history.kerberos.keytab                    $KEYTABS_DIR/$MY_HOSTNAME.keytab
+spark.driver.extraClassPath                      $HBASE_HOME/conf:$HBASE_LIBS
+spark.executor.extraClassPath                    $HBASE_HOME/conf:$HBASE_LIBS
 EOF
 
 # setup Hive
@@ -464,7 +439,6 @@ Client {
     storeKey=true;
 };
 EOF
-# example: zkCli.sh -server $(hostname)
 
 
 # setup Apache Kafka
@@ -547,8 +521,6 @@ cp -v $HADOOP_HOME/share/hadoop/common/lib/guava-*.jar $HBASE_HOME/lib/
 
 {
   echo "export HBASE_CLASSPATH_PREFIX=\"/opt/hbase/lib/mariposa-hbase-patch-2.5.13.jar\""
-  echo "export HBASE_DISABLE_HADOOP_CLASSPATH_LOOKUP=\"true\""
-  echo "export HBASE_PREPEND_CLASSES=\"true\""
   echo "export HBASE_CLASSPATH=\"$HADOOP_CONF_DIR:$(hadoop classpath)\""
 } >> $HBASE_HOME/conf/hbase-env.sh
 
@@ -568,10 +540,6 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
         <name>hbase.zookeeper.quorum</name>
         <value>$MASTER_HOST,$WORKER_HOSTS</value>
         <description>Zookeeper full quorum list</description>
-    </property>
-    <property>
-        <name>hbase.zookeeper.property.clientPort</name>
-        <value>2181</value>
     </property>
     <property>
         <name>hbase.wal.provider</name>
@@ -612,16 +580,16 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
     </property>
 </configuration>
 EOF
-# TODO: to start auth with Kerberos, play with HBASE_OPTS="${HBASE_OPTS:-} -Djava.security.auth.login.config=/path/to/hbase_client_jaas.conf"
 
 
 # setup Hue
 if [[ "$IS_MASTER" == "true" ]]; then
+    check_env "HUE_PASSWORD"
     cat <<EOF > $HUE_HOME/desktop/conf/hue.ini
 [desktop]
   http_host=0.0.0.0
   http_port=8888
-  secret_key=spark_hadoop_secret_key
+  secret_key=$HUE_PASSWORD
   [[kerberos]]
     hue_keytab=$KEYTABS_DIR/$MASTER_HOST.keytab
     hue_principal=hue/$MASTER_HOST@MARIPOSA.COM
@@ -631,14 +599,13 @@ if [[ "$IS_MASTER" == "true" ]]; then
     [[[default]]]
       fs_defaultfs=hdfs://$MASTER_HOST:9000
       webhdfs_url=https://$MASTER_HOST:9871/webhdfs/v1
-      ssl_cert_ca_verify=false
       security_enabled=true
+      ssl_cert_ca_verify=false
 
   [[yarn_clusters]]
     [[[default]]]
       resourcemanager_host=$MASTER_HOST
       resourcemanager_port=8032
-      submit_to=True
 
 [beeswax]
   hive_server_host=$MASTER_HOST
@@ -663,8 +630,8 @@ JAR_PATTERN = f"{SPARK_HOME}/examples/jars/spark-examples_*.jar"
 found_jars = glob.glob(JAR_PATTERN)
 EXAMPLES_JAR = found_jars[0] if found_jars else "NOT_FOUND"
 
-MASTER_HOST = os.getenv('MASTER_HOST', 'namenode.host')
-KEYTABS_DIR = os.getenv('KEYTABS_DIR', '/etc/security/keytabs')
+MASTER_HOST = os.getenv('MASTER_HOST', '$MASTER_HOST')
+KEYTABS_DIR = os.getenv('KEYTABS_DIR', '$KEYTABS_DIR')
 
 with DAG(dag_id='spark_connection_test') as dag:
     submit_job = SparkSubmitOperator(
@@ -741,6 +708,8 @@ if [[ "$IS_MASTER" == "true" ]]; then
     until nc -zv $MASTER_HOST 9000; do sleep 1; done
 
     # start Zookeeper
+    log "Starting Zookeeper..."
+    rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
     zkServer.sh start
 
     # login with Kerberos
@@ -817,7 +786,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     warn "Airflow password:"
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 else      # WORKERs
-    # wait for KDC first
+    # wait for KDC
     until nc -zv $MASTER_HOST 88; do sleep 1; done
 
     # start Hadoop
@@ -826,6 +795,8 @@ else      # WORKERs
     yarn --daemon start nodemanager
 
     # start Zookeeper
+    log "Starting Zookeeper..."
+    rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
     zkServer.sh start
 
     # start HBase
@@ -839,7 +810,7 @@ fi
 log "Starting Kafka Server..."
 if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
     log "First time run. Formatting Kafka storage"
-    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id Mariposa20260406 --config $KAFKA_HOME/config/server.properties
+    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id $KAFKA_CLUSTER_ID --config $KAFKA_HOME/config/server.properties
 else
     info "OK: Kafka storage already formatted"
 fi
