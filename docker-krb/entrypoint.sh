@@ -818,6 +818,7 @@ kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 
 # infinite loop
+kinit -kt $KEYTABS_DIR/$(hostname).keytab hadoop/$(hostname)@MARIPOSA.COM
 sleep 1
 log "Done!"
 tail -f /dev/null
