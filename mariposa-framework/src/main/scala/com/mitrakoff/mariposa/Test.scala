@@ -79,3 +79,25 @@ class Test extends ScalaDsl with EN {
     assert(found, s"No found messages with key $expectedRowkey in the topic $topic")
   }
 }
+
+/*
+TODO: enable SASL_SSL
+kafkaProps.putAll(Map(
+    "bootstrap.servers"  -> s"${InetAddress.getLocalHost.getHostName}:9092",
+    "key.serializer"     -> strSerializer,
+    "value.serializer"   -> strSerializer,
+    "key.deserializer"   -> strDeserializer,
+    "value.deserializer" -> strDeserializer,
+    "group.id" -> "mariposa-test-group", // fix InvalidGroupIdException: To use the group management or offset commit APIs...
+    // Security Config
+    "security.protocol" -> "SASL_SSL",
+    "sasl.mechanism" -> "GSSAPI",
+    "sasl.kerberos.service.name" -> "kafka",
+    "ssl.truststore.location" -> "/opt/hadoop/etc/hadoop/certs/truststore.jks",
+    "ssl.truststore.password" -> "marip0sa_jKs",
+    "ssl.endpoint.identification.algorithm" -> ""
+  ).asJava)
+
+System.setProperty("java.security.auth.login.config", "/opt/kafka/config/kafka_jaas.conf")
+  Main.run("classpath:features", "--glue", "com.mitrakoff.mariposa")
+ */
