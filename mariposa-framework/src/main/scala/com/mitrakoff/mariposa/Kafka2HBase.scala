@@ -6,6 +6,7 @@ import org.apache.spark.sql.types.{StringType, StructType}
 import org.apache.spark.sql.streaming.Trigger
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
 import org.slf4j.LoggerFactory
+import java.net.InetAddress
 
 case class Kafka2HBase private (
     private val hbaseCatalog: String = "{}",
@@ -40,14 +41,19 @@ case class Kafka2HBase private (
       .add("metric", StringType)
       .add("value", StringType)
 
-    // read from Kafka
-    val kafkaDF = spark.readStream
-      .format("kafka")
-      .option("kafka.bootstrap.servers", kafkaBootstrapServers)
-      .option("subscribe", kafkaTopic)
-      .option("startingOffsets", "latest")
-      .option("failOnDataLoss", "false") // fix error "Some data may have been lost because they are not available in Kafka any more"
-      .load()
+    // configuration for secured Kafka
+    val kafkaOptions = Map(
+      "kafka.bootstrap.servers"  -> kafkaBootstrapServers,
+      "subscribe"                -> kafkaTopic,
+      "startingOffsets"          -> "earliest",
+      "failOnDataLoss"           -> "false", // fix: "Some data may have been lost because they are not available in Kafka any more"
+      "kafka.security.protocol"  -> "SASL_SSL",
+      "kafka.sasl.kerberos.service.name" -> "kafka",
+      "kafka.ssl.truststore.location" -> "/opt/hadoop/etc/hadoop/certs/truststore.jks",
+      "kafka.ssl.truststore.password" -> "marip0sa_jKs",
+    )
+
+    val kafkaDF = spark.readStream.format("kafka").options(kafkaOptions).load()
 
     // parse JSON and filter out empty rowkeys
     val processedDF = kafkaDF
@@ -91,11 +97,12 @@ object Kafka2HBase {
 
   def main(args: Array[String]): Unit = {
     System.setProperty("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // Fix NPE error on Kafka-Metrics
+
     Mariposa.printProps()
 
     val hbaseCatalog   = sys.props.getOrElse("app.hbase.json.catalog", throwErr)
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
-    val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", "localhost:9092")
+    val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")
     val pollInterval   = sys.props.getOrElse("app.kafka.poll.interval", "5 seconds")
     val kafkaInfinite  = sys.props.get("app.kafka.run.infinitely").flatMap(_.toBooleanOption).getOrElse(false)
 
@@ -115,10 +122,26 @@ object Kafka2HBase {
 
 /*
   hbase shell: create 'sensor_data', 'cf1';
-  kafka-topics.sh --bootstrap-server localhost:9092 --create --topic telemetry
-  spark-submit --class com.mitrakoff.mariposa.Kafka2HBase mariposa-framework-assembly-1.0.0.jar
-  kafka-console-producer.sh --bootstrap-server localhost:9092 --topic telemetry
-  kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic test-topic-1 --from-beginning
+  kafka-topics.sh --bootstrap-server $(hostname):9092 --create --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties
+
+  spark-submit \
+  --driver-java-options="-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf -Dapp.hbase.json.catalog=catalog.json -Dapp.kafka.topic=test-topic-2" \
+  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf" \
+  --class com.mitrakoff.mariposa.Kafka2HBase \
+  mariposa-assembly-1.0.0.jar
+
+  kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties
+  kafka-console-consumer.sh --bootstrap-server $(hostname):9092 --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties --from-beginning
   {"rowkey": "sensor_001", "metric": "temperature", "value": "24.5"}
   hbase shell: scan 'sensor_data';
+
+  {
+   "table":{"namespace":"default", "name":"sensor_data"},
+     "rowkey":"key",
+     "columns":{
+     "rowkey":{"cf":"rowkey", "col":"key", "type":"string"},
+     "metric":{"cf":"cf1", "col":"metric", "type":"string"},
+     "value":{"cf":"cf1", "col":"value", "type":"string"}
+     }
+   }
 */
