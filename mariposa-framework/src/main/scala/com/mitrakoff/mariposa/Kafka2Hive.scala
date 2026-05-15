@@ -131,7 +131,6 @@ object Kafka2Hive {
   mariposa-assembly-1.0.0.jar
 
   kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic test-topic-1 --command-config $KAFKA_HOME/config/sasl.properties
-  kafka-console-consumer.sh --bootstrap-server $(hostname):9092 --topic test-topic-1 --command-config $KAFKA_HOME/config/sasl.properties --from-beginning
   {"rowkey": "sensor_002", "metric": "temperature", "value": "25.6"}
   spark-shell: spark.sql("SELECT * FROM test_table;").show(truncate = false)
 */
