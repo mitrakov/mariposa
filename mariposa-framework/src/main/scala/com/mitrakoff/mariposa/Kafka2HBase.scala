@@ -121,27 +121,28 @@ object Kafka2HBase {
 }
 
 /*
-  hbase shell: create 'sensor_data', 'cf1';
-  kafka-topics.sh --bootstrap-server $(hostname):9092 --create --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties
+hbase shell: create 'sensor_data', 'cf1';
+kafka-topics.sh --bootstrap-server $(hostname):9092 --create --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties
 
-  spark-submit \
+spark-submit \
   --driver-java-options="-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf -Dapp.hbase.json.catalog=catalog.json -Dapp.kafka.topic=test-topic-2" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.Kafka2HBase \
   mariposa-assembly-1.0.0.jar
 
-  kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties
-  kafka-console-consumer.sh --bootstrap-server $(hostname):9092 --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties --from-beginning
+kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties
   {"rowkey": "sensor_001", "metric": "temperature", "value": "24.5"}
-  hbase shell: scan 'sensor_data';
 
-  {
-   "table":{"namespace":"default", "name":"sensor_data"},
-     "rowkey":"key",
-     "columns":{
-     "rowkey":{"cf":"rowkey", "col":"key", "type":"string"},
-     "metric":{"cf":"cf1", "col":"metric", "type":"string"},
-     "value":{"cf":"cf1", "col":"value", "type":"string"}
-     }
-   }
+hbase shell: scan 'sensor_data';
+
+catalog.json:
+{
+  "table":{"namespace":"default", "name":"sensor_data"},
+    "rowkey":"key",
+    "columns":{
+      "rowkey":{"cf":"rowkey", "col":"key", "type":"string"},
+      "metric":{"cf":"cf1", "col":"metric", "type":"string"},
+      "value":{"cf":"cf1", "col":"value", "type":"string"}
+    }
+}
 */

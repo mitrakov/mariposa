@@ -4,6 +4,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.{col, struct, to_json}
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
 import org.slf4j.LoggerFactory
+import java.net.InetAddress
 
 case class HBase2Kafka private (
     private val hbaseCatalog: String = "{}",
@@ -40,13 +41,19 @@ case class HBase2Kafka private (
       .load()
     logger.info(s"Reading from HBase catalog: $hbaseCatalog and publishing to Kafka: $kafkaTopic")
 
+    // configuration for secured Kafka
+    val kafkaOptions = Map(
+      "kafka.bootstrap.servers"  -> kafkaBootstrapServers,
+      "topic"                    -> kafkaTopic,
+      "kafka.security.protocol"  -> "SASL_SSL",
+      "kafka.sasl.kerberos.service.name" -> "kafka",
+      "kafka.ssl.truststore.location" -> "/opt/hadoop/etc/hadoop/certs/truststore.jks",
+      "kafka.ssl.truststore.password" -> "marip0sa_jKs",
+    )
+
     // Transform to a JSON and send to Kafka
     val toKafkaDF = hbaseDF.select(to_json(struct(hbaseDF.columns.map(col): _*)).as("value"))
-    toKafkaDF.write
-      .format("kafka")
-      .option("kafka.bootstrap.servers", kafkaBootstrapServers)
-      .option("topic", kafkaTopic)
-      .save()
+    toKafkaDF.write.format("kafka").options(kafkaOptions).save()
 
     logger.info("HBase to Kafka completed successfully.")
     spark.stop()
@@ -68,7 +75,7 @@ object HBase2Kafka {
 
     val hbaseCatalog   = sys.props.getOrElse("app.hbase.json.catalog", throwErr)
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
-    val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", "localhost:9092")
+    val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")
 
     builder()
       .withHBaseJsonCatalog(Mariposa.readFileLocal(hbaseCatalog))
@@ -81,3 +88,29 @@ object HBase2Kafka {
   private def throwErr: Nothing =
     throw new Exception("These properties are necessary: -Dapp.hbase.json.catalog=hbase.json -Dapp.kafka.topic=my-topic")
 }
+
+/*
+hbase shell:
+  create 'sensor_data','cf1';
+  put 'sensor_data', 'sensor_001', 'cf1:metric', 'temperatura';
+  put 'sensor_data', 'sensor_001', 'cf1:value', '49.1';
+
+kafka-console-consumer.sh --bootstrap-server $(hostname):9092 --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties --from-beginning
+
+catalog.json:
+{
+  "table":{"namespace":"default", "name":"sensor_data"},
+  "rowkey":"key",
+  "columns":{
+    "rowkey":{"cf":"rowkey", "col":"key", "type":"string"},
+    "metric":{"cf":"cf1", "col":"metric", "type":"string"},
+    "value":{"cf":"cf1", "col":"value", "type":"string"}
+  }
+}
+
+spark-submit \
+  --driver-java-options="-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf -Dapp.hbase.json.catalog=catalog.json -Dapp.kafka.topic=test-topic-2" \
+  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf" \
+  --class com.mitrakoff.mariposa.HBase2Kafka \
+  mariposa-assembly-1.0.0.jar
+*/
