@@ -9,27 +9,27 @@ Feature: Mariposa Full Data Cycle
     # 2. Kafka -> Hive
     When a Mariposa command is executed:
       """
-      DOWNLOAD FROM KAFKA TOPIC 'test-topic-1' SERVERS 'localhost:9092' INTO HIVE TABLE 'test_table'
+      DOWNLOAD FROM KAFKA TOPIC 'test-topic-1' SERVERS 'namenode.host:9092' INTO HIVE TABLE 'test_table'
       OPTIONS(pollInterval='1 seconds', infinite='false');
       """
 
     # 3. Hive -> Kafka
     And a Mariposa command is executed:
       """
-      UPLOAD TO KAFKA FROM HIVE TABLE 'test_table' TOPIC 'test-topic-2' SERVERS 'localhost:9092';
+      UPLOAD TO KAFKA FROM HIVE TABLE 'test_table' TOPIC 'test-topic-2' SERVERS 'namenode.host:9092';
       """
 
     # 4. Kafka -> HBase
     And a Mariposa command is executed:
       """
-      DOWNLOAD FROM KAFKA TOPIC 'test-topic-2' SERVERS 'localhost:9092' INTO HBASE CATALOG 'test_catalog.json'
+      DOWNLOAD FROM KAFKA TOPIC 'test-topic-2' SERVERS 'namenode.host:9092' INTO HBASE CATALOG 'test_catalog.json'
       OPTIONS(pollInterval='1 seconds', infinite='false');
       """
 
     # 5. HBase -> Kafka
     And a Mariposa command is executed:
       """
-      UPLOAD TO KAFKA FROM HBASE CATALOG 'test_catalog.json' TOPIC 'test-topic-3' SERVERS 'localhost:9092';
+      UPLOAD TO KAFKA FROM HBASE CATALOG 'test_catalog.json' TOPIC 'test-topic-3' SERVERS 'namenode.host:9092';
       """
 
     # 6. Final verification

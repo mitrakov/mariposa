@@ -122,11 +122,12 @@ object Kafka2HBase {
 
 /*
 hbase shell: create 'sensor_data', 'cf1';
-kafka-topics.sh --bootstrap-server $(hostname):9092 --create --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties
+kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic test-topic-2
 
 spark-submit \
-  --driver-java-options="-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf -Dapp.hbase.json.catalog=catalog.json -Dapp.kafka.topic=test-topic-2" \
-  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf" \
+  --driver-java-options="-Dapp.hbase.json.catalog=catalog.json -Dapp.kafka.topic=test-topic-2 \
+   -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
+  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.Kafka2HBase \
   mariposa-assembly-1.0.0.jar
 
