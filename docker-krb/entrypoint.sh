@@ -713,8 +713,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     zkServer.sh start
 
     # login with Kerberos
-    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM
-    klist
+    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM && klist
 
     # start Spark
     log "Starting Spark History Server..."
@@ -738,13 +737,39 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # apache Airflow
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
         log "Starting Apache Airflow..."
+        check_env "AIRFLOW_PASSWORD"
+        mkdir -p "$AIRFLOW_HOME/logs"
+
         export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
         export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
         export AIRFLOW__API__BASE_URL=http://localhost:8085             # used by DAG executor
-        export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085    # used by DAG updater
+        export AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS="admin:admin,tommy:user"
+        export AIRFLOW__API__EXPOSE_CONFIG="True"                       # show configs in "Admin -> Config" tab
 
-        airflow db migrate
-        airflow standalone > $AIRFLOW_HOME/airflow.log 2>&1 &
+        echo "{\"admin\":\"$AIRFLOW_PASSWORD\", \"tommy\":\"tommy\"}" > "$AIRFLOW_HOME/simple_auth_manager_passwords.json.generated"
+
+        airflowMetadata="/opt/airflow/metadata"
+        if [ ! -f "$airflowMetadata/.init_done" ]; then
+            log "First time run. Initializing Airflow database..."
+            airflow db migrate
+            touch "$airflowMetadata/.init_done"
+            info "Airflow database initialized"
+        else
+            info "OK: Airflow database already initialized"
+        fi
+
+        log "Starting Apache Airflow components..."
+        airflow api-server --port 8085 > "$AIRFLOW_HOME/logs/airflow-api-server.log" 2>&1 &
+
+        # update secret key before running scheduler and dag-processor, so that they can pick up a new value
+        # for some reason AIRFLOW__API__SECRET_KEY doesn't work => sed manually
+        until [ -s "$AIRFLOW_HOME/airflow.cfg" ]; do sleep 1; done
+        grep 'secret_key = ' $AIRFLOW_HOME/airflow.cfg
+        sed -i 's/^secret_key = .*$/secret_key = d80678ac0f4fa9e278aa83e1fc72001c2ad91f1da8c77f6c7ca914a8095be758/g' $AIRFLOW_HOME/airflow.cfg
+        grep 'secret_key = ' $AIRFLOW_HOME/airflow.cfg
+
+        airflow scheduler     > "$AIRFLOW_HOME/logs/airflow-scheduler.log"     2>&1 &
+        airflow dag-processor > "$AIRFLOW_HOME/logs/airflow-dag-processor.log" 2>&1 &
     else
         warn "SKIP_AIRFLOW is true => Airflow is not started"
     fi
@@ -779,12 +804,8 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # start HBase with a new kinit
     log "Starting HBase Master..."
     hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
-    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM
+    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM && klist
     hbase-daemon.sh start master
-
-    # TODO: should be visible only first time
-    warn "Airflow password:"
-    cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 else      # WORKERs
     # wait for KDC
     until nc -zv $MASTER_HOST 88; do sleep 1; done
@@ -802,7 +823,7 @@ else      # WORKERs
     # start HBase
     sleep 15     # simple sync with master
     log "Starting HBase RegionServer..."
-    kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM
+    kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM && klist
     hbase-daemon.sh start regionserver
 fi
 
@@ -818,7 +839,7 @@ kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 
 # infinite loop
-kinit -kt $KEYTABS_DIR/$(hostname).keytab hadoop/$(hostname)@MARIPOSA.COM
-sleep 1
+kinit -kt $KEYTABS_DIR/$(hostname).keytab hadoop/$(hostname)@MARIPOSA.COM && klist
+sleep 3
 log "Done!"
 tail -f /dev/null
