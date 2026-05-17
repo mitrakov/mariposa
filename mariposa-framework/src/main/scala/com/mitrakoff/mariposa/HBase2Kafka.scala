@@ -95,7 +95,8 @@ hbase shell:
   put 'sensor_data', 'sensor_001', 'cf1:metric', 'temperatura';
   put 'sensor_data', 'sensor_001', 'cf1:value', '49.1';
 
-kafka-console-consumer.sh --bootstrap-server $(hostname):9092 --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties --from-beginning
+kafka-console-consumer.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties \
+  --topic test-topic-2 --from-beginning
 
 catalog.json:
 {
@@ -108,9 +109,12 @@ catalog.json:
   }
 }
 
+
+
 spark-submit \
-  --driver-java-options="-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf -Dapp.hbase.json.catalog=catalog.json -Dapp.kafka.topic=test-topic-2" \
-  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf" \
+  --driver-java-options="-Dapp.hbase.json.catalog=catalog.json -Dapp.kafka.topic=test-topic-2 \
+   -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
+  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.HBase2Kafka \
   mariposa-assembly-1.0.0.jar
 */

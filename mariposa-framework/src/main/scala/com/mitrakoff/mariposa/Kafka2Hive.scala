@@ -97,7 +97,6 @@ object Kafka2Hive {
 
   def main(args: Array[String]): Unit = {
     System.setProperty("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // Fix NPE error on Kafka-Metrics
-    System.setProperty("spark.sql.streaming.kafka.enableOffsetMeasurement", "false") // Fix NPE error on Kafka-Metrics
     Mariposa.printProps()
 
     val hiveTable      = sys.props.getOrElse("app.hive.table", throwErr)
@@ -121,16 +120,17 @@ object Kafka2Hive {
 }
 
 /*
-  spark-shell: spark.sql("""CREATE TABLE test_table (rowkey STRING, metric STRING, value STRING) USING HIVE;""")
-  kafka-topics.sh --bootstrap-server $(hostname):9092 --create --topic test-topic-1 --command-config $KAFKA_HOME/config/sasl.properties
+spark-shell: spark.sql("CREATE TABLE test_table (rowkey STRING, metric STRING, value STRING) USING HIVE;")
+kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic test-topic-1
 
-  spark-submit \
-  --driver-java-options="-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf -Dapp.hive.table=test_table -Dapp.kafka.topic=test-topic-1" \
-  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf" \
+spark-submit \
+  --driver-java-options="-Dapp.hive.table=test_table -Dapp.kafka.topic=test-topic-1 \
+   -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
+  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.Kafka2Hive \
   mariposa-assembly-1.0.0.jar
 
-  kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic test-topic-1 --command-config $KAFKA_HOME/config/sasl.properties
+kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic test-topic-1 --command-config $KAFKA_HOME/config/sasl.properties
   {"rowkey": "sensor_002", "metric": "temperature", "value": "25.6"}
-  spark-shell: spark.sql("SELECT * FROM test_table;").show(truncate = false)
+spark-shell: spark.sql("SELECT * FROM test_table;").show(truncate = false)
 */

@@ -5,17 +5,19 @@ import io.cucumber.datatable.DataTable
 import io.cucumber.scala.{EN, ScalaDsl}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.clients.consumer.KafkaConsumer
+import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
+import java.net.InetAddress
 import java.util.{Collections, Properties}
 import java.time.Duration
 import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsJava}
 
-// kafka-topics.sh --bootstrap-server localhost:9092 --create --topic test-topic-1
-// kafka-topics.sh --bootstrap-server localhost:9092 --create --topic test-topic-2
-// kafka-topics.sh --bootstrap-server localhost:9092 --create --topic test-topic-3
-// hbase shell: create 'sensor_data', 'cf1';
-// spark-shell: spark.sql("""CREATE TABLE test_table (rowkey STRING, metric STRING, value STRING) USING HIVE;""")
-// test_catalog.json:
 /*
+kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic test-topic-1
+kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic test-topic-2
+kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic test-topic-3
+hbase shell: create 'sensor_data', 'cf1';
+spark-shell: spark.sql("CREATE TABLE test_table (rowkey STRING, metric STRING, value STRING) USING HIVE;")
+test_catalog.json:
 {
   "table":{"namespace":"default", "name":"sensor_data"},
   "rowkey":"key",
@@ -25,24 +27,30 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala, MapHasAsJava}
     "value": {"cf":"cf1", "col":"value",  "type":"string"}
   }
 }
+
+spark-submit \
+  --driver-java-options="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
+  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
+  --class com.mitrakoff.mariposa.Test mariposa-assembly-1.0.0.jar
 */
-// spark-submit --class com.mitrakoff.mariposa.Test mariposa-assembly-1.0.0.jar
 // TODO: For some reason, first attempt always fail; all subsequent attempts are OK. Check why.
 object Test extends App {
   Main.run("classpath:features", "--glue", "com.mitrakoff.mariposa")
 }
 
 class Test extends ScalaDsl with EN {
-  private val strSerializer   = "org.apache.kafka.common.serialization.StringSerializer"
-  private val strDeserializer = "org.apache.kafka.common.serialization.StringDeserializer"
   private val kafkaProps = new Properties()
   kafkaProps.putAll(Map(
-    "bootstrap.servers"  -> "localhost:9092",
-    "key.serializer"     -> strSerializer,
-    "value.serializer"   -> strSerializer,
-    "key.deserializer"   -> strDeserializer,
-    "value.deserializer" -> strDeserializer,
+    "bootstrap.servers"  -> s"${InetAddress.getLocalHost.getHostName}:9092",
+    "key.serializer"     -> classOf[StringSerializer].getName,
+    "value.serializer"   -> classOf[StringSerializer].getName,
+    "key.deserializer"   -> classOf[StringDeserializer].getName,
+    "value.deserializer" -> classOf[StringDeserializer].getName,
     "group.id" -> "mariposa-test-group", // fix InvalidGroupIdException: To use the group management or offset commit APIs...
+    "security.protocol" -> "SASL_SSL",
+    "sasl.kerberos.service.name" -> "kafka",
+    "ssl.truststore.location" -> "/opt/hadoop/etc/hadoop/certs/truststore.jks",
+    "ssl.truststore.password" -> "marip0sa_jKs",
   ).asJava)
 
   Given("""a message is sent to Kafka topic {string}:""") { (topic: String, dataTable: DataTable) =>
@@ -81,23 +89,14 @@ class Test extends ScalaDsl with EN {
 }
 
 /*
-TODO: enable SASL_SSL
-kafkaProps.putAll(Map(
-    "bootstrap.servers"  -> s"${InetAddress.getLocalHost.getHostName}:9092",
-    "key.serializer"     -> strSerializer,
-    "value.serializer"   -> strSerializer,
-    "key.deserializer"   -> strDeserializer,
-    "value.deserializer" -> strDeserializer,
-    "group.id" -> "mariposa-test-group", // fix InvalidGroupIdException: To use the group management or offset commit APIs...
-    // Security Config
-    "security.protocol" -> "SASL_SSL",
-    "sasl.mechanism" -> "GSSAPI",
-    "sasl.kerberos.service.name" -> "kafka",
-    "ssl.truststore.location" -> "/opt/hadoop/etc/hadoop/certs/truststore.jks",
-    "ssl.truststore.password" -> "marip0sa_jKs",
-    "ssl.endpoint.identification.algorithm" -> ""
-  ).asJava)
+TODO:
+WARN  [ReadOnlyZKClient-namenode.host:2181,datanode1.host:2181,datanode2.host:2181@0x7b5d3ac5-SendThread(namenode.host:2181)] zookeeper.ClientCnxn: SASL configuration failed. Will continue connection to Zookeeper server without SASL authentication, if Zookeeper server allows it.
+javax.security.auth.login.LoginException: No JAAS configuration section named 'Client' was found in specified JAAS configuration file: '/opt/kafka/config/kafka_jaas.conf'.
+	at org.apache.zookeeper.client.ZooKeeperSaslClient.<init>(ZooKeeperSaslClient.java:192) ~[zookeeper-3.9.4.jar:3.9.4]
+	at org.apache.zookeeper.ClientCnxn$SendThread.startConnect(ClientCnxn.java:1150) [zookeeper-3.9.4.jar:3.9.4]
+	at org.apache.zookeeper.ClientCnxn$SendThread.run(ClientCnxn.java:1200) [zookeeper-3.9.4.jar:3.9.4]
 
-System.setProperty("java.security.auth.login.config", "/opt/kafka/config/kafka_jaas.conf")
-  Main.run("classpath:features", "--glue", "com.mitrakoff.mariposa")
- */
+2026-05-17T08:30:50,904 INFO  [stream execution thread for [id = 53a9e873-7d1d-4727-b548-56e1ca1c7767, runId = a65f1e14-faec-41b9-b5d8-7d23bacd3f09]] admin.AdminClientConfig: These configurations '[key.deserializer, value.deserializer, enable.auto.commit, max.poll.records, auto.offset.reset]' were supplied but are not used yet.
+2026-05-17T08:30:50,905 INFO  [stream execution thread for [id = 53a9e873-7d1d-4727-b548-56e1ca1c7767, runId = a65f1e14-faec-41b9-b5d8-7d23bacd3f09]] utils.AppInfoParser: Kafka version: 3.9.1
+2026-05-17T08:30:50,905 INFO  [stream execution thread for [id = 53a9e873-7d1d-4727-b548-56e1ca1c7767, runId = a65f1e14-faec-41b9-b5d8-7d23bacd3f09]] utils.AppInfoParser: Kafka commitId: f745dfdcee2b9851
+*/
