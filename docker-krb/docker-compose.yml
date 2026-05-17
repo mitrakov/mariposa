@@ -11,8 +11,9 @@ services:
       - HIVE_DB_PASSWORD=marip0sa_pGs
       - KRB5_PASSWORD=marip0sa_kRb
       - JKS_PASSWORD=marip0sa_jKs
+      - AIRFLOW_PASSWORD=marip0sa_aDm
       - HUE_PASSWORD=marip0sa_hUe
-      - SKIP_AIRFLOW=true
+      - SKIP_AIRFLOW=false
       - SKIP_HUE=true
     volumes:
       - ~/hadoop/kdc_conf:/etc/krb5kdc
@@ -20,6 +21,7 @@ services:
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
       - ~/hadoop/zk1_data:/opt/zookeeper/data
       - ~/hadoop/kafka1_data:/opt/kafka/data
+      - ~/hadoop/airflow:/opt/airflow/metadata
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
       - ~/hadoop/workspace:/home/hadoop/workspace
         # shared across all nodes
