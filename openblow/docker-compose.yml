@@ -9,9 +9,6 @@ services:
       - ZK_ID=1
       - HIVE_DB_PASSWORD=12345
     volumes:
-      - ~/openblow/hdfs1_data:/opt/hadoop/dfs/name
-      - ~/openblow/zk1_data:/opt/zookeeper/data
-      - ~/openblow/kafka1_data:/opt/kafka/data
       - ~/openblow/postgres_data:/var/lib/postgresql/16/main
       - ~/openblow/wms:/home/hadoop/wms
     ports:
@@ -30,10 +27,6 @@ services:
       - MASTER_HOST=openblow.host
       - WORKER_HOSTS=worker1.host,worker2.host
       - ZK_ID=2
-    volumes:
-      - ~/openblow/hdfs2_data:/opt/hadoop/dfs/data
-      - ~/openblow/zk2_data:/opt/zookeeper/data
-      - ~/openblow/kafka2_data:/opt/kafka/data
 
   worker2:
     image: mitrakov/openblow:1.0.0
@@ -43,7 +36,3 @@ services:
       - MASTER_HOST=openblow.host
       - WORKER_HOSTS=worker1.host,worker2.host
       - ZK_ID=3
-    volumes:
-      - ~/openblow/hdfs3_data:/opt/hadoop/dfs/data
-      - ~/openblow/zk3_data:/opt/zookeeper/data
-      - ~/openblow/kafka3_data:/opt/kafka/data

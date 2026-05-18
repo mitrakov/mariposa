@@ -51,6 +51,9 @@ RUN wget --output-document=- https://archive.apache.org/dist/kafka/3.2.0/kafka_2
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin:$KAFKA_HOME/bin
 
 # install sudo to start services, ssh for Hadoop, postgresql for Hive Metastore (pin version 16), iproute/mc: optional
+RUN apt update && apt install lsb-release
+RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 RUN apt update && apt install -y sudo openssh-server postgresql-16 iproute2 mc && apt clean
 
 # create user 'hadoop' and add it to sudoers (w/o password)
