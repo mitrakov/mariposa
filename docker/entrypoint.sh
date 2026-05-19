@@ -152,6 +152,17 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: user 'airflow' exists"
     fi
+
+    USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hue';")
+    if [ "$USER_EXISTS" != "1" ]; then
+        log "First time run. Creating 'hue' user and 'hue_db'..."
+        sudo -u postgres psql --command "CREATE USER hue WITH PASSWORD 'hue_pass';"
+        sudo -u postgres psql --command "CREATE DATABASE hue_db OWNER hue;"
+        sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE hue_db TO hue;"
+        log "PostgreSQL user 'hue' and database 'hue_db' created."
+    else
+        info "OK: user 'hue' exists"
+    fi
 fi
 
 log "Creating configs..."
@@ -173,6 +184,14 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
       <name>hadoop.proxyuser.hue.groups</name>
       <value>*</value>
       <description>add permissions for HUE</description>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.hadoop.hosts</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.hadoop.groups</name>
+        <value>*</value>
     </property>
 </configuration>
 EOF
@@ -279,6 +298,31 @@ if [[ "$IS_MASTER" == "true" ]]; then
         <name>hive.metastore.uris</name>
         <value>thrift://$MASTER_HOST:9083</value>
         <description>IP address and port of the Hive Metastore service</description>
+    </property>
+    <property>
+        <name>hive.notification.event.poll.interval</name>
+        <value>-1</value>
+        <description>Disable HiveServer2 notification event polling</description>
+    </property>
+    <property>
+        <name>hive.metastore.proxyuser.hadoop.hosts</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>hive.metastore.proxyuser.hadoop.groups</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>hive.execution.engine</name>
+        <value>mr</value>
+    </property>
+    <property>
+        <name>hive.server2.tez.initialize.default.sessions</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.server2.tez.queue.access.check</name>
+        <value>false</value>
     </property>
 </configuration>
 EOF
@@ -388,6 +432,14 @@ if [[ "$IS_MASTER" == "true" ]]; then
   secret_key=spark_hadoop_secret_key
   time_zone=UTC
 
+  [[database]]
+    engine=django.db.backends.postgresql
+    host=localhost
+    port=5432
+    user=hue
+    password=hue_pass
+    name=hue_db
+
 [hadoop]
   [[hdfs_clusters]]
     [[[default]]]
@@ -403,6 +455,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
 [beeswax]
   hive_server_host=$MASTER_HOST
   hive_server_port=10000
+  mechanism=PLAIN
 EOF
 fi
 
@@ -439,25 +492,64 @@ EOF
 fi
 
 
+
+
+
+
+
+
+
+
+log "Creating custom Log4j2 properties to fix logging errors..."
+cat <<EOF > $HIVE_HOME/conf/hive-log4j2.properties
+status = WARN
+name = HiveLog4j2Configuration
+
+# Define the console appender
+appender.console.type = Console
+appender.console.name = Console
+appender.console.layout.type = PatternLayout
+appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%t] %c{1}: %m%n
+
+# Root logger configuration
+rootLogger.level = INFO
+rootLogger.appenderRefs = console
+rootLogger.appenderRef.console.ref = Console
+
+# FORCE HIVE PACKAGES TO SHOW ALL DEBUG LOGS
+logger.hive.name = org.apache.hadoop.hive
+logger.hive.level = DEBUG
+logger.hive.additivity = false
+logger.hive.appenderRefs = console
+logger.hive.appenderRef.console.ref = Console
+
+logger.ql.name = org.apache.hadoop.hive.ql
+logger.ql.level = DEBUG
+
+logger.metastore.name = org.apache.hadoop.hive.metastore
+logger.metastore.level = DEBUG
+EOF
+
+
 # =========================
 # === starting services ===
 # =========================
 
 
 # ZK
-log "Starting Zookeeper..."
-zkServer.sh start
+# log "Starting Zookeeper..."
+# zkServer.sh start
 
 # Kafka
-log "Starting Kafka Server..."
-# KRaft storage formatting
-if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
-    log "First time run. Formatting Kafka storage"
-    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id Mariposa20260406 --config $KAFKA_HOME/config/server.properties
-else
-    info "OK: Kafka storage already formatted"
-fi
-kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
+# log "Starting Kafka Server..."
+# # KRaft storage formatting
+# if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
+#     log "First time run. Formatting Kafka storage"
+#     $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id Mariposa20260406 --config $KAFKA_HOME/config/server.properties
+# else
+#     info "OK: Kafka storage already formatted"
+# fi
+# kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 # master logic
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -477,13 +569,13 @@ if [[ "$IS_MASTER" == "true" ]]; then
     start-dfs.sh
     log "Starting YARN..."
     start-yarn.sh
-    hdfs dfs -mkdir -p /spark/logs        # must-have
-    log "Starting Spark History Server..."
-    start-history-server.sh
+    # hdfs dfs -mkdir -p /spark/logs        # must-have
+    # log "Starting Spark History Server..."
+    # start-history-server.sh
 
     # start HBase
-    log "Starting HBase..."
-    start-hbase.sh
+    # log "Starting HBase..."
+    # start-hbase.sh
 
     # start Hive Metastore (in bg)
     log "Starting Hive Metastore..."
@@ -495,7 +587,18 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: Hive Metastore detected"
     fi
-    hive --service metastore &
+
+    log "Wait for HDFS to exit Safe Mode..."
+    hdfs dfsadmin -safemode wait    
+    
+    mkdir -p "$HIVE_HOME/logs"     # TODO: to dockerfile
+    #export HIVE_OPTS="-Dlog4j2.configurationFile=file:$HIVE_HOME/conf/hive-log4j2.properties"
+    export HADOOP_OPTS="${HADOOP_OPTS:-} -Dlog4j2.configurationFile=file:$HIVE_HOME/conf/hive-log4j2.properties"
+    hive --service metastore > "$HIVE_HOME/logs/metastore.log" 2>&1 &
+
+    until nc -zv localhost 9083; do sleep 1; done
+
+    hive --service hiveserver2 > "$HIVE_HOME/logs/hiveserver2.log" 2>&1 &
 
     # apache Airflow
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
@@ -512,10 +615,16 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # HUE
+    sudo mkdir -p /var/log/hue    # todo: mv to dockerfile
+    sudo chown -R hadoop:hadoop /var/log/hue
     if [[ ${SKIP_HUE:-} != "true" ]]; then
         log "Starting HUE..."
         # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py
         # simple "if (!migrated) then migrate" doesn't work
+
+        log "Installing PostgreSQL adapter for Hue virtualenv..."
+        $HUE_HOME/build/env/bin/pip install psycopg2-binary
+
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
         # opt: create a default user home for HUE to fix warnings on the web-page
@@ -525,13 +634,13 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # opt: copy Spark libs to HDFS for better performance
-    if ! hdfs dfs -test -e /spark/libs; then
-        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
-        hdfs dfs -mkdir -p /spark/libs
-        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
-    else
-        info "OK: Spark JARs already loaded into HDFS"
-    fi
+    # if ! hdfs dfs -test -e /spark/libs; then
+    #     log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
+    #     hdfs dfs -mkdir -p /spark/libs
+    #     hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
+    # else
+    #     info "OK: Spark JARs already loaded into HDFS"
+    # fi
 
     # TODO: should be visible only first time
     warn "Airflow password:"

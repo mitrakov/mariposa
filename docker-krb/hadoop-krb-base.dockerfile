@@ -78,13 +78,13 @@ COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/libpython3.12* /usr/loc
 
 # copy-paste HUE and fix "encodebytes" function
 ENV HUE_HOME=/opt/hue
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/bin/python3.11 /usr/bin/python3.11
-COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/lib/python3.11 /usr/lib/python3.11
-COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
+COPY --from=mitrakov/hadoop-hue2:1.0.0 /usr/bin/python3.9 /usr/bin/python3.9
+COPY --from=mitrakov/hadoop-hue2:1.0.0 /usr/lib/python3.9 /usr/lib/python3.9
+COPY --from=mitrakov/hadoop-hue2:1.0.0 $HUE_HOME $HUE_HOME
 
 
 # fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
-RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
+# RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
 RUN rm $HBASE_HOME/lib/client-facing-thirdparty/log4j-slf4j-impl-*.jar
 
 

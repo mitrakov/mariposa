@@ -3,6 +3,11 @@ FROM mitrakov/hadoop-krb-base:1.0.0
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
 # SSH passwordless login for Hadoop
+RUN apt install --yes \
+    libsasl2-dev \
+    libsasl2-2 \
+    libsasl2-modules
+
 USER hadoop
 RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 

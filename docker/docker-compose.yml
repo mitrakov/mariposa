@@ -8,7 +8,7 @@ services:
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=1
       - HIVE_DB_PASSWORD=12345
-      - SKIP_HUE=true
+      - SKIP_HUE=false
       - SKIP_AIRFLOW=true
     volumes:
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
@@ -22,6 +22,7 @@ services:
       - "8085:8085"   # Airflow
       - "8088:8088"   # YARN UI
       - "8888:8888"   # HUE
+      - "10002:10002" # HiveServer2
       - "18080:18080" # Spark History Server
       - "16010:16010" # HBase
 
