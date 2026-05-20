@@ -37,57 +37,6 @@ function check_env() {
         fi
     fi
 }
-function check_os() {
-    local result=""
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        result="MacOS $(sw_vers -productVersion) (Build: $(sw_vers -buildVersion))"
-    elif [[ -f /etc/os-release ]]; then
-        # linux distributions with /etc/os-release
-        source /etc/os-release
-        result="$ID $VERSION_ID ($PRETTY_NAME)"
-    elif [[ -f /etc/redhat-release ]]; then
-        # fallback for older RHEL systems without /etc/os-release
-        result=$(cat /etc/redhat-release)
-    else
-        error "Unable to detect operating system"
-        exit 1
-    fi
-
-    info "OS: $result"
-}
-function check_primary_ip() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS - use route and ifconfig
-        primary_interface=$(route get default | grep interface | awk '{print $2}')
-        ipv4_addr=$(ifconfig "$primary_interface" | grep 'inet ' | awk '{print $2}')
-    else
-        # Linux - use ip command
-        primary_interface=$(ip route | grep default | awk '{print $5}' | head -1)
-        ipv4_addr=$(ip -4 addr show "$primary_interface" | grep inet | awk '{print $2}' | cut -d'/' -f1 | head -1)
-    fi
-    
-    info "Default IPv4 address: $ipv4_addr"
-}
-function check_hostname() {
-    info "Hostname: $(hostname)"
-}
-function check_java() {
-    if command -v java &> /dev/null; then
-        java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-    
-        if [[ -n "$java_version" ]]; then
-            info "Java version: $java_version"
-        else
-            warn "Cannot detect Java version"
-        fi
-    else
-        warn "'java' command not found"
-    fi
-}
-
-
-
-# =====
 
 
 
@@ -106,10 +55,6 @@ check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "ZK_ID"
 
-check_os
-check_hostname
-check_primary_ip
-check_java
 
 # start SSH daemon
 log "Starting SSH..."
@@ -316,14 +261,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
         <name>hive.execution.engine</name>
         <value>mr</value>
     </property>
-    <property>
-        <name>hive.server2.tez.initialize.default.sessions</name>
-        <value>false</value>
-    </property>
-    <property>
-        <name>hive.server2.tez.queue.access.check</name>
-        <value>false</value>
-    </property>
 </configuration>
 EOF
 else      # for workers
@@ -491,16 +428,6 @@ with DAG(dag_id='spark_connection_test') as dag:
 EOF
 fi
 
-
-
-
-
-
-
-
-
-
-log "Creating custom Log4j2 properties to fix logging errors..."
 cat <<EOF > $HIVE_HOME/conf/hive-log4j2.properties
 status = WARN
 name = HiveLog4j2Configuration
@@ -516,18 +443,12 @@ rootLogger.level = INFO
 rootLogger.appenderRefs = console
 rootLogger.appenderRef.console.ref = Console
 
-# FORCE HIVE PACKAGES TO SHOW ALL DEBUG LOGS
+# Hive
 logger.hive.name = org.apache.hadoop.hive
-logger.hive.level = DEBUG
+logger.hive.level = INFO
 logger.hive.additivity = false
 logger.hive.appenderRefs = console
 logger.hive.appenderRef.console.ref = Console
-
-logger.ql.name = org.apache.hadoop.hive.ql
-logger.ql.level = DEBUG
-
-logger.metastore.name = org.apache.hadoop.hive.metastore
-logger.metastore.level = DEBUG
 EOF
 
 
@@ -537,19 +458,19 @@ EOF
 
 
 # ZK
-# log "Starting Zookeeper..."
-# zkServer.sh start
+log "Starting Zookeeper..."
+zkServer.sh start
 
 # Kafka
-# log "Starting Kafka Server..."
-# # KRaft storage formatting
-# if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
-#     log "First time run. Formatting Kafka storage"
-#     $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id Mariposa20260406 --config $KAFKA_HOME/config/server.properties
-# else
-#     info "OK: Kafka storage already formatted"
-# fi
-# kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
+log "Starting Kafka Server..."
+# KRaft storage formatting
+if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
+    log "First time run. Formatting Kafka storage"
+    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id Mariposa20260406 --config $KAFKA_HOME/config/server.properties
+else
+    info "OK: Kafka storage already formatted"
+fi
+kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 # master logic
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -569,13 +490,13 @@ if [[ "$IS_MASTER" == "true" ]]; then
     start-dfs.sh
     log "Starting YARN..."
     start-yarn.sh
-    # hdfs dfs -mkdir -p /spark/logs        # must-have
-    # log "Starting Spark History Server..."
-    # start-history-server.sh
+    hdfs dfs -mkdir -p /spark/logs        # must-have
+    log "Starting Spark History Server..."
+    start-history-server.sh
 
     # start HBase
-    # log "Starting HBase..."
-    # start-hbase.sh
+    log "Starting HBase..."
+    start-hbase.sh
 
     # start Hive Metastore (in bg)
     log "Starting Hive Metastore..."
@@ -591,8 +512,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     log "Wait for HDFS to exit Safe Mode..."
     hdfs dfsadmin -safemode wait    
     
-    mkdir -p "$HIVE_HOME/logs"     # TODO: to dockerfile
-    #export HIVE_OPTS="-Dlog4j2.configurationFile=file:$HIVE_HOME/conf/hive-log4j2.properties"
     export HADOOP_OPTS="${HADOOP_OPTS:-} -Dlog4j2.configurationFile=file:$HIVE_HOME/conf/hive-log4j2.properties"
     hive --service metastore > "$HIVE_HOME/logs/metastore.log" 2>&1 &
 
@@ -615,16 +534,8 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # HUE
-    sudo mkdir -p /var/log/hue    # todo: mv to dockerfile
-    sudo chown -R hadoop:hadoop /var/log/hue
     if [[ ${SKIP_HUE:-} != "true" ]]; then
         log "Starting HUE..."
-        # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py
-        # simple "if (!migrated) then migrate" doesn't work
-
-        log "Installing PostgreSQL adapter for Hue virtualenv..."
-        $HUE_HOME/build/env/bin/pip install psycopg2-binary
-
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
         # opt: create a default user home for HUE to fix warnings on the web-page
@@ -634,13 +545,13 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # opt: copy Spark libs to HDFS for better performance
-    # if ! hdfs dfs -test -e /spark/libs; then
-    #     log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
-    #     hdfs dfs -mkdir -p /spark/libs
-    #     hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
-    # else
-    #     info "OK: Spark JARs already loaded into HDFS"
-    # fi
+    if ! hdfs dfs -test -e /spark/libs; then
+        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
+        hdfs dfs -mkdir -p /spark/libs
+        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
+    else
+        info "OK: Spark JARs already loaded into HDFS"
+    fi
 
     # TODO: should be visible only first time
     warn "Airflow password:"

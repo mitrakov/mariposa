@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # entrypoint.sh for image: mitrakov/hadoop-krb:1.0.0
-# NEXT: Hive 10000
 set -euo pipefail
 
 # helpers
@@ -184,14 +183,6 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
         <name>hadoop.proxyuser.hue.hosts</name>
         <value>*</value>
         <description>FIX: User: hue is not allowed to impersonate hadoop</description>
-    </property>
-    <property>
-        <name>hadoop.proxyuser.hadoop.groups</name>
-        <value>*</value>
-    </property>
-    <property>
-        <name>hadoop.proxyuser.hadoop.hosts</name>
-        <value>*</value>
     </property>
 </configuration>
 EOF
@@ -384,25 +375,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     <property>
         <name>hive.metastore.kerberos.keytab.file</name>
         <value>$KEYTABS_DIR/$MASTER_HOST.keytab</value>
-    </property>
-
-    <property>
-        <name>hive.server2.authentication</name>
-        <value>KERBEROS</value>
-        <description>Enables Kerberos authentication for incoming user sessions (GSSAPI)</description>
-    </property>
-    <property>
-        <name>hive.server2.authentication.kerberos.principal</name>
-        <value>hive/$MASTER_HOST@MARIPOSA.COM</value>
-    </property>
-    <property>
-        <name>hive.server2.authentication.kerberos.keytab</name>
-        <value>$KEYTABS_DIR/$MASTER_HOST.keytab</value>
-    </property>
-    <property>
-        <name>hive.server2.enable.doAs</name>
-        <value>true</value>
-        <description>Enables user impersonation so queries run as the Hue user, not the hive service</description>
     </property>
 </configuration>
 EOF
@@ -637,18 +609,9 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
 [beeswax]
   hive_server_host=$MASTER_HOST
-  hive_server_port=10000
+  hive_server_port=9083
   security_enabled=true
-  mechanism=GSSAPI
-  hive_principal=hive/$MASTER_HOST@MARIPOSA.COM
   hive_server_principal=hive/$MASTER_HOST@MARIPOSA.COM
-
-[notebook]
-  [[interpreters]]
-    [[[hive]]]
-      name=Hive
-      interface=hiveserver2
-      options='{"url": "jdbc:hive2://$MASTER_HOST:10000/default;principal=hive/$MASTER_HOST@MARIPOSA.COM", "has_impersonation": true}'
 EOF
 fi
 
@@ -745,19 +708,19 @@ if [[ "$IS_MASTER" == "true" ]]; then
     until nc -zv $MASTER_HOST 9000; do sleep 1; done
 
     # start Zookeeper
-    # log "Starting Zookeeper..."
-    # rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
-    # zkServer.sh start
+    log "Starting Zookeeper..."
+    rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
+    zkServer.sh start
 
     # login with Kerberos
     kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM && klist
 
     # start Spark
-    # log "Starting Spark History Server..."
-    # sleep 1
-    # hdfs dfs -mkdir -p /spark/logs        # must-have
+    log "Starting Spark History Server..."
+    sleep 1
+    hdfs dfs -mkdir -p /spark/logs        # must-have
     hdfs dfs -mkdir -p /user/hadoop       # opt, for HUE
-    # start-history-server.sh
+    start-history-server.sh
 
     # start Hive Metastore (in bg)
     log "Starting Hive Metastore..."
@@ -769,11 +732,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: Hive Metastore detected"
     fi
-
-    mkdir -p "$HIVE_HOME/logs"     # TODO: to dockerfile
-    hive --service metastore > "$HIVE_HOME/logs/metastore.log" 2>&1 &
-    hive --service hiveserver2 > "$HIVE_HOME/logs/hiveserver2.log" 2>&1 &
-
+    hive --service metastore &
 
     # apache Airflow
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
@@ -818,8 +777,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # HUE
     if [[ ${SKIP_HUE:-} != "true" ]]; then
         log "Starting HUE..."
-        export SASL_PATH=/usr/lib/aarch64-linux-gnu/sasl2:/usr/lib/sasl2
-        export KRB5_CONFIG=/etc/krb5.conf
 
         sudo mkdir -p /var/run/hue
         sudo chown hadoop:hadoop /var/run/hue
@@ -828,7 +785,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
         # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py (or Gemini suggested to use Postgresql instead)
         # simple "if (!migrated) then migrate" doesn't work
-        kinit -kt $KEYTABS_DIR/hue.keytab hue/$MASTER_HOST@MARIPOSA.COM && klist
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue kt_renewer > $HUE_HOME/logs/kt_renewer.log 2>&1 &)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
@@ -837,19 +793,19 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # opt: copy Spark libs to HDFS for better performance
-    # if ! hdfs dfs -test -e /spark/libs; then
-    #     log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
-    #     hdfs dfs -mkdir -p /spark/libs
-    #     hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
-    # else
-    #     info "OK: Spark JARs already loaded into HDFS"
-    # fi
+    if ! hdfs dfs -test -e /spark/libs; then
+        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
+        hdfs dfs -mkdir -p /spark/libs
+        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
+    else
+        info "OK: Spark JARs already loaded into HDFS"
+    fi
 
     # start HBase with a new kinit
-    # log "Starting HBase Master..."
-    # hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
-    # kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM && klist
-    # hbase-daemon.sh start master
+    log "Starting HBase Master..."
+    hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
+    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM && klist
+    hbase-daemon.sh start master
 else      # WORKERs
     # wait for KDC
     until nc -zv $MASTER_HOST 88; do sleep 1; done
@@ -860,26 +816,26 @@ else      # WORKERs
     yarn --daemon start nodemanager
 
     # start Zookeeper
-    # log "Starting Zookeeper..."
-    # rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
-    # zkServer.sh start
+    log "Starting Zookeeper..."
+    rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
+    zkServer.sh start
 
     # start HBase
-    # sleep 15     # simple sync with master
-    # log "Starting HBase RegionServer..."
-    # kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM && klist
-    # hbase-daemon.sh start regionserver
+    sleep 15     # simple sync with master
+    log "Starting HBase RegionServer..."
+    kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM && klist
+    hbase-daemon.sh start regionserver
 fi
 
 # start Kafka on all nodes
-# log "Starting Kafka Server..."
-# if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
-#     log "First time run. Formatting Kafka storage"
-#     $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id $KAFKA_CLUSTER_ID --config $KAFKA_HOME/config/server.properties
-# else
-#     info "OK: Kafka storage already formatted"
-# fi
-# kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
+log "Starting Kafka Server..."
+if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
+    log "First time run. Formatting Kafka storage"
+    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id $KAFKA_CLUSTER_ID --config $KAFKA_HOME/config/server.properties
+else
+    info "OK: Kafka storage already formatted"
+fi
+kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 
 # infinite loop

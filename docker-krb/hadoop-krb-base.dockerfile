@@ -1,4 +1,4 @@
-# docker build --file hadoop-krb-base.dockerfile --tag mitrakov/hadoop-krb-base:1.0.0 .; say hola
+# docker build --file hadoop-krb-base.dockerfile --tag mitrakov/hadoop:1.0.0 .; say hola
 # java 17 is min for Spark 4.1.1
 FROM eclipse-temurin:17
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
@@ -55,11 +55,20 @@ RUN wget --output-document=- https://downloads.apache.org/kafka/4.2.0/kafka_2.13
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin:$KAFKA_HOME/bin
 
 
-# install sudo to start services, postgresql for Hive Metastore and Airflow (pin version 16), krb5 for Kerberos, netcat for nc, openssh/iproute/mc: optional
+# add Postgres-16 sources
 RUN apt update && apt install lsb-release
 RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
 RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
-RUN apt update && apt install --yes sudo openssh-server krb5-kdc krb5-admin-server postgresql-16 netcat-openbsd iproute2 mc && apt clean
+
+
+# sudo        start services
+# postgresql  Hive/Airflow/HUE
+# krb5        Kerberos (KRB only)
+# netcat      nc
+# sasl2       HUE
+# openssh     quick-start services (DEV only)
+# mc          optional
+RUN apt update && apt install --yes sudo openssh-server krb5-kdc krb5-admin-server postgresql-16 netcat-openbsd libsasl2-modules mc && apt clean
 
 
 # copy-paste Apache Airflow
@@ -78,34 +87,23 @@ COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/libpython3.12* /usr/loc
 
 # copy-paste HUE and fix "encodebytes" function
 ENV HUE_HOME=/opt/hue
-COPY --from=mitrakov/hadoop-hue2:1.0.0 /usr/bin/python3.9 /usr/bin/python3.9
-COPY --from=mitrakov/hadoop-hue2:1.0.0 /usr/lib/python3.9 /usr/lib/python3.9
-COPY --from=mitrakov/hadoop-hue2:1.0.0 $HUE_HOME $HUE_HOME
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/bin/python3.9 /usr/bin/python3.9
+COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/lib/python3.9 /usr/lib/python3.9
+COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
 
 
 # fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
-# RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
+RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
 RUN rm $HBASE_HOME/lib/client-facing-thirdparty/log4j-slf4j-impl-*.jar
 
 
 # create user 'hadoop' and add it to sudoers (w/o password)
 RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-RUN useradd --create-home --shell /bin/bash tommy  && echo "tommy  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN useradd --create-home --shell /bin/bash tommy
 
 
 # switch ownership to 'hadoop'
-RUN mkdir $HADOOP_HOME/dfs && \
-    mkdir $HADOOP_HOME/logs && \
-    mkdir $ZOOKEEPER_HOME/data && \
-    mkdir $KAFKA_HOME/data && \
-    mkdir -p $AIRFLOW_HOME/dags && \
-    chown -R hadoop:hadoop $HADOOP_HOME && \
-    chown -R hadoop:hadoop $HIVE_HOME && \
-    chown -R hadoop:hadoop $HBASE_HOME && \
-    chown -R hadoop:hadoop $ZOOKEEPER_HOME && \
-    chown -R hadoop:hadoop $KAFKA_HOME && \
-    chown -R hadoop:hadoop $AIRFLOW_HOME && \
-    chown -R hadoop:hadoop $HUE_HOME
-
+RUN mkdir $HADOOP_HOME/dfs $HADOOP_HOME/logs $ZOOKEEPER_HOME/data $KAFKA_HOME/data $HIVE_HOME/logs $AIRFLOW_HOME/dags /var/log/hue && \
+    chown -R hadoop:hadoop $HADOOP_HOME $ZOOKEEPER_HOME $KAFKA_HOME $HIVE_HOME $HBASE_HOME $AIRFLOW_HOME $HUE_HOME /var/log/hue
 
 # in your image, add "USER hadoop"

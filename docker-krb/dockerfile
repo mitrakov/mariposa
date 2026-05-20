@@ -1,13 +1,10 @@
 # docker build --tag mitrakov/hadoop-krb:1.0.0 .
-FROM mitrakov/hadoop-krb-base:1.0.0
+FROM mitrakov/hadoop:1.0.0
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
 # extra ENV variables for Kerberos
 ENV KEYTABS_DIR=/etc/security/keytabs
 ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
-
-RUN apt install libsasl2-modules libsasl2-modules-gssapi-mit
-
 USER hadoop
 
 COPY entrypoint.sh /entrypoint.sh

@@ -1,6 +1,6 @@
 services:
   namenode:
-    image: mitrakov/hadoop:1.0.0
+    image: mitrakov/hadoop-dev:1.0.0
     hostname: namenode.host
     environment:
       - IS_MASTER=true
@@ -27,7 +27,7 @@ services:
       - "16010:16010" # HBase
 
   datanode1:
-    image: mitrakov/hadoop:1.0.0
+    image: mitrakov/hadoop-dev:1.0.0
     hostname: datanode1.host
     environment:
       - IS_MASTER=false
@@ -42,7 +42,7 @@ services:
       - "8042:8042"   # NodeManager
 
   datanode2:
-    image: mitrakov/hadoop:1.0.0
+    image: mitrakov/hadoop-dev:1.0.0
     hostname: datanode2.host
     environment:
       - IS_MASTER=false
