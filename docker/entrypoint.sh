@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail  # exit on any error, undefined variable, or pipe failure
+set -euo pipefail
 
 # helpers
 RED='\033[0;31m'
@@ -62,8 +62,6 @@ sudo service ssh start
 
 # start Postgres (master only)
 if [[ "$IS_MASTER" == "true" ]]; then
-    check_env "HIVE_DB_PASSWORD"
-
     log "Starting PostgreSQL..."
     PG_DATA_DIR="/var/lib/postgresql/16/main"
 
@@ -76,6 +74,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
     sudo service postgresql start
 
+    check_env "HIVE_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hive';")
     if [ "$USER_EXISTS" != "1" ]; then
         log "First time run. Creating 'hive' user and 'metastore_db'..."
@@ -87,10 +86,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: user 'hive' exists"
     fi
 
+    check_env "AIRFLOW_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='airflow';")
     if [ "$USER_EXISTS" != "1" ]; then
         log "First time run. Creating 'airflow' user and 'airflow_db'..."
-        sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD 'airflow_pass';"
+        sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD '$AIRFLOW_DB_PASSWORD';"
         sudo -u postgres psql --command "CREATE DATABASE airflow_db OWNER airflow;"
         sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE airflow_db TO airflow;"
         log "PostgreSQL user 'airflow' and database 'airflow_db' created."
@@ -98,10 +98,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: user 'airflow' exists"
     fi
 
+    check_env "HUE_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hue';")
     if [ "$USER_EXISTS" != "1" ]; then
         log "First time run. Creating 'hue' user and 'hue_db'..."
-        sudo -u postgres psql --command "CREATE USER hue WITH PASSWORD 'hue_pass';"
+        sudo -u postgres psql --command "CREATE USER hue WITH PASSWORD '$HUE_DB_PASSWORD';"
         sudo -u postgres psql --command "CREATE DATABASE hue_db OWNER hue;"
         sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE hue_db TO hue;"
         log "PostgreSQL user 'hue' and database 'hue_db' created."
@@ -133,10 +134,12 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
     <property>
         <name>hadoop.proxyuser.hadoop.hosts</name>
         <value>*</value>
+        <description>Hive FIX: User hadoop is not allowed to perform this API call</description>
     </property>
     <property>
         <name>hadoop.proxyuser.hadoop.groups</name>
         <value>*</value>
+        <description>Hive FIX: User hadoop is not allowed to perform this API call</description>
     </property>
 </configuration>
 EOF
@@ -245,21 +248,9 @@ if [[ "$IS_MASTER" == "true" ]]; then
         <description>IP address and port of the Hive Metastore service</description>
     </property>
     <property>
-        <name>hive.notification.event.poll.interval</name>
-        <value>-1</value>
-        <description>Disable HiveServer2 notification event polling</description>
-    </property>
-    <property>
-        <name>hive.metastore.proxyuser.hadoop.hosts</name>
-        <value>*</value>
-    </property>
-    <property>
-        <name>hive.metastore.proxyuser.hadoop.groups</name>
-        <value>*</value>
-    </property>
-    <property>
         <name>hive.execution.engine</name>
         <value>mr</value>
+        <description>switch TEZ -> MapReduce</description>
     </property>
 </configuration>
 EOF
@@ -274,6 +265,20 @@ else      # for workers
 </configuration>
 EOF
 fi
+
+# fix issue with 'remove deprecated packages attribute' by creating minimal log4j2 file
+cat <<EOF > $HIVE_HOME/conf/hive-log4j2.properties
+name = HiveLog4j2Configuration
+
+appender.console.type = Console
+appender.console.name = Console
+appender.console.layout.type = PatternLayout
+appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%t] %c{1}: %m%n
+
+rootLogger.level = INFO
+rootLogger.appenderRef.console.ref = Console
+EOF
+
 
 # setup HBase (HBASE_MANAGES_ZK=false is needed not to start ZK on its own)
 export HBASE_MANAGES_ZK=false
@@ -374,7 +379,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     host=localhost
     port=5432
     user=hue
-    password=hue_pass
+    password=$HUE_DB_PASSWORD
     name=hue_db
 
 [hadoop]
@@ -392,7 +397,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
 [beeswax]
   hive_server_host=$MASTER_HOST
   hive_server_port=10000
-  mechanism=PLAIN
 EOF
 fi
 
@@ -427,29 +431,6 @@ with DAG(dag_id='spark_connection_test') as dag:
     )
 EOF
 fi
-
-cat <<EOF > $HIVE_HOME/conf/hive-log4j2.properties
-status = WARN
-name = HiveLog4j2Configuration
-
-# Define the console appender
-appender.console.type = Console
-appender.console.name = Console
-appender.console.layout.type = PatternLayout
-appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%t] %c{1}: %m%n
-
-# Root logger configuration
-rootLogger.level = INFO
-rootLogger.appenderRefs = console
-rootLogger.appenderRef.console.ref = Console
-
-# Hive
-logger.hive.name = org.apache.hadoop.hive
-logger.hive.level = INFO
-logger.hive.additivity = false
-logger.hive.appenderRefs = console
-logger.hive.appenderRef.console.ref = Console
-EOF
 
 
 # =========================
@@ -498,8 +479,8 @@ if [[ "$IS_MASTER" == "true" ]]; then
     log "Starting HBase..."
     start-hbase.sh
 
-    # start Hive Metastore (in bg)
-    log "Starting Hive Metastore..."
+    # start Hive
+    log "Starting Hive..."
     export PGPASSWORD="$HIVE_DB_PASSWORD"
     SCHEMA_EXISTS=$(psql --host localhost --username hive --dbname metastore_db --tuples-only --no-align --command "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'VERSION');")
     if [ "$SCHEMA_EXISTS" != "t" ]; then
@@ -509,20 +490,15 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: Hive Metastore detected"
     fi
 
+    hive --service metastore   > "$HIVE_HOME/logs/metastore.log" 2>&1 &
     log "Wait for HDFS to exit Safe Mode..."
-    hdfs dfsadmin -safemode wait    
-    
-    export HADOOP_OPTS="${HADOOP_OPTS:-} -Dlog4j2.configurationFile=file:$HIVE_HOME/conf/hive-log4j2.properties"
-    hive --service metastore > "$HIVE_HOME/logs/metastore.log" 2>&1 &
-
-    until nc -zv localhost 9083; do sleep 1; done
-
+    hdfs dfsadmin -safemode wait                                        # must have
     hive --service hiveserver2 > "$HIVE_HOME/logs/hiveserver2.log" 2>&1 &
 
     # apache Airflow
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
         log "Starting Apache Airflow..."
-        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
+        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:$AIRFLOW_DB_PASSWORD@localhost:5432/airflow_db"
         export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
         export AIRFLOW__API__BASE_URL=http://localhost:8085             # used by DAG executor
         export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085    # used by DAG updater
@@ -553,8 +529,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: Spark JARs already loaded into HDFS"
     fi
 
-    # TODO: should be visible only first time
-    warn "Airflow password:"
+    info "Airflow password:"
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi
 

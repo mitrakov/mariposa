@@ -7,9 +7,11 @@ services:
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=1
-      - HIVE_DB_PASSWORD=12345
+      - HIVE_DB_PASSWORD=111222
+      - AIRFLOW_DB_PASSWORD=111333
+      - HUE_DB_PASSWORD=111444
       - SKIP_HUE=false
-      - SKIP_AIRFLOW=true
+      - SKIP_AIRFLOW=false
     volumes:
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
       - ~/hadoop/zk1_data:/opt/zookeeper/data
