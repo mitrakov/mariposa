@@ -1,5 +1,5 @@
-# docker build --tag mitrakov/hadoop:1.0.0 .
-FROM mitrakov/hadoop-krb-base:1.0.0
+# docker build --tag mitrakov/hadoop-dev:1.0.0 .
+FROM mitrakov/hadoop:1.0.0
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
 # SSH passwordless login for Hadoop

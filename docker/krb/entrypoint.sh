@@ -89,8 +89,6 @@ fi
 
 # start Postgres
 if [[ "$IS_MASTER" == "true" ]]; then
-    check_env "HIVE_DB_PASSWORD"
-
     log "Starting PostgreSQL..."
     PG_DATA_DIR="/var/lib/postgresql/16/main"
 
@@ -103,6 +101,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
     sudo service postgresql start
 
+    check_env "HIVE_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hive';")
     if [ "$USER_EXISTS" != "1" ]; then
         log "First time run. Creating 'hive' user and 'metastore_db'..."
@@ -114,10 +113,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: user 'hive' exists"
     fi
 
+    check_env "AIRFLOW_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='airflow';")
     if [ "$USER_EXISTS" != "1" ]; then
         log "First time run. Creating 'airflow' user and 'airflow_db'..."
-        sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD 'airflow_pass';"
+        sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD '$AIRFLOW_DB_PASSWORD';"
         sudo -u postgres psql --command "CREATE DATABASE airflow_db OWNER airflow;"
         sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE airflow_db TO airflow;"
         info "PostgreSQL user 'airflow' and database 'airflow_db' created"
@@ -740,7 +740,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         check_env "AIRFLOW_PASSWORD"
         mkdir -p "$AIRFLOW_HOME/logs"
 
-        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
+        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:$AIRFLOW_DB_PASSWORD@localhost:5432/airflow_db"
         export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
         export AIRFLOW__API__BASE_URL=http://localhost:8085             # used by DAG executor
         export AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS="admin:admin,tommy:user"

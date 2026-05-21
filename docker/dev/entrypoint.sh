@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail  # exit on any error, undefined variable, or pipe failure
+set -euo pipefail
 
 # helpers
 RED='\033[0;31m'
@@ -37,57 +37,6 @@ function check_env() {
         fi
     fi
 }
-function check_os() {
-    local result=""
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        result="MacOS $(sw_vers -productVersion) (Build: $(sw_vers -buildVersion))"
-    elif [[ -f /etc/os-release ]]; then
-        # linux distributions with /etc/os-release
-        source /etc/os-release
-        result="$ID $VERSION_ID ($PRETTY_NAME)"
-    elif [[ -f /etc/redhat-release ]]; then
-        # fallback for older RHEL systems without /etc/os-release
-        result=$(cat /etc/redhat-release)
-    else
-        error "Unable to detect operating system"
-        exit 1
-    fi
-
-    info "OS: $result"
-}
-function check_primary_ip() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS - use route and ifconfig
-        primary_interface=$(route get default | grep interface | awk '{print $2}')
-        ipv4_addr=$(ifconfig "$primary_interface" | grep 'inet ' | awk '{print $2}')
-    else
-        # Linux - use ip command
-        primary_interface=$(ip route | grep default | awk '{print $5}' | head -1)
-        ipv4_addr=$(ip -4 addr show "$primary_interface" | grep inet | awk '{print $2}' | cut -d'/' -f1 | head -1)
-    fi
-    
-    info "Default IPv4 address: $ipv4_addr"
-}
-function check_hostname() {
-    info "Hostname: $(hostname)"
-}
-function check_java() {
-    if command -v java &> /dev/null; then
-        java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-    
-        if [[ -n "$java_version" ]]; then
-            info "Java version: $java_version"
-        else
-            warn "Cannot detect Java version"
-        fi
-    else
-        warn "'java' command not found"
-    fi
-}
-
-
-
-# =====
 
 
 
@@ -106,10 +55,6 @@ check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "ZK_ID"
 
-check_os
-check_hostname
-check_primary_ip
-check_java
 
 # start SSH daemon
 log "Starting SSH..."
@@ -117,8 +62,6 @@ sudo service ssh start
 
 # start Postgres (master only)
 if [[ "$IS_MASTER" == "true" ]]; then
-    check_env "HIVE_DB_PASSWORD"
-
     log "Starting PostgreSQL..."
     PG_DATA_DIR="/var/lib/postgresql/16/main"
 
@@ -131,6 +74,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
     sudo service postgresql start
 
+    check_env "HIVE_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hive';")
     if [ "$USER_EXISTS" != "1" ]; then
         log "First time run. Creating 'hive' user and 'metastore_db'..."
@@ -142,15 +86,28 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: user 'hive' exists"
     fi
 
+    check_env "AIRFLOW_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='airflow';")
     if [ "$USER_EXISTS" != "1" ]; then
         log "First time run. Creating 'airflow' user and 'airflow_db'..."
-        sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD 'airflow_pass';"
+        sudo -u postgres psql --command "CREATE USER airflow WITH PASSWORD '$AIRFLOW_DB_PASSWORD';"
         sudo -u postgres psql --command "CREATE DATABASE airflow_db OWNER airflow;"
         sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE airflow_db TO airflow;"
         log "PostgreSQL user 'airflow' and database 'airflow_db' created."
     else
         info "OK: user 'airflow' exists"
+    fi
+
+    check_env "HUE_DB_PASSWORD"
+    USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hue';")
+    if [ "$USER_EXISTS" != "1" ]; then
+        log "First time run. Creating 'hue' user and 'hue_db'..."
+        sudo -u postgres psql --command "CREATE USER hue WITH PASSWORD '$HUE_DB_PASSWORD';"
+        sudo -u postgres psql --command "CREATE DATABASE hue_db OWNER hue;"
+        sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE hue_db TO hue;"
+        log "PostgreSQL user 'hue' and database 'hue_db' created."
+    else
+        info "OK: user 'hue' exists"
     fi
 fi
 
@@ -173,6 +130,16 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
       <name>hadoop.proxyuser.hue.groups</name>
       <value>*</value>
       <description>add permissions for HUE</description>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.hadoop.hosts</name>
+        <value>*</value>
+        <description>Hive FIX: User hadoop is not allowed to perform this API call</description>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.hadoop.groups</name>
+        <value>*</value>
+        <description>Hive FIX: User hadoop is not allowed to perform this API call</description>
     </property>
 </configuration>
 EOF
@@ -280,6 +247,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
         <value>thrift://$MASTER_HOST:9083</value>
         <description>IP address and port of the Hive Metastore service</description>
     </property>
+    <property>
+        <name>hive.execution.engine</name>
+        <value>mr</value>
+        <description>switch TEZ -> MapReduce</description>
+    </property>
 </configuration>
 EOF
 else      # for workers
@@ -293,6 +265,20 @@ else      # for workers
 </configuration>
 EOF
 fi
+
+# fix issue with 'remove deprecated packages attribute' by creating minimal log4j2 file
+cat <<EOF > $HIVE_HOME/conf/hive-log4j2.properties
+name = HiveLog4j2Configuration
+
+appender.console.type = Console
+appender.console.name = Console
+appender.console.layout.type = PatternLayout
+appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%t] %c{1}: %m%n
+
+rootLogger.level = INFO
+rootLogger.appenderRef.console.ref = Console
+EOF
+
 
 # setup HBase (HBASE_MANAGES_ZK=false is needed not to start ZK on its own)
 export HBASE_MANAGES_ZK=false
@@ -387,6 +373,14 @@ if [[ "$IS_MASTER" == "true" ]]; then
   http_port=8888
   secret_key=spark_hadoop_secret_key
   time_zone=UTC
+
+  [[database]]
+    engine=django.db.backends.postgresql
+    host=localhost
+    port=5432
+    user=hue
+    password=$HUE_DB_PASSWORD
+    name=hue_db
 
 [hadoop]
   [[hdfs_clusters]]
@@ -485,8 +479,8 @@ if [[ "$IS_MASTER" == "true" ]]; then
     log "Starting HBase..."
     start-hbase.sh
 
-    # start Hive Metastore (in bg)
-    log "Starting Hive Metastore..."
+    # start Hive
+    log "Starting Hive..."
     export PGPASSWORD="$HIVE_DB_PASSWORD"
     SCHEMA_EXISTS=$(psql --host localhost --username hive --dbname metastore_db --tuples-only --no-align --command "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'VERSION');")
     if [ "$SCHEMA_EXISTS" != "t" ]; then
@@ -495,12 +489,16 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: Hive Metastore detected"
     fi
-    hive --service metastore &
+
+    hive --service metastore   > "$HIVE_HOME/logs/metastore.log" 2>&1 &
+    log "Wait for HDFS to exit Safe Mode..."
+    hdfs dfsadmin -safemode wait                                        # must have
+    hive --service hiveserver2 > "$HIVE_HOME/logs/hiveserver2.log" 2>&1 &
 
     # apache Airflow
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
         log "Starting Apache Airflow..."
-        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:airflow_pass@localhost:5432/airflow_db"
+        export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:$AIRFLOW_DB_PASSWORD@localhost:5432/airflow_db"
         export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
         export AIRFLOW__API__BASE_URL=http://localhost:8085             # used by DAG executor
         export AIRFLOW__CORE__INTERNAL_API_URL=http://localhost:8085    # used by DAG updater
@@ -514,8 +512,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # HUE
     if [[ ${SKIP_HUE:-} != "true" ]]; then
         log "Starting HUE..."
-        # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py
-        # simple "if (!migrated) then migrate" doesn't work
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
         # opt: create a default user home for HUE to fix warnings on the web-page
@@ -533,8 +529,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: Spark JARs already loaded into HDFS"
     fi
 
-    # TODO: should be visible only first time
-    warn "Airflow password:"
+    info "Airflow password:"
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi
 
