@@ -8,12 +8,13 @@ services:
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=1
       - KAFKA_CLUSTER_ID=mariposaCluster2026
-      - HIVE_DB_PASSWORD=marip0sa_pGs
+      - HIVE_DB_PASSWORD=marip0sa_pHv
+      - AIRFLOW_DB_PASSWORD=marip0sa_pAf
       - KRB5_PASSWORD=marip0sa_kRb
       - JKS_PASSWORD=marip0sa_jKs
       - AIRFLOW_PASSWORD=marip0sa_aDm
       - HUE_PASSWORD=marip0sa_hUe
-      - SKIP_AIRFLOW=false
+      - SKIP_AIRFLOW=true
       - SKIP_HUE=true
     volumes:
       - ~/hadoop/kdc_conf:/etc/krb5kdc
