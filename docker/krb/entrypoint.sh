@@ -643,7 +643,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
   http_host=0.0.0.0
   http_port=8888
   secret_key=$HUE_PASSWORD
-  auth_backend=kerberos
 
   [[database]]
     engine=django.db.backends.postgresql
@@ -656,8 +655,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
   [[kerberos]]
     hue_keytab=$KEYTABS_DIR/$MASTER_HOST.keytab
     hue_principal=hue/$MASTER_HOST@MARIPOSA.COM
-    ccache_path=/var/run/hue/hue_krb5_ccache
-    auth_enabled=true
 
 [hadoop]
   [[hdfs_clusters]]
@@ -676,13 +673,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
   hive_server_host=$MASTER_HOST
   hive_server_port=10000
   hive_conf_dir=$HIVE_HOME/conf
-  security_enabled=true
-  auth_enabled=true
-  auth_mechanism=GSSAPI
-  sasl_mechanisms=GSSAPI
-  hive_server_principal=hive/$MASTER_HOST@MARIPOSA.COM
-  kerberos_principal=hive/$MASTER_HOST@MARIPOSA.COM
-  use_sasl=true
 EOF
 fi
 
@@ -787,12 +777,9 @@ if [[ "$IS_MASTER" == "true" ]]; then
     kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM && klist
     hdfs dfs -mkdir -p /spark/logs        # must-have
     hdfs dfs -mkdir -p /user/hadoop       # opt, for HUE
-    hdfs dfs -mkdir -p /user/hive/warehouse
-    hdfs dfs -mkdir -p /tmp/hive
-    hdfs dfs -chown hive:hive /user/hive/warehouse
-    hdfs dfs -chown hive:hive /tmp/hive
-    hdfs dfs -chmod 775 /user/hive/warehouse
-    hdfs dfs -chmod 777 /tmp/hive
+    hdfs dfs -mkdir -p /user/hive/warehouse  # must-have
+    hdfs dfs -mkdir -p /tmp/hive             # must-have
+    hdfs dfs -chmod 777 /tmp/hive            # must-have
 
     # start Spark
     log "Starting Spark History Server..."
