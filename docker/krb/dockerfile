@@ -5,10 +5,6 @@ LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 # extra ENV variables for Kerberos
 ENV KEYTABS_DIR=/etc/security/keytabs
 ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
-
-RUN apt install --yes libsasl2-modules-gssapi-mit libkrb5-dev gcc python3-dev
-RUN $HUE_HOME/build/env/bin/pip install gssapi httplib2
-
 USER hadoop
 
 COPY entrypoint.sh /entrypoint.sh
