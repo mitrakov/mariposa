@@ -546,6 +546,7 @@ KafkaServer {
     keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
     principal="kafka/$MY_HOSTNAME@MARIPOSA.COM";
 };
+
 KafkaClient {
     com.sun.security.auth.module.Krb5LoginModule required
     useKeyTab=true
@@ -554,6 +555,7 @@ KafkaClient {
     principal="kafka/$MY_HOSTNAME@MARIPOSA.COM";
 };
 EOF
+
 cat <<EOF > $KAFKA_HOME/config/sasl.properties
 security.protocol=SASL_SSL
 sasl.kerberos.service.name=kafka
@@ -684,6 +686,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
 EOF
 fi
 
+
 # opt: add a simple Spark DAG to Airflow
 if [[ "$IS_MASTER" == "true" ]]; then
     cat <<EOF > $AIRFLOW_HOME/dags/spark_connection_test.py
@@ -691,13 +694,16 @@ import os
 import glob
 from airflow import DAG
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+
 # find the Spark examples JAR dynamically
 SPARK_HOME = os.getenv('SPARK_HOME', '/opt/spark')
 JAR_PATTERN = f"{SPARK_HOME}/examples/jars/spark-examples_*.jar"
 found_jars = glob.glob(JAR_PATTERN)
 EXAMPLES_JAR = found_jars[0] if found_jars else "NOT_FOUND"
+
 MASTER_HOST = os.getenv('MASTER_HOST', '$MASTER_HOST')
 KEYTABS_DIR = os.getenv('KEYTABS_DIR', '$KEYTABS_DIR')
+
 with DAG(dag_id='spark_connection_test') as dag:
     submit_job = SparkSubmitOperator(
         task_id='submit_spark_pi',
