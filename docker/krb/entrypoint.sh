@@ -406,16 +406,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
         <name>hive.server2.authentication.kerberos.keytab</name>
         <value>$KEYTABS_DIR/$MASTER_HOST.keytab</value>
     </property>
-    <property>
-        <name>hadoop.proxyuser.hue.groups</name>
-        <value>*</value>
-        <description></description>
-    </property>
-    <property>
-        <name>hadoop.proxyuser.hue.hosts</name>
-        <value>*</value>
-        <description></description>
-    </property>
 </configuration>
 EOF
 else      # for workers
