@@ -68,7 +68,8 @@ RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg ma
 # sasl2       HUE
 # openssh     quick-start services (DEV only)
 # mc          optional
-RUN apt update && apt install --yes sudo openssh-server krb5-kdc krb5-admin-server postgresql-16 netcat-openbsd libsasl2-modules mc && apt clean
+RUN apt update && apt install --yes sudo openssh-server krb5-kdc krb5-admin-server postgresql-16 netcat-openbsd \
+  libsasl2-modules-gssapi-mit libsasl2-modules mc && apt clean
 
 
 # copy-paste Apache Airflow
@@ -103,7 +104,7 @@ RUN useradd --create-home --shell /bin/bash tommy
 
 
 # switch ownership to 'hadoop'
-RUN mkdir -p $HADOOP_HOME/dfs $HADOOP_HOME/logs $ZOOKEEPER_HOME/data $KAFKA_HOME/data $HIVE_HOME/logs $AIRFLOW_HOME/dags /var/log/hue && \
-    chown -R hadoop:hadoop $HADOOP_HOME $ZOOKEEPER_HOME $KAFKA_HOME $HIVE_HOME $HBASE_HOME $AIRFLOW_HOME $HUE_HOME /var/log/hue
+RUN mkdir -p $HADOOP_HOME/dfs $HADOOP_HOME/logs $ZOOKEEPER_HOME/data $KAFKA_HOME/data $HIVE_HOME/logs $AIRFLOW_HOME/dags $AIRFLOW_HOME/logs /var/log/hue /var/run/hue && \
+    chown -R hadoop:hadoop $HADOOP_HOME $ZOOKEEPER_HOME $KAFKA_HOME $HIVE_HOME $HBASE_HOME $AIRFLOW_HOME $HUE_HOME /var/log/hue /var/run/hue
 
 # in your image, add "USER hadoop"

@@ -10,12 +10,13 @@ services:
       - KAFKA_CLUSTER_ID=mariposaCluster2026
       - HIVE_DB_PASSWORD=marip0sa_pHv
       - AIRFLOW_DB_PASSWORD=marip0sa_pAf
+      - HUE_DB_PASSWORD=marip0sa_pHu
       - KRB5_PASSWORD=marip0sa_kRb
       - JKS_PASSWORD=marip0sa_jKs
       - AIRFLOW_PASSWORD=marip0sa_aDm
       - HUE_PASSWORD=marip0sa_hUe
       - SKIP_AIRFLOW=true
-      - SKIP_HUE=true
+      - SKIP_HUE=false
     volumes:
       - ~/hadoop/kdc_conf:/etc/krb5kdc
       - ~/hadoop/kdc_data:/var/lib/krb5kdc
@@ -31,9 +32,10 @@ services:
     ports:
       - "9870:9870"   # HDFS UI http
       - "9871:9871"   # HDFS UI https
-      - "8088:8088"   # YARN UI
       - "8085:8085"   # Airflow
+      - "8088:8088"   # YARN UI
       - "8888:8888"   # HUE
+      - "10002:10002" # HiveServer2
       - "18080:18080" # Spark
       - "16010:16010" # HBase
 

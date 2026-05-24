@@ -124,6 +124,18 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: user 'airflow' exists"
     fi
+
+    check_env "HUE_DB_PASSWORD"
+    USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hue';")
+    if [ "$USER_EXISTS" != "1" ]; then
+        log "First time run. Creating 'hue' user and 'hue_db'..."
+        sudo -u postgres psql --command "CREATE USER hue WITH PASSWORD '$HUE_DB_PASSWORD';"
+        sudo -u postgres psql --command "CREATE DATABASE hue_db OWNER hue;"
+        sudo -u postgres psql --command "GRANT ALL PRIVILEGES ON DATABASE hue_db TO hue;"
+        log "PostgreSQL user 'hue' and database 'hue_db' created."
+    else
+        info "OK: user 'hue' exists"
+    fi
 fi
 
 log "Creating configs..."
@@ -159,20 +171,16 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
     <property>
         <name>fs.defaultFS</name>
         <value>hdfs://$MASTER_HOST:9000</value>
+        <description>give the datanodes address of the namenode</description>
     </property>
     <property>
         <name>hadoop.security.authentication</name>
         <value>kerberos</value>
     </property>
     <property>
-        <name>hadoop.proxyuser.hive.groups</name>
+        <name>hadoop.proxyuser.hue.hosts</name>
         <value>*</value>
-        <description>FIX: User: hive/namenode.host@MARIPOSA.COM is not allowed to impersonate hadoop/datanode1.host@MARIPOSA.COM</description>
-    </property>
-    <property>
-        <name>hadoop.proxyuser.hive.hosts</name>
-        <value>*</value>
-        <description>FIX: User: hive/namenode.host@MARIPOSA.COM is not allowed to impersonate hadoop/datanode1.host@MARIPOSA.COM</description>
+        <description>FIX: User: hue is not allowed to impersonate hadoop</description>
     </property>
     <property>
         <name>hadoop.proxyuser.hue.groups</name>
@@ -180,9 +188,14 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
         <description>FIX: User: hue is not allowed to impersonate hadoop</description>
     </property>
     <property>
-        <name>hadoop.proxyuser.hue.hosts</name>
+        <name>hadoop.proxyuser.hive.hosts</name>
         <value>*</value>
-        <description>FIX: User: hue is not allowed to impersonate hadoop</description>
+        <description>FIX: User: hive/namenode.host@MARIPOSA.COM is not allowed to impersonate hadoop/datanode1.host@MARIPOSA.COM</description>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.hive.groups</name>
+        <value>*</value>
+        <description>FIX: User: hive/namenode.host@MARIPOSA.COM is not allowed to impersonate hadoop/datanode1.host@MARIPOSA.COM</description>
     </property>
 </configuration>
 EOF
@@ -365,6 +378,12 @@ if [[ "$IS_MASTER" == "true" ]]; then
         <description>IP address and port of the Hive Metastore service</description>
     </property>
     <property>
+        <name>hive.execution.engine</name>
+        <value>mr</value>
+        <description>switch TEZ -> MapReduce</description>
+    </property>
+
+    <property>
         <name>hive.metastore.sasl.enabled</name>
         <value>true</value>
     </property>
@@ -374,6 +393,18 @@ if [[ "$IS_MASTER" == "true" ]]; then
     </property>
     <property>
         <name>hive.metastore.kerberos.keytab.file</name>
+        <value>$KEYTABS_DIR/$MASTER_HOST.keytab</value>
+    </property>
+    <property>
+        <name>hive.server2.authentication</name>
+        <value>KERBEROS</value>
+    </property>
+    <property>
+        <name>hive.server2.authentication.kerberos.principal</name>
+        <value>hive/$MASTER_HOST@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>hive.server2.authentication.kerberos.keytab</name>
         <value>$KEYTABS_DIR/$MASTER_HOST.keytab</value>
     </property>
 </configuration>
@@ -389,6 +420,19 @@ else      # for workers
 </configuration>
 EOF
 fi
+
+# fix issue with 'remove deprecated packages attribute' by creating minimal log4j2 file
+cat <<EOF > $HIVE_HOME/conf/hive-log4j2.properties
+name = HiveLog4j2Configuration
+
+appender.console.type = Console
+appender.console.name = Console
+appender.console.layout.type = PatternLayout
+appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%t] %c{1}: %m%n
+
+rootLogger.level = INFO
+rootLogger.appenderRef.console.ref = Console
+EOF
 
 
 # ZOOKEEPER
@@ -590,6 +634,15 @@ if [[ "$IS_MASTER" == "true" ]]; then
   http_host=0.0.0.0
   http_port=8888
   secret_key=$HUE_PASSWORD
+
+  [[database]]
+    engine=django.db.backends.postgresql
+    host=localhost
+    port=5432
+    user=hue
+    password=$HUE_DB_PASSWORD
+    name=hue_db
+
   [[kerberos]]
     hue_keytab=$KEYTABS_DIR/$MASTER_HOST.keytab
     hue_principal=hue/$MASTER_HOST@MARIPOSA.COM
@@ -609,9 +662,8 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
 [beeswax]
   hive_server_host=$MASTER_HOST
-  hive_server_port=9083
-  security_enabled=true
-  hive_server_principal=hive/$MASTER_HOST@MARIPOSA.COM
+  hive_server_port=10000
+  hive_conf_dir=$HIVE_HOME/conf
 EOF
 fi
 
@@ -712,18 +764,20 @@ if [[ "$IS_MASTER" == "true" ]]; then
     rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
     zkServer.sh start
 
-    # login with Kerberos
+    # create directories on HDFS
     kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM && klist
+    hdfs dfs -mkdir -p /spark/logs        # must-have
+    hdfs dfs -mkdir -p /user/hadoop       # opt, for HUE
+    hdfs dfs -mkdir -p /user/hive/warehouse  # must-have
+    hdfs dfs -mkdir -p /tmp/hive             # must-have
+    hdfs dfs -chmod 777 /tmp/hive            # must-have
 
     # start Spark
     log "Starting Spark History Server..."
-    sleep 1
-    hdfs dfs -mkdir -p /spark/logs        # must-have
-    hdfs dfs -mkdir -p /user/hadoop       # opt, for HUE
     start-history-server.sh
 
-    # start Hive Metastore (in bg)
-    log "Starting Hive Metastore..."
+    # start Hive
+    log "Starting Hive..."
     export PGPASSWORD="$HIVE_DB_PASSWORD"
     SCHEMA_EXISTS=$(psql --host localhost --username hive --dbname metastore_db --tuples-only --no-align --command "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'VERSION');")
     if [ "$SCHEMA_EXISTS" != "t" ]; then
@@ -732,13 +786,16 @@ if [[ "$IS_MASTER" == "true" ]]; then
     else
         info "OK: Hive Metastore detected"
     fi
-    hive --service metastore &
+
+    hive --service metastore   > "$HIVE_HOME/logs/metastore.log" 2>&1 &
+    log "Wait for HDFS to exit Safe Mode..."
+    hdfs dfsadmin -safemode wait                                        # must have
+    hive --service hiveserver2 > "$HIVE_HOME/logs/hiveserver2.log" 2>&1 &
 
     # apache Airflow
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
         log "Starting Apache Airflow..."
         check_env "AIRFLOW_PASSWORD"
-        mkdir -p "$AIRFLOW_HOME/logs"
 
         export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:$AIRFLOW_DB_PASSWORD@localhost:5432/airflow_db"
         export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
@@ -777,14 +834,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # HUE
     if [[ ${SKIP_HUE:-} != "true" ]]; then
         log "Starting HUE..."
-
-        sudo mkdir -p /var/run/hue
-        sudo chown hadoop:hadoop /var/run/hue
-        sudo chmod 755 /var/run/hue
-
-
-        # TODO: need to create volume for /opt/hue/build/env/lib/python3.11/site-packages/django/db/backends/sqlite3/base.py (or Gemini suggested to use Postgresql instead)
-        # simple "if (!migrated) then migrate" doesn't work
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue kt_renewer > $HUE_HOME/logs/kt_renewer.log 2>&1 &)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
