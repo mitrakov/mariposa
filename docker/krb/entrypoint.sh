@@ -856,12 +856,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # HUE
     if [[ ${SKIP_HUE:-} != "true" ]]; then
         log "Starting HUE..."
-
-        # todo: must-have: move to dockerfile
-        sudo mkdir -p /var/run/hue
-        sudo chown hadoop:hadoop /var/run/hue
-        sudo chmod 777 /var/run/hue
-
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue kt_renewer > $HUE_HOME/logs/kt_renewer.log 2>&1 &)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)

@@ -104,7 +104,7 @@ RUN useradd --create-home --shell /bin/bash tommy
 
 
 # switch ownership to 'hadoop'
-RUN mkdir -p $HADOOP_HOME/dfs $HADOOP_HOME/logs $ZOOKEEPER_HOME/data $KAFKA_HOME/data $HIVE_HOME/logs $AIRFLOW_HOME/dags $AIRFLOW_HOME/logs /var/log/hue && \
-    chown -R hadoop:hadoop $HADOOP_HOME $ZOOKEEPER_HOME $KAFKA_HOME $HIVE_HOME $HBASE_HOME $AIRFLOW_HOME $HUE_HOME /var/log/hue
+RUN mkdir -p $HADOOP_HOME/dfs $HADOOP_HOME/logs $ZOOKEEPER_HOME/data $KAFKA_HOME/data $HIVE_HOME/logs $AIRFLOW_HOME/dags $AIRFLOW_HOME/logs /var/log/hue /var/run/hue && \
+    chown -R hadoop:hadoop $HADOOP_HOME $ZOOKEEPER_HOME $KAFKA_HOME $HIVE_HOME $HBASE_HOME $AIRFLOW_HOME $HUE_HOME /var/log/hue /var/run/hue
 
 # in your image, add "USER hadoop"
