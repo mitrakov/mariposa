@@ -171,15 +171,11 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
     <property>
         <name>fs.defaultFS</name>
         <value>hdfs://$MASTER_HOST:9000</value>
+        <description>give the datanodes address of the namenode</description>
     </property>
     <property>
         <name>hadoop.security.authentication</name>
         <value>kerberos</value>
-    </property>
-    <property>
-        <name>hadoop.proxyuser.hue.groups</name>
-        <value>*</value>
-        <description>FIX: User: hue is not allowed to impersonate hadoop</description>
     </property>
     <property>
         <name>hadoop.proxyuser.hue.hosts</name>
@@ -187,12 +183,17 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
         <description>FIX: User: hue is not allowed to impersonate hadoop</description>
     </property>
     <property>
-        <name>hadoop.proxyuser.hive.groups</name>
+        <name>hadoop.proxyuser.hue.groups</name>
+        <value>*</value>
+        <description>FIX: User: hue is not allowed to impersonate hadoop</description>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.hive.hosts</name>
         <value>*</value>
         <description>FIX: User: hive/namenode.host@MARIPOSA.COM is not allowed to impersonate hadoop/datanode1.host@MARIPOSA.COM</description>
     </property>
     <property>
-        <name>hadoop.proxyuser.hive.hosts</name>
+        <name>hadoop.proxyuser.hive.groups</name>
         <value>*</value>
         <description>FIX: User: hive/namenode.host@MARIPOSA.COM is not allowed to impersonate hadoop/datanode1.host@MARIPOSA.COM</description>
     </property>
