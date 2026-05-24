@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# entrypoint.sh for image: mitrakov/hadoop-dev:1.0.0
 set -euo pipefail
 
 # helpers
@@ -7,23 +8,12 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;36m'
 PURPLE='\033[0;35m'
-NC='\033[0m' # no colour
-function log() {
-    message="[$(date +'%Y-%m-%d %H:%M:%S')] [LOG]   $1"
-    echo -e "${GREEN}${message}${NC}"
-}
-function info() {
-    message="[$(date +'%Y-%m-%d %H:%M:%S')] [INFO]  $1"
-    echo -e "${BLUE}${message}${NC}"
-}
-function warn() {
-    message="[$(date +'%Y-%m-%d %H:%M:%S')] [WARN]  $1"
-    echo -e "${YELLOW}${message}${NC}"
-}
-function error() {
-    message="[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $1"
-    echo -e "${RED}${message}${NC}"
-}
+NC='\033[0m'
+function debug() { echo -e "${PURPLE}$(date +'%Y-%m-%d %H:%M:%S') [DEBUG] $1${NC}"; }
+function log()   { echo -e "${GREEN}$(date +'%Y-%m-%d %H:%M:%S') [LOG]   $1${NC}"; }
+function info()  { echo -e "${BLUE}$(date +'%Y-%m-%d %H:%M:%S') [INFO]  $1${NC}"; }
+function warn()  { echo -e "${YELLOW}$(date +'%Y-%m-%d %H:%M:%S') [WARN]  $1${NC}"; }
+function error() { echo -e "${RED}$(date +'%Y-%m-%d %H:%M:%S') [ERROR] $1${NC}"; }
 function check_env() {
     if [[ -z "${!1:-}" ]]; then
         error "Error: environment variable '$1' is not set or empty"
@@ -40,6 +30,7 @@ function check_env() {
 
 
 
+# checks
 check_env "JAVA_HOME"
 check_env "SPARK_HOME"
 check_env "HADOOP_HOME"
@@ -60,7 +51,8 @@ check_env "ZK_ID"
 log "Starting SSH..."
 sudo service ssh start
 
-# start Postgres (master only)
+
+# start Postgres
 if [[ "$IS_MASTER" == "true" ]]; then
     log "Starting PostgreSQL..."
     PG_DATA_DIR="/var/lib/postgresql/16/main"
@@ -367,12 +359,12 @@ EOF
 
 # setup Hue
 if [[ "$IS_MASTER" == "true" ]]; then
+    check_env "HUE_PASSWORD"
     cat <<EOF > $HUE_HOME/desktop/conf/hue.ini
 [desktop]
   http_host=0.0.0.0
   http_port=8888
-  secret_key=spark_hadoop_secret_key
-  time_zone=UTC
+  secret_key=$HUE_PASSWORD
 
   [[database]]
     engine=django.db.backends.postgresql
@@ -392,7 +384,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     [[[default]]]
       resourcemanager_host=$MASTER_HOST
       resourcemanager_port=8032
-      submit_to=True
 
 [beeswax]
   hive_server_host=$MASTER_HOST
@@ -407,9 +398,8 @@ import os
 import glob
 from airflow import DAG
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
-from datetime import datetime
 
-# Helper to find the examples JAR dynamically
+# find the Spark examples JAR dynamically
 SPARK_HOME = os.getenv('SPARK_HOME', '/opt/spark')
 JAR_PATTERN = f"{SPARK_HOME}/examples/jars/spark-examples_*.jar"
 found_jars = glob.glob(JAR_PATTERN)
@@ -421,12 +411,6 @@ with DAG(dag_id='spark_connection_test') as dag:
         application=EXAMPLES_JAR,
         java_class='org.apache.spark.examples.SparkPi',
         application_args=['10'],
-        conf={
-            "spark.master": "yarn",
-            "spark.submit.deployMode": "client",
-            "spark.executor.memory": "512m",
-            "spark.driver.memory": "512m"
-        },
         name='airflow-spark-test-pi'
     )
 EOF
