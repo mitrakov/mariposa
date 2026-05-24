@@ -458,8 +458,10 @@ initLimit=10
 syncLimit=5
 dataDir=$ZOOKEEPER_HOME/data
 clientPort=2181
+
 authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
 requireClientAuthScheme=sasl
+
 server.1=$MASTER_HOST:2888:3888
 EOF
 
@@ -480,6 +482,7 @@ Server {
     principal="zookeeper/$MY_HOSTNAME@MARIPOSA.COM"
     storeKey=true;
 };
+
 Client {
     com.sun.security.auth.module.Krb5LoginModule required
     useKeyTab=true
@@ -507,17 +510,20 @@ cat <<EOF > $KAFKA_HOME/config/server.properties
 process.roles=broker,controller
 node.id=$ZK_ID
 controller.quorum.voters=$VOTERS
+
 # Network settings
 listeners=SASL_SSL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
 inter.broker.listener.name=SASL_SSL
 advertised.listeners=SASL_SSL://$MY_HOSTNAME:9092
 controller.listener.names=CONTROLLER
 listener.security.protocol.map=CONTROLLER:SASL_SSL,SASL_SSL:SASL_SSL
+
 # Kerberos settings
 sasl.enabled.mechanisms=GSSAPI
 sasl.mechanism.inter.broker.protocol=GSSAPI
 sasl.mechanism.controller.protocol=GSSAPI
 sasl.kerberos.service.name=kafka
+
 # SSL Settings
 ssl.keystore.location=$MY_KEYSTORE
 ssl.keystore.password=$JKS_PASSWORD
@@ -525,6 +531,7 @@ ssl.key.password=$JKS_PASSWORD
 ssl.truststore.location=$TRUSTSTORE
 ssl.truststore.password=$JKS_PASSWORD
 ssl.endpoint.identification.algorithm=HTTPS
+
 # Log & Data
 log.dirs=$KAFKA_HOME/data
 num.partitions=3
@@ -590,6 +597,7 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
         <value>filesystem</value>
         <description>fix java-17 Netty error: IllegalArgumentException: object is not an instance of declaring class</description>
     </property>
+
     <property>
         <name>hbase.security.authentication</name>
         <value>simple</value>
@@ -626,9 +634,6 @@ EOF
 
 
 # setup Hue
-cp -v /opt/hive/conf/hive-site.xml /opt/hue/
-cp -v /opt/hive/conf/hive-site.xml /opt/hue/desktop/
-cp -v /opt/hive/conf/hive-site.xml /opt/hue/desktop/conf/
 if [[ "$IS_MASTER" == "true" ]]; then
     check_env "HUE_PASSWORD"
     cat <<EOF > $HUE_HOME/desktop/conf/hue.ini
@@ -676,6 +681,33 @@ if [[ "$IS_MASTER" == "true" ]]; then
   hive_server_principal=hive/$MASTER_HOST@MARIPOSA.COM
   kerberos_principal=hive/$MASTER_HOST@MARIPOSA.COM
   use_sasl=true
+EOF
+fi
+
+# opt: add a simple Spark DAG to Airflow
+if [[ "$IS_MASTER" == "true" ]]; then
+    cat <<EOF > $AIRFLOW_HOME/dags/spark_connection_test.py
+import os
+import glob
+from airflow import DAG
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+# find the Spark examples JAR dynamically
+SPARK_HOME = os.getenv('SPARK_HOME', '/opt/spark')
+JAR_PATTERN = f"{SPARK_HOME}/examples/jars/spark-examples_*.jar"
+found_jars = glob.glob(JAR_PATTERN)
+EXAMPLES_JAR = found_jars[0] if found_jars else "NOT_FOUND"
+MASTER_HOST = os.getenv('MASTER_HOST', '$MASTER_HOST')
+KEYTABS_DIR = os.getenv('KEYTABS_DIR', '$KEYTABS_DIR')
+with DAG(dag_id='spark_connection_test') as dag:
+    submit_job = SparkSubmitOperator(
+        task_id='submit_spark_pi',
+        application=EXAMPLES_JAR,
+        java_class='org.apache.spark.examples.SparkPi',
+        application_args=['10'],
+        principal=f'hadoop/{MASTER_HOST}@MARIPOSA.COM',
+        keytab=f"{KEYTABS_DIR}/{MASTER_HOST}.keytab",
+        name='airflow-spark-test-pi'
+    )
 EOF
 fi
 
@@ -780,7 +812,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
         log "Starting Apache Airflow..."
         check_env "AIRFLOW_PASSWORD"
-        mkdir -p "$AIRFLOW_HOME/logs"
 
         export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:$AIRFLOW_DB_PASSWORD@localhost:5432/airflow_db"
         export AIRFLOW__API__PORT=8085                                  # port 8080 is taken by Spark
@@ -827,9 +858,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue migrate)        # ("cd" needed)
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue kt_renewer > $HUE_HOME/logs/kt_renewer.log 2>&1 &)
-        
-        #log "tail -f /dev/null"
-        #tail -f /dev/null       # GEMINI, let's start debugging from here!
         (cd $HUE_HOME && $HUE_HOME/build/env/bin/python $HUE_HOME/build/env/bin/hue runserver 0.0.0.0:8888 > $HUE_HOME/logs/hue.log 2>&1 &)
     else
         warn "SKIP_HUE is true => HUE is not started"
