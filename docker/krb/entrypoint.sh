@@ -35,6 +35,7 @@ check_env "JAVA_HOME"
 check_env "SPARK_HOME"
 check_env "HADOOP_HOME"
 check_env "HIVE_HOME"
+check_env "TEZ_HOME"
 check_env "ZOOKEEPER_HOME"
 check_env "HBASE_HOME"
 check_env "KAFKA_HOME"
@@ -178,6 +179,11 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
         <value>kerberos</value>
     </property>
     <property>
+      <name>hadoop.security.lib.native.check</name>
+      <value>false</value>
+      <description>Whether to check for the existence of native libraries for secure IO.</description>
+    </property>
+    <property>
         <name>hadoop.proxyuser.hue.hosts</name>
         <value>*</value>
         <description>FIX: User: hue is not allowed to impersonate hadoop</description>
@@ -199,6 +205,7 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
     </property>
 </configuration>
 EOF
+export HADOOP_OPTS="${HADOOP_OPTS:-} -Dhadoop.security.lib.native.check=false"
 
 
 
@@ -277,6 +284,14 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     <property>
         <name>yarn.nodemanager.keytab</name>
         <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
+    </property>
+    <property>
+        <name>yarn.nodemanager.aux-services</name>
+        <value>mapreduce_shuffle</value>
+    </property>
+    <property>
+        <name>yarn.nodemanager.aux-services.mapreduce_shuffle.class</name>
+        <value>org.apache.hadoop.mapred.ShuffleHandler</value>
     </property>
 </configuration>
 EOF
@@ -379,8 +394,12 @@ if [[ "$IS_MASTER" == "true" ]]; then
     </property>
     <property>
         <name>hive.execution.engine</name>
-        <value>mr</value>
-        <description>switch TEZ -> MapReduce</description>
+        <value>tez</value>
+        <description>switch to TEZ</description>
+    </property>
+    <property>
+        <name>hive.aux.jars.path</name>
+        <value>$TEZ_HOME/conf</value>
     </property>
 
     <property>
@@ -420,6 +439,10 @@ else      # for workers
 </configuration>
 EOF
 fi
+
+{
+  echo 'export HIVE_AUX_JARS_PATH=/opt/tez/tez-api-0.10.5.jar:/opt/tez/tez-dag-0.10.5.jar:/opt/tez/tez-mapreduce-0.10.5.jar:/opt/tez/tez-runtime-library-0.10.5.jar:/opt/tez/tez-runtime-internals-0.10.5.jar:/opt/tez/lib/guava-32.0.1-jre.jar'
+} >> "$HIVE_HOME/conf/hive-env.sh"
 
 # fix issue with 'remove deprecated packages attribute' by creating minimal log4j2 file
 cat <<EOF > $HIVE_HOME/conf/hive-log4j2.properties
@@ -668,6 +691,36 @@ EOF
 fi
 
 
+# setup Tez
+cat <<EOF > $TEZ_HOME/conf/tez-site.xml
+<configuration>
+    <property>
+        <name>tez.lib.uris</name>
+        <value>hdfs:///apps/tez/tez-api-0.10.5.jar,hdfs:///apps/tez/tez-common-0.10.5.jar,hdfs:///apps/tez/tez-dag-0.10.5.jar,hdfs:///apps/tez/tez-mapreduce-0.10.5.jar,hdfs:///apps/tez/tez-runtime-library-0.10.5.jar,hdfs:///apps/tez/hadoop-shim-2.8-0.10.5.jar</value>
+    </property>
+    <property>
+        <name>tez.use.cluster.hadoop-libs</name>
+        <value>true</value>
+    </property>
+    <property>
+        <name>tez.am.launch.env</name>
+        <value>CLASSPATH=$CLASSPATH:./*</value>
+    </property>
+    <property>
+        <name>tez.am.kerberos.principal</name>
+        <value>hadoop/$MY_HOSTNAME@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>tez.am.kerberos.keytab</name>
+        <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
+    </property>
+</configuration>
+EOF
+export TEZ_CONF_DIR=$TEZ_HOME/conf
+
+
+
+
 # opt: add a simple Spark DAG to Airflow
 if [[ "$IS_MASTER" == "true" ]]; then
     cat <<EOF > $AIRFLOW_HOME/dags/spark_connection_test.py
@@ -772,6 +825,14 @@ if [[ "$IS_MASTER" == "true" ]]; then
     hdfs dfs -mkdir -p /tmp/hive             # must-have
     hdfs dfs -chmod 777 /tmp/hive            # must-have
 
+    # Create the directory on HDFS
+    hdfs dfs -mkdir -p /apps/tez/lib
+    hdfs dfs -put /opt/tez/*.jar /apps/tez/
+    hdfs dfs -put /opt/tez/lib/*.jar /apps/tez/lib/
+    hdfs dfs -chown -R hadoop:hadoop /apps/tez
+    hdfs dfs -chmod -R 755 /apps/tez
+
+
     # start Spark
     log "Starting Spark History Server..."
     start-history-server.sh
@@ -851,10 +912,10 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # start HBase with a new kinit
-    log "Starting HBase Master..."
-    hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
-    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM && klist
-    hbase-daemon.sh start master
+    # log "Starting HBase Master..."
+    # hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
+    # kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM && klist
+    # hbase-daemon.sh start master
 else      # WORKERs
     # wait for KDC
     until nc -zv $MASTER_HOST 88; do sleep 1; done
@@ -870,21 +931,21 @@ else      # WORKERs
     zkServer.sh start
 
     # start HBase
-    sleep 15     # simple sync with master
-    log "Starting HBase RegionServer..."
-    kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM && klist
-    hbase-daemon.sh start regionserver
+    # sleep 15     # simple sync with master
+    # log "Starting HBase RegionServer..."
+    # kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM && klist
+    # hbase-daemon.sh start regionserver
 fi
 
 # start Kafka on all nodes
-log "Starting Kafka Server..."
-if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
-    log "First time run. Formatting Kafka storage"
-    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id $KAFKA_CLUSTER_ID --config $KAFKA_HOME/config/server.properties
-else
-    info "OK: Kafka storage already formatted"
-fi
-kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
+# log "Starting Kafka Server..."
+# if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
+#     log "First time run. Formatting Kafka storage"
+#     $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id $KAFKA_CLUSTER_ID --config $KAFKA_HOME/config/server.properties
+# else
+#     info "OK: Kafka storage already formatted"
+# fi
+# kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 
 # infinite loop
