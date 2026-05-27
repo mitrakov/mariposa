@@ -6,17 +6,7 @@ LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 ENV KEYTABS_DIR=/etc/security/keytabs
 ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
 
-
-
-# Tez
-ENV TEZ_HOME=/opt/tez
-RUN mkdir $TEZ_HOME && \
-    wget https://downloads.apache.org/tez/0.10.5/apache-tez-0.10.5-bin.tar.gz -O $TEZ_HOME/tez.tar.gz && \
-    tar -xzf $TEZ_HOME/tez.tar.gz -C $TEZ_HOME --strip-components=1 && \
-    chown -R hadoop:hadoop $TEZ_HOME
-
 USER hadoop
-
 
 COPY entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

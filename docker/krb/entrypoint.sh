@@ -703,10 +703,6 @@ cat <<EOF > $TEZ_HOME/conf/tez-site.xml
         <value>true</value>
     </property>
     <property>
-        <name>tez.am.launch.env</name>
-        <value>CLASSPATH=$CLASSPATH:./*</value>
-    </property>
-    <property>
         <name>tez.am.kerberos.principal</name>
         <value>hadoop/$MY_HOSTNAME@MARIPOSA.COM</value>
     </property>
@@ -813,9 +809,9 @@ if [[ "$IS_MASTER" == "true" ]]; then
     until nc -zv $MASTER_HOST 9000; do sleep 1; done
 
     # start Zookeeper
-    log "Starting Zookeeper..."
-    rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
-    zkServer.sh start
+    # log "Starting Zookeeper..."
+    # rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
+    # zkServer.sh start
 
     # create directories on HDFS
     kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM && klist
@@ -903,13 +899,13 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
 
     # opt: copy Spark libs to HDFS for better performance
-    if ! hdfs dfs -test -e /spark/libs; then
-        log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
-        hdfs dfs -mkdir -p /spark/libs
-        hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
-    else
-        info "OK: Spark JARs already loaded into HDFS"
-    fi
+    # if ! hdfs dfs -test -e /spark/libs; then
+    #     log "First time run. Uploading Spark JARs to HDFS... (it may take some time)..."
+    #     hdfs dfs -mkdir -p /spark/libs
+    #     hdfs dfs -put $SPARK_HOME/jars/*.jar /spark/libs/
+    # else
+    #     info "OK: Spark JARs already loaded into HDFS"
+    # fi
 
     # start HBase with a new kinit
     # log "Starting HBase Master..."
@@ -926,9 +922,9 @@ else      # WORKERs
     yarn --daemon start nodemanager
 
     # start Zookeeper
-    log "Starting Zookeeper..."
-    rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
-    zkServer.sh start
+    # log "Starting Zookeeper..."
+    # rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
+    # zkServer.sh start
 
     # start HBase
     # sleep 15     # simple sync with master
