@@ -36,6 +36,7 @@ check_env "SPARK_HOME"
 check_env "HADOOP_HOME"
 check_env "HIVE_HOME"
 check_env "HBASE_HOME"
+check_env "TEZ_HOME"
 check_env "ZOOKEEPER_HOME"
 check_env "KAFKA_HOME"
 check_env "AIRFLOW_HOME"
@@ -169,6 +170,11 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
         <name>yarn.resourcemanager.hostname</name>
         <value>$MASTER_HOST</value>
         <description>Tell Yarn the namenode address</description>
+    </property>
+    <property>
+        <name>yarn.nodemanager.aux-services</name>
+        <value>mapreduce_shuffle</value>
+        <description>Needed for Tez</description>
     </property>
 </configuration>
 EOF
@@ -391,6 +397,25 @@ if [[ "$IS_MASTER" == "true" ]]; then
 EOF
 fi
 
+
+# setup Tez
+cat <<EOF > $TEZ_HOME/conf/tez-site.xml
+<configuration>
+    <property>
+        <name>tez.lib.uris</name>
+        <value>\${fs.defaultFS}/apps/tez/tez.tar.gz</value>
+        <description>Libs location on HDFS</description>
+    </property>
+    <property>
+      <name>tez.am.launch.cmd-opts</name>
+      <value>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.reflect=ALL-UNNAMED</value>
+      <description>Fix Java-17 issue</description>
+    </property>
+</configuration>
+EOF
+echo "export HADOOP_CLASSPATH=\$HADOOP_CLASSPATH:$TEZ_HOME/conf:$TEZ_HOME/*:$TEZ_HOME/lib/*" >> /opt/hadoop/etc/hadoop/hadoop-env.sh
+
+
 # opt: add a simple Spark DAG to Airflow
 if [[ "$IS_MASTER" == "true" ]]; then
     cat <<EOF > $AIRFLOW_HOME/dags/spark_connection_test.py
@@ -462,6 +487,12 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # start HBase
     log "Starting HBase..."
     start-hbase.sh
+
+    # tez
+    if ! hdfs dfs -test -e /apps/tez/tez.tar.gz; then
+        hdfs dfs -mkdir -p /apps/tez
+        hdfs dfs -put $TEZ_HOME/share/tez.tar.gz /apps/tez/
+    fi
 
     # start Hive
     log "Starting Hive..."

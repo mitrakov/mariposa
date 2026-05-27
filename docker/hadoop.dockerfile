@@ -51,6 +51,12 @@ RUN wget --output-document=- https://downloads.apache.org/kafka/4.2.0/kafka_2.13
     tar --extract --gzip --directory /opt && mv /opt/kafka_2.13-4.2.0 $KAFKA_HOME
 
 
+# download Apache Tez 0.10.5 (for Hive)
+ENV TEZ_HOME=/opt/tez
+RUN wget --output-document=- https://downloads.apache.org/tez/0.10.5/apache-tez-0.10.5-bin.tar.gz | \
+    tar --extract --gzip --directory /opt && mv /opt/apache-tez-0.10.5-bin $TEZ_HOME
+
+
 # update PATH
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin:$KAFKA_HOME/bin
 
@@ -105,6 +111,7 @@ RUN useradd --create-home --shell /bin/bash tommy
 
 # switch ownership to 'hadoop'
 RUN mkdir -p $HADOOP_HOME/dfs $HADOOP_HOME/logs $ZOOKEEPER_HOME/data $KAFKA_HOME/data $HIVE_HOME/logs $AIRFLOW_HOME/dags $AIRFLOW_HOME/logs /var/log/hue /var/run/hue && \
-    chown -R hadoop:hadoop $HADOOP_HOME $ZOOKEEPER_HOME $KAFKA_HOME $HIVE_HOME $HBASE_HOME $AIRFLOW_HOME $HUE_HOME /var/log/hue /var/run/hue
+    chown -R hadoop:hadoop $HADOOP_HOME $ZOOKEEPER_HOME $KAFKA_HOME $HIVE_HOME $HBASE_HOME $TEZ_HOME $AIRFLOW_HOME $HUE_HOME /var/log/hue /var/run/hue
+
 
 # in your image, add "USER hadoop"
