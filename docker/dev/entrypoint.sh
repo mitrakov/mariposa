@@ -137,6 +137,16 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 </configuration>
 EOF
 
+cat <<EOF > $HADOOP_CONF_DIR/mapred-site.xml
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+    <description>Hive/Tez FIX: InvalidInputException: Input path does not exist: file:/tmp/hadoop/guid/hive_...7923819630025608960-1/dummy_path</description>
+  </property>
+</configuration>
+EOF
+
 # minimal HDFS setup
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
@@ -244,11 +254,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
         <name>hive.metastore.uris</name>
         <value>thrift://$MASTER_HOST:9083</value>
         <description>IP address and port of the Hive Metastore service</description>
-    </property>
-    <property>
-        <name>hive.execution.engine</name>
-        <value>mr</value>
-        <description>switch TEZ -> MapReduce</description>
     </property>
 </configuration>
 EOF
@@ -413,7 +418,7 @@ cat <<EOF > $TEZ_HOME/conf/tez-site.xml
     </property>
 </configuration>
 EOF
-echo "export HADOOP_CLASSPATH=\$HADOOP_CLASSPATH:$TEZ_HOME/conf:$TEZ_HOME/*:$TEZ_HOME/lib/*" >> /opt/hadoop/etc/hadoop/hadoop-env.sh
+echo "export HADOOP_CLASSPATH=\$HADOOP_CLASSPATH:$TEZ_HOME/conf:$TEZ_HOME/*.jar:$TEZ_HOME/lib/protobuf*.jar" >> /opt/hadoop/etc/hadoop/hadoop-env.sh
 
 
 # opt: add a simple Spark DAG to Airflow
