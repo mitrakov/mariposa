@@ -283,7 +283,8 @@ rootLogger.appenderRef.console.ref = Console
 EOF
 
 
-# setup HBase (HBASE_MANAGES_ZK=false is needed not to start ZK on its own)
+# setup HBase
+export HBASE_MANAGES_ZK=false    # DEV only: skip start ZK on its own
 cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
 <configuration>
     <property>
@@ -390,7 +391,8 @@ if [[ "$IS_MASTER" == "true" ]]; then
   [[yarn_clusters]]
     [[[default]]]
       resourcemanager_host=$MASTER_HOST
-      resourcemanager_port=8032
+      resourcemanager_port=8088
+      resourcemanager_api_url=http://$MASTER_HOST:8088
 
 [beeswax]
   hive_server_host=$MASTER_HOST
@@ -487,6 +489,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # start HBase
     log "Starting HBase..."
     start-hbase.sh
+    hbase-daemon.sh start thrift        # for HUE
 
     # tez
     if ! hdfs dfs -test -e /apps/tez/tez.tar.gz; then

@@ -666,7 +666,8 @@ if [[ "$IS_MASTER" == "true" ]]; then
   [[yarn_clusters]]
     [[[default]]]
       resourcemanager_host=$MASTER_HOST
-      resourcemanager_port=8032
+      resourcemanager_port=8088
+      resourcemanager_api_url=http://$MASTER_HOST:8088
 
 [beeswax]
   hive_server_host=$MASTER_HOST
@@ -885,6 +886,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     hdfs dfs -mkdir /hbase && hdfs dfs -chown hbase:hadoop /hbase    # must-have
     kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hbase/$MASTER_HOST@MARIPOSA.COM && klist
     hbase-daemon.sh start master
+    hbase-daemon.sh start thrift        # for HUE
 else      # WORKERs
     # wait for KDC
     until nc -zv $MASTER_HOST 88; do sleep 1; done
