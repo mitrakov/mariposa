@@ -46,6 +46,10 @@ check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "ZK_ID"
+check_env "KAFKA_CLUSTER_ID"
+
+
+MY_HOSTNAME=$(hostname)
 
 
 # start SSH daemon
@@ -106,7 +110,8 @@ fi
 
 log "Creating configs..."
 
-# minimal setup for HDFS
+
+# HDFS
 cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 <configuration>
     <property>
@@ -147,7 +152,6 @@ cat <<EOF > $HADOOP_CONF_DIR/mapred-site.xml
 </configuration>
 EOF
 
-# minimal HDFS setup
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
     <property>
@@ -165,15 +169,9 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
         <value>$HADOOP_HOME/dfs/data</value>
         <description>switch default "/tmp/hadoop-hadoop/dfs/data" to stable path</description>
     </property>
-    <property>
-        <name>dfs.webhdfs.enabled</name>
-        <value>true</value>
-        <description>Enable WebHDFS for HUE</description>
-    </property>
 </configuration>
 EOF
 
-# minimal setup for Yarn
 cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
 <configuration>
     <property>
@@ -189,15 +187,16 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
 </configuration>
 EOF
 
+
 # setup Apache Spark
 # spark.master                     YARN is a master
 # spark.history.fs.logDirectory    must-have
-# spark.eventLog.*                 opt, write Spark logs to HDFS
-# spark.yarn.jars                  opt, use JARs directly from HDFS
-# spark.hadoop.hive.metastore.uris opt, HIVE support
-# spark.sql.hive.metastore.version opt, specify Metastore version for Hive
-# spark.sql.hive.metastore.jars    opt, tell Hive to take JARs from this folder
-# spark.*.extraClassPath           opt, HBASE support
+# spark.eventLog.*                 write Spark logs to HDFS
+# spark.yarn.jars                  use JARs directly from HDFS
+# spark.hadoop.hive.metastore.uris HIVE support
+# spark.sql.hive.metastore.version specify Metastore version for Hive
+# spark.sql.hive.metastore.jars    tell Hive to take JARs from this folder
+# spark.*.extraClassPath           HBASE support
 export HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.13.jar:\
 $HBASE_HOME/lib/hbase-common-2.5.13.jar:\
 $HBASE_HOME/lib/hbase-protocol-2.5.13.jar:\
@@ -225,6 +224,7 @@ spark.sql.hive.metastore.jars      $HIVE_HOME/lib/*
 spark.driver.extraClassPath        $HBASE_HOME/conf:$HBASE_LIBS
 spark.executor.extraClassPath      $HBASE_HOME/conf:$HBASE_LIBS
 EOF
+
 
 # setup Hive
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -284,7 +284,6 @@ EOF
 
 
 # setup HBase (HBASE_MANAGES_ZK=false is needed not to start ZK on its own)
-export HBASE_MANAGES_ZK=false
 cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
 <configuration>
     <property>
@@ -303,10 +302,6 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
         <description>Zookeeper full quorum list</description>
     </property>
     <property>
-        <name>hbase.zookeeper.property.clientPort</name>
-        <value>2181</value>
-    </property>
-    <property>
       <name>hbase.wal.provider</name>
       <value>filesystem</value>
       <description>fix java-17 Netty error: IllegalArgumentException: object is not an instance of declaring class</description>
@@ -314,6 +309,8 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
 </configuration>
 EOF
 
+
+# ZOOKEEPER
 # setup ZK for each node (ZK_ID must be a unique number for every node, e.g. 1,2,3)
 echo "$ZK_ID" > $ZOOKEEPER_HOME/data/myid
 
@@ -335,8 +332,8 @@ for worker in $WORKER_HOSTS; do
 done
 unset IFS
 
+
 # setup Apache Kafka
-MY_HOST=$(hostname)
 # format: id1@host1:9093,id2@host2:9093,id3@host3:9093 (hardcoding the master as ID 1 and workers starting from 2)
 VOTERS="1@$MASTER_HOST:9093"
 count=2
@@ -356,7 +353,7 @@ controller.quorum.voters=$VOTERS
 # Network settings
 listeners=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
 inter.broker.listener.name=PLAINTEXT
-advertised.listeners=PLAINTEXT://$MY_HOST:9092
+advertised.listeners=PLAINTEXT://$MY_HOSTNAME:9092
 controller.listener.names=CONTROLLER
 listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
 
@@ -364,9 +361,8 @@ listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
 log.dirs=$KAFKA_HOME/data
 num.partitions=3
 offsets.topic.replication.factor=3
-transaction.state.log.replication.factor=3
-transaction.state.log.min.isr=2
 EOF
+
 
 # setup Hue
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -451,7 +447,6 @@ fi
 # === starting services ===
 # =========================
 
-
 # ZK
 log "Starting Zookeeper..."
 zkServer.sh start
@@ -461,7 +456,7 @@ log "Starting Kafka Server..."
 # KRaft storage formatting
 if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
     log "First time run. Formatting Kafka storage"
-    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id Mariposa20260406 --config $KAFKA_HOME/config/server.properties
+    $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id $KAFKA_CLUSTER_ID --config $KAFKA_HOME/config/server.properties
 else
     info "OK: Kafka storage already formatted"
 fi
@@ -552,6 +547,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     info "Airflow password:"
     cat $AIRFLOW_HOME/simple_auth_manager_passwords.json.generated || true
 fi
+
 
 # infinite loop
 log "Done!"
