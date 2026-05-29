@@ -53,3 +53,23 @@ kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic the-topic 
 javac -cp "$(hbase classpath)" $PATCH_DIR/org/apache/hadoop/hbase/io/FSDataInputStreamWrapper.java
 jar cvf mariposa-hbase-patch-2.5.13.jar -C $PATCH_DIR .
 ```
+
+
+## Tez
+```sh
+echo "aaa bbb ccc aaa bbb aaa" > f.txt
+hdfs dfs -put f.txt /apps/tez/f.txt
+hadoop jar $TEZ_HOME/tez-examples-0.10.5.jar orderedwordcount /apps/tez/f.txt /apps/tez/out
+```
+
+
+## Beeline
+```sh
+beeline -u jdbc:hive2://localhost:10000 -n hadoop
+```
+```sql
+set hive.execution.engine;
+create table your_table(id string);
+INSERT INTO your_table VALUES ('444');
+SELECT * FROM your_table;
+```
