@@ -35,19 +35,21 @@ check_env "JAVA_HOME"
 check_env "SPARK_HOME"
 check_env "HADOOP_HOME"
 check_env "HIVE_HOME"
-check_env "ZOOKEEPER_HOME"
 check_env "HBASE_HOME"
+check_env "TEZ_HOME"
+check_env "ZOOKEEPER_HOME"
 check_env "KAFKA_HOME"
 check_env "AIRFLOW_HOME"
 check_env "HUE_HOME"
 check_env "HADOOP_CONF_DIR"
-check_env "KEYTABS_DIR"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
-check_env "JKS_PASSWORD"
-check_env "KAFKA_CLUSTER_ID"
 check_env "ZK_ID"
+check_env "KAFKA_CLUSTER_ID"
+check_env "JKS_PASSWORD"
+check_env "KEYTABS_DIR"
+
 
 
 # DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
@@ -140,6 +142,7 @@ fi
 
 log "Creating configs..."
 
+
 # setup Kerberos
 cat << EOF | sudo tee /etc/krb5.conf
 [libdefaults]
@@ -165,7 +168,8 @@ EOF
 # create simple kadm5.acl to avoid startup errors
 echo "*/admin@MARIPOSA.COM *" | sudo tee /etc/krb5kdc/kadm5.acl
 
-# minimal setup for HDFS
+
+# HDFS
 cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 <configuration>
     <property>
@@ -200,9 +204,16 @@ cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
 </configuration>
 EOF
 
+cat <<EOF > $HADOOP_CONF_DIR/mapred-site.xml
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+    <description>Hive/Tez FIX: InvalidInputException: Input path does not exist: file:/tmp/hadoop/guid/hive_...7923819630025608960-1/dummy_path</description>
+  </property>
+</configuration>
+EOF
 
-
-# minimal HDFS setup
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
     <property>
@@ -255,12 +266,16 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 </configuration>
 EOF
 
-# Kerberos setup for Yarn
 cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
 <configuration>
     <property>
         <name>yarn.resourcemanager.hostname</name>
         <value>$MASTER_HOST</value>
+    </property>
+    <property>
+        <name>yarn.nodemanager.aux-services</name>
+        <value>mapreduce_shuffle</value>
+        <description>Needed for Tez</description>
     </property>
     <property>
         <name>yarn.resourcemanager.principal</name>
@@ -301,6 +316,18 @@ EOF
 
 
 # setup Apache Spark
+# spark.master                                   YARN is a master
+# spark.history.fs.logDirectory                  must-have
+# spark.eventLog.*                               write Spark logs to HDFS
+# spark.yarn.jars                                use JARs directly from HDFS
+# spark.hadoop.hive.metastore.uris               HIVE support
+# spark.hadoop.hive.metastore.sasl.enabled       enable SASL for HIVE
+# spark.hadoop.hive.metastore.kerberos.principal Kerberos for HIVE
+# spark.sql.hive.metastore.version               specify Metastore version for Hive
+# spark.sql.hive.metastore.jars                  tell Hive to take JARs from this folder
+# spark.kerberos.*                               Kerberos setup
+# spark.history.kerberos.*                       Kerberos setup
+# spark.*.extraClassPath                         HBASE support
 export HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.13.jar:\
 $HBASE_HOME/lib/hbase-common-2.5.13.jar:\
 $HBASE_HOME/lib/hbase-protocol-2.5.13.jar:\
@@ -316,18 +343,6 @@ $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-api-1.49.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-context-1.49.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-semconv-1.29.0-alpha.jar"
 
-# spark.master                                   YARN is a master
-# spark.history.fs.logDirectory                  must-have
-# spark.eventLog.*                               write Spark logs to HDFS
-# spark.yarn.jars                                use JARs directly from HDFS
-# spark.hadoop.hive.metastore.uris               HIVE support
-# spark.hadoop.hive.metastore.sasl.enabled       enable SASL for HIVE
-# spark.hadoop.hive.metastore.kerberos.principal Kerberos for HIVE
-# spark.sql.hive.metastore.version               specify Metastore version for Hive
-# spark.sql.hive.metastore.jars                  tell Hive to take JARs from this folder
-# spark.kerberos.*                               Kerberos setup
-# spark.history.kerberos.*                       Kerberos setup
-# spark.*.extraClassPath                         HBASE support
 cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
 spark.master                                     yarn
 spark.history.fs.logDirectory                    hdfs://$MASTER_HOST:9000/spark/logs
@@ -347,6 +362,7 @@ spark.history.kerberos.keytab                    $KEYTABS_DIR/$MY_HOSTNAME.keyta
 spark.driver.extraClassPath                      $HBASE_HOME/conf:$HBASE_LIBS
 spark.executor.extraClassPath                    $HBASE_HOME/conf:$HBASE_LIBS
 EOF
+
 
 # setup Hive
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -377,12 +393,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
         <value>thrift://$MASTER_HOST:9083</value>
         <description>IP address and port of the Hive Metastore service</description>
     </property>
-    <property>
-        <name>hive.execution.engine</name>
-        <value>mr</value>
-        <description>switch TEZ -> MapReduce</description>
-    </property>
-
     <property>
         <name>hive.metastore.sasl.enabled</name>
         <value>true</value>
@@ -432,6 +442,75 @@ appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%t] %c{1}: %
 
 rootLogger.level = INFO
 rootLogger.appenderRef.console.ref = Console
+EOF
+
+
+# setup HBase
+# Fix SASL issue (secured HBase only): https://issues.apache.org/jira/browse/HDFS-16644
+find $HBASE_HOME/lib -name "hadoop-*.jar" -delete
+find $HBASE_HOME/lib -name "guava-*.jar" -delete
+find $HBASE_HOME/lib -name "hbase-shaded-client-*.jar" -delete
+cp -v $HADOOP_HOME/share/hadoop/common/lib/guava-*.jar $HBASE_HOME/lib/
+
+{
+  echo "export HBASE_CLASSPATH_PREFIX=\"/opt/hbase/lib/mariposa-hbase-patch-2.5.13.jar\""
+  echo "export HBASE_CLASSPATH=\"$HADOOP_CONF_DIR:$(hadoop classpath)\""
+} >> $HBASE_HOME/conf/hbase-env.sh
+
+cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
+<configuration>
+    <property>
+        <name>hbase.cluster.distributed</name>
+        <value>true</value>
+        <description>use HDFS instead of standalone local FS</description>
+    </property>
+    <property>
+        <name>hbase.rootdir</name>
+        <value>hdfs://$MASTER_HOST:9000/hbase</value>
+        <description>link to a Namenode</description>
+    </property>
+    <property>
+        <name>hbase.zookeeper.quorum</name>
+        <value>$MASTER_HOST,$WORKER_HOSTS</value>
+        <description>Zookeeper full quorum list</description>
+    </property>
+    <property>
+        <name>hbase.wal.provider</name>
+        <value>filesystem</value>
+        <description>fix java-17 Netty error: IllegalArgumentException: object is not an instance of declaring class</description>
+    </property>
+    <property>
+        <name>hbase.security.authentication</name>
+        <value>simple</value>
+        <description>TODO: switch to kerberos</description>
+    </property>
+    <property>
+        <name>hbase.security.authorization</name>
+        <value>false</value>
+        <description>TODO: switch to true</description>
+    </property>
+    <property>
+        <name>hbase.ipc.client.fallback-to-simple-auth-allowed</name>
+        <value>true</value>
+        <description>TODO: switch to false or remove</description>
+    </property>
+    <property>
+        <name>hbase.master.kerberos.principal</name>
+        <value>hbase/$MASTER_HOST@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>hbase.master.keytab.file</name>
+        <value>$KEYTABS_DIR/$MASTER_HOST.keytab</value>
+    </property>
+    <property>
+        <name>hbase.regionserver.kerberos.principal</name>
+        <value>hbase/$MY_HOSTNAME@MARIPOSA.COM</value>
+    </property>
+    <property>
+        <name>hbase.regionserver.keytab.file</name>
+        <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
+    </property>
+</configuration>
 EOF
 
 
@@ -555,77 +634,6 @@ ssl.truststore.password=$JKS_PASSWORD
 EOF
 
 
-# setup HBase
-# Fix: https://issues.apache.org/jira/browse/HDFS-16644
-# TODO: refine
-find $HBASE_HOME/lib -name "hadoop-*.jar" -delete
-find $HBASE_HOME/lib -name "guava-*.jar" -delete
-find $HBASE_HOME/lib -name "hbase-shaded-client-*.jar" -delete
-cp -v $HADOOP_HOME/share/hadoop/common/lib/guava-*.jar $HBASE_HOME/lib/
-
-{
-  echo "export HBASE_CLASSPATH_PREFIX=\"/opt/hbase/lib/mariposa-hbase-patch-2.5.13.jar\""
-  echo "export HBASE_CLASSPATH=\"$HADOOP_CONF_DIR:$(hadoop classpath)\""
-} >> $HBASE_HOME/conf/hbase-env.sh
-
-cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
-<configuration>
-    <property>
-        <name>hbase.cluster.distributed</name>
-        <value>true</value>
-        <description>use HDFS instead of standalone local FS</description>
-    </property>
-    <property>
-        <name>hbase.rootdir</name>
-        <value>hdfs://$MASTER_HOST:9000/hbase</value>
-        <description>link to a Namenode</description>
-    </property>
-    <property>
-        <name>hbase.zookeeper.quorum</name>
-        <value>$MASTER_HOST,$WORKER_HOSTS</value>
-        <description>Zookeeper full quorum list</description>
-    </property>
-    <property>
-        <name>hbase.wal.provider</name>
-        <value>filesystem</value>
-        <description>fix java-17 Netty error: IllegalArgumentException: object is not an instance of declaring class</description>
-    </property>
-
-    <property>
-        <name>hbase.security.authentication</name>
-        <value>simple</value>
-        <description>TODO: switch to kerberos</description>
-    </property>
-    <property>
-        <name>hbase.security.authorization</name>
-        <value>false</value>
-        <description>TODO: switch to true</description>
-    </property>
-    <property>
-        <name>hbase.ipc.client.fallback-to-simple-auth-allowed</name>
-        <value>true</value>
-        <description>TODO: switch to false or remove</description>
-    </property>
-    <property>
-        <name>hbase.master.kerberos.principal</name>
-        <value>hbase/$MASTER_HOST@MARIPOSA.COM</value>
-    </property>
-    <property>
-        <name>hbase.master.keytab.file</name>
-        <value>$KEYTABS_DIR/$MASTER_HOST.keytab</value>
-    </property>
-    <property>
-        <name>hbase.regionserver.kerberos.principal</name>
-        <value>hbase/$MY_HOSTNAME@MARIPOSA.COM</value>
-    </property>
-    <property>
-        <name>hbase.regionserver.keytab.file</name>
-        <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
-    </property>
-</configuration>
-EOF
-
-
 # setup Hue
 if [[ "$IS_MASTER" == "true" ]]; then
     check_env "HUE_PASSWORD"
@@ -666,6 +674,24 @@ if [[ "$IS_MASTER" == "true" ]]; then
   hive_conf_dir=$HIVE_HOME/conf
 EOF
 fi
+
+
+# setup Tez
+cat <<EOF > $TEZ_HOME/conf/tez-site.xml
+<configuration>
+    <property>
+        <name>tez.lib.uris</name>
+        <value>\${fs.defaultFS}/apps/tez/tez.tar.gz</value>
+        <description>Libs location on HDFS</description>
+    </property>
+    <property>
+      <name>tez.am.launch.cmd-opts</name>
+      <value>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.reflect=ALL-UNNAMED</value>
+      <description>Fix Java-17 issue</description>
+    </property>
+</configuration>
+EOF
+echo "export HADOOP_CLASSPATH=\$HADOOP_CLASSPATH:$TEZ_HOME/conf:$TEZ_HOME/*.jar:$TEZ_HOME/lib/protobuf*.jar" >> /opt/hadoop/etc/hadoop/hadoop-env.sh
 
 
 # opt: add a simple Spark DAG to Airflow
@@ -766,11 +792,15 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
     # create directories on HDFS
     kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM && klist
-    hdfs dfs -mkdir -p /spark/logs        # must-have
-    hdfs dfs -mkdir -p /user/hadoop       # opt, for HUE
+    hdfs dfs -mkdir -p /spark/logs           # must-have
+    hdfs dfs -mkdir -p /user/hadoop          # opt, for HUE
     hdfs dfs -mkdir -p /user/hive/warehouse  # must-have
     hdfs dfs -mkdir -p /tmp/hive             # must-have
     hdfs dfs -chmod 777 /tmp/hive            # must-have
+    if ! hdfs dfs -test -e /apps/tez/tez.tar.gz; then
+        hdfs dfs -mkdir -p /apps/tez
+        hdfs dfs -put $TEZ_HOME/share/tez.tar.gz /apps/tez/
+    fi
 
     # start Spark
     log "Starting Spark History Server..."
@@ -889,6 +919,5 @@ kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
 # infinite loop
 kinit -kt $KEYTABS_DIR/$(hostname).keytab hadoop/$(hostname)@MARIPOSA.COM && klist
-sleep 3
 log "Done!"
 tail -f /dev/null
