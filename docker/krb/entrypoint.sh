@@ -51,6 +51,24 @@ check_env "JKS_PASSWORD"
 check_env "KEYTABS_DIR"
 
 
+# setup up HashiCorp
+if [[ "$IS_MASTER" == "true" ]]; then
+    info "Setting up Vault..."
+    cat << EOF | sudo tee /etc/vault.d/vault.hcl
+storage "file" {
+  path = "/var/lib/vault/data"
+}
+
+listener "tcp" {
+  address     = "0.0.0.0:8200"
+  tls_disable = "true" # for DEV; use certs for production
+}
+
+ui = true
+api_addr = "http://$MASTER_HOST:8200"
+EOF
+fi
+
 
 # DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
 MY_HOSTNAME=$(hostname)
@@ -739,6 +757,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         
         # create Principals and their proper keytabs
         # -randkey means we don't want a human password; we'll use keytabs
+        sudo kadmin.local -q "addprinc -randkey vault/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hadoop/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey zookeeper/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hbase/$MASTER_HOST@MARIPOSA.COM"
@@ -746,7 +765,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         sudo kadmin.local -q "addprinc -randkey hive/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hue/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey tommy@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM kafka/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM hue/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab vault/$MASTER_HOST@MARIPOSA.COM hadoop/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM kafka/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM hue/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "xst -k $KEYTABS_DIR/tommy.keytab tommy@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
@@ -771,6 +790,47 @@ if [[ "$IS_MASTER" == "true" ]]; then
     sudo service krb5-kdc start
     sudo service krb5-admin-server start
     until nc -zv $MASTER_HOST 88; do sleep 1; done
+
+        # 1. Start Vault
+    vault server --config=/etc/vault.d/vault.hcl > /var/lib/vault/vault.log 2>&1 &
+    
+    # 2. Setup environment for the CLI
+    export VAULT_ADDR='http://127.0.0.1:8200'
+    export VAULT_SKIP_VERIFY=true
+
+    until curl --silent $VAULT_ADDR/v1/sys/health | grep -q '"initialized"'; do
+        info "Waiting for Vault API to respond..."
+        sleep 1
+    done
+
+    # 3. Initialization Logic
+    if [ ! -f "/var/lib/vault/initialized" ]; then
+        log "Initializing Vault..."
+        vault operator init -key-shares=1 -key-threshold=1 -format=json > /var/lib/vault/init.json
+        touch /var/lib/vault/initialized
+    fi
+
+    # 4. ALWAYS Unseal (The container will need this every time it starts!)
+    UNSEAL_KEY=$(jq --raw-output '.unseal_keys_b64[0]' /var/lib/vault/init.json)
+    vault operator unseal "$UNSEAL_KEY"
+
+    # 5. Configuration (Only if first time)
+    if [ ! -f "/var/lib/vault/configured" ]; then
+        export VAULT_TOKEN=$(jq --raw-output '.root_token' /var/lib/vault/init.json)
+        
+        vault auth enable kerberos || true
+        
+        BASE64_KEYTAB=$(base64 --wrap 0 "$KEYTABS_DIR/$MASTER_HOST.keytab")
+        vault write auth/kerberos/config \
+            krb5conf=@/etc/krb5.conf \
+            keytab="$BASE64_KEYTAB" \
+            service_account="vault/$MASTER_HOST@MARIPOSA.COM" \
+            disable_ldap=true
+            
+        touch /var/lib/vault/configured
+        info "Vault Auth/Kerberos configured."
+    fi
+    info "Vault done"
 
     # format HDFS
     if [ ! -f "$HADOOP_HOME/dfs/name/current/VERSION" ]; then

@@ -26,6 +26,7 @@ services:
       - ~/hadoop/airflow:/opt/airflow/metadata
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
       - ~/hadoop/workspace:/home/hadoop/workspace
+      - ~/hadoop/vault_data:/var/lib/vault
         # shared across all nodes
       - ~/hadoop/keytabs:/etc/security/keytabs
       - ~/hadoop/certs:/opt/hadoop/etc/hadoop/certs
