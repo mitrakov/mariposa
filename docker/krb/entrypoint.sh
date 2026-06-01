@@ -67,6 +67,28 @@ listener "tcp" {
 ui = true
 api_addr = "http://$MASTER_HOST:8200"
 EOF
+
+    cat <<EOF | sudo tee /etc/vault.d/hadoop-policy.hcl
+# 1. Allow the CLI to perform preflight checks
+path "sys/mounts/*" {
+  capabilities = ["read", "list"]
+}
+
+# 2. Allow the CLI to resolve the mount path
+path "sys/internal/ui/mounts/*" {
+  capabilities = ["read", "list"]
+}
+
+# 3. Allow reading the actual secret data (The 'data' prefix is required for KV-v2)
+path "secret/data/hadoop/*" {
+  capabilities = ["read"]
+}
+
+# 4. Allow reading metadata (Required for KV-v2 version checks)
+path "secret/metadata/hadoop/*" {
+  capabilities = ["read", "list"]
+}
+EOF
 fi
 
 
@@ -791,7 +813,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     sudo service krb5-admin-server start
     until nc -zv $MASTER_HOST 88; do sleep 1; done
 
-        # 1. Start Vault
+    # 1. Start Vault
     vault server --config=/etc/vault.d/vault.hcl > /var/lib/vault/vault.log 2>&1 &
     
     # 2. Setup environment for the CLI
@@ -816,19 +838,26 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
     # 5. Configuration (Only if first time)
     if [ ! -f "/var/lib/vault/configured" ]; then
+        export VAULT_ADDR='http://127.0.0.1:8200'
         export VAULT_TOKEN=$(jq --raw-output '.root_token' /var/lib/vault/init.json)
         
-        vault auth enable kerberos || true
+        vault auth enable approle
+        vault secrets enable -path=secret kv-v2
+
+        vault policy write hadoop-policy /etc/vault.d/hadoop-policy.hcl
+
+        vault write auth/approle/role/spark token_policies="hadoop-policy" token_ttl=1h
         
-        BASE64_KEYTAB=$(base64 --wrap 0 "$KEYTABS_DIR/$MASTER_HOST.keytab")
-        vault write auth/kerberos/config \
-            krb5conf=@/etc/krb5.conf \
-            keytab="$BASE64_KEYTAB" \
-            service_account="vault/$MASTER_HOST@MARIPOSA.COM" \
-            disable_ldap=true
+        export ROLE_ID=$(vault read -field=role_id auth/approle/role/spark/role-id)
+        check_env "ROLE_ID"
+        export SECRET_ID=$(vault write -force -field=secret_id auth/approle/role/spark/secret-id)
+        check_env "SECRET_ID"
+
+        log "Put password for Airflow"
+        vault kv put secret/hadoop/config admin="marip0sa_aDm55"
             
         touch /var/lib/vault/configured
-        info "Vault Auth/Kerberos configured."
+        info "Vault Auth/AppRole configured."
     fi
     info "Vault done"
 
@@ -886,6 +915,13 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # apache Airflow
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
         log "Starting Apache Airflow..."
+        check_env "ROLE_ID"
+        check_env "SECRET_ID"
+
+        export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
+        check_env "VAULT_TOKEN"
+
+        AIRFLOW_PASSWORD=$(vault kv get -field=admin secret/hadoop/config)
         check_env "AIRFLOW_PASSWORD"
 
         export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:$AIRFLOW_DB_PASSWORD@localhost:5432/airflow_db"
