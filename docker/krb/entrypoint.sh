@@ -52,9 +52,8 @@ check_env "JKS_PASSWORD"
 check_env "KEYTABS_DIR"
 
 
-# setup up HashiCorp
+# setup up HashiCorp Vault
 if [[ "$IS_MASTER" == "true" ]]; then
-    info "Setting up Vault..."
     cat << EOF | sudo tee /etc/vault.d/vault.hcl
 storage "file" {
   path = "$VAULT_HOME/data"
@@ -822,15 +821,15 @@ EOF
         # define role
         vault write auth/approle/role/hadoop token_policies="hadoop-policy"
         
-        # get role-id/secret-id
+        # generate role-id/secret-id for this new role
         ROLE_ID=$(vault read -field=role_id auth/approle/role/hadoop/role-id)
-        SECRET_ID=$(vault write -field=secret_id -force  auth/approle/role/hadoop/secret-id)
+        SECRET_ID=$(vault write -field=secret_id -force auth/approle/role/hadoop/secret-id)
         echo $ROLE_ID    > $VAULT_HOME/hadoop.approle
         echo $SECRET_ID >> $VAULT_HOME/hadoop.approle
         chmod 400          $VAULT_HOME/hadoop.approle
         
         # put passwords
-        log "Put password for Airflow"
+        log "Generating a new password for Airflow"
         vault kv put secret/hadoop/config admin="$(openssl rand -base64 9)"
             
         touch $VAULT_HOME/initialized
