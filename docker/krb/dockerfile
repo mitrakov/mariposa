@@ -12,7 +12,7 @@ RUN wget --output-document=- https://apt.releases.hashicorp.com/gpg | gpg --dear
     echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list && \
     apt update && apt install --yes vault
 RUN apt install --yes jq
-
+ENV VAULT_ADDR='http://127.0.0.1:8200'
 
 USER hadoop
 

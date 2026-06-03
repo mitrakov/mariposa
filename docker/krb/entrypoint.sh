@@ -817,7 +817,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     vault server --config=/etc/vault.d/vault.hcl > /var/lib/vault/vault.log 2>&1 &
     
     # 2. Setup environment for the CLI
-    export VAULT_ADDR='http://127.0.0.1:8200'
     export VAULT_SKIP_VERIFY=true
 
     until curl --silent $VAULT_ADDR/v1/sys/health | grep -q '"initialized"'; do
@@ -828,38 +827,46 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # 3. Initialization Logic
     if [ ! -f "/var/lib/vault/initialized" ]; then
         log "Initializing Vault..."
-        vault operator init -key-shares=1 -key-threshold=1 -format=json > /var/lib/vault/init.json
-        touch /var/lib/vault/initialized
-    fi
 
-    # 4. ALWAYS Unseal (The container will need this every time it starts!)
-    UNSEAL_KEY=$(jq --raw-output '.unseal_keys_b64[0]' /var/lib/vault/init.json)
-    vault operator unseal "$UNSEAL_KEY"
+        # init
+        INIT_INFO=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
+        # get root toke for first time usage
+        export VAULT_TOKEN=$(echo "$INIT_INFO" | jq -r '.root_token')
 
-    # 5. Configuration (Only if first time)
-    if [ ! -f "/var/lib/vault/configured" ]; then
-        export VAULT_ADDR='http://127.0.0.1:8200'
-        export VAULT_TOKEN=$(jq --raw-output '.root_token' /var/lib/vault/init.json)
-        
+        # store the unseal.key
+        echo "$INIT_INFO" | jq -r '.unseal_keys_b64[0]' > /var/lib/vault/unseal.key
+        chmod 400 /var/lib/vault/unseal.key
+
+        # unseal the vault
+        vault operator unseal "$(cat /var/lib/vault/unseal.key)"
+        # enable approle security mechanism
         vault auth enable approle
+        # enable kv engine
         vault secrets enable -path=secret kv-v2
-
+        # define policy
         vault policy write hadoop-policy /etc/vault.d/hadoop-policy.hcl
-
+        # define role
         vault write auth/approle/role/spark token_policies="hadoop-policy" token_ttl=1h
         
-        export ROLE_ID=$(vault read -field=role_id auth/approle/role/spark/role-id)
-        check_env "ROLE_ID"
-        export SECRET_ID=$(vault write -force -field=secret_id auth/approle/role/spark/secret-id)
-        check_env "SECRET_ID"
-
+        # get role-id/secret-id
+        vault read  -field=role_id           auth/approle/role/spark/role-id    > /var/lib/vault/hadoop.approle
+        echo >>   /var/lib/vault/hadoop.approle
+        vault write -field=secret_id -force  auth/approle/role/spark/secret-id >> /var/lib/vault/hadoop.approle
+        chmod 400 /var/lib/vault/hadoop.approle
+        
+        # put passwords
         log "Put password for Airflow"
         vault kv put secret/hadoop/config admin="marip0sa_aDm55"
             
-        touch /var/lib/vault/configured
-        info "Vault Auth/AppRole configured."
+        touch /var/lib/vault/initialized
+        info "Vault initialized"
+    else
+        vault operator unseal "$(cat /var/lib/vault/unseal.key)"
     fi
-    info "Vault done"
+
+    export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$(head -1 /var/lib/vault/hadoop.approle)" secret_id="$(tail -1 /var/lib/vault/hadoop.approle)")
+    check_env "VAULT_TOKEN"
+    info "Vault is ready"
 
     # format HDFS
     if [ ! -f "$HADOOP_HOME/dfs/name/current/VERSION" ]; then
@@ -915,11 +922,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # apache Airflow
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
         log "Starting Apache Airflow..."
-        check_env "ROLE_ID"
-        check_env "SECRET_ID"
-
-        export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
-        check_env "VAULT_TOKEN"
 
         AIRFLOW_PASSWORD=$(vault kv get -field=admin secret/hadoop/config)
         check_env "AIRFLOW_PASSWORD"
