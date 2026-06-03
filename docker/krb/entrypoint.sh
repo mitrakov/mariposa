@@ -856,7 +856,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         
         # put passwords
         log "Put password for Airflow"
-        vault kv put secret/hadoop/config admin="marip0sa_aDm55"
+        vault kv put secret/hadoop/config admin="$(openssl rand -base64 9)"
             
         touch /var/lib/vault/initialized
         info "Vault initialized"
