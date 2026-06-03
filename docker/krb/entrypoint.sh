@@ -60,33 +60,8 @@ storage "file" {
 }
 
 listener "tcp" {
-  address     = "0.0.0.0:8200"
-  tls_disable = "true" # for DEV; use certs for production
-}
-
-ui = true
-api_addr = "http://$MASTER_HOST:8200"
-EOF
-
-    cat <<EOF | sudo tee /etc/vault.d/hadoop-policy.hcl
-# 1. Allow the CLI to perform preflight checks
-path "sys/mounts/*" {
-  capabilities = ["read", "list"]
-}
-
-# 2. Allow the CLI to resolve the mount path
-path "sys/internal/ui/mounts/*" {
-  capabilities = ["read", "list"]
-}
-
-# 3. Allow reading the actual secret data (The 'data' prefix is required for KV-v2)
-path "secret/data/hadoop/*" {
-  capabilities = ["read"]
-}
-
-# 4. Allow reading metadata (Required for KV-v2 version checks)
-path "secret/metadata/hadoop/*" {
-  capabilities = ["read", "list"]
+  address     = "127.0.0.1:8200"
+  tls_disable = "true"
 }
 EOF
 fi
@@ -779,7 +754,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
         
         # create Principals and their proper keytabs
         # -randkey means we don't want a human password; we'll use keytabs
-        sudo kadmin.local -q "addprinc -randkey vault/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hadoop/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey zookeeper/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hbase/$MASTER_HOST@MARIPOSA.COM"
@@ -787,7 +761,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         sudo kadmin.local -q "addprinc -randkey hive/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey hue/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "addprinc -randkey tommy@MARIPOSA.COM"
-        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab vault/$MASTER_HOST@MARIPOSA.COM hadoop/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM kafka/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM hue/$MASTER_HOST@MARIPOSA.COM"
+        sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM kafka/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM hue/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "xst -k $KEYTABS_DIR/tommy.keytab tommy@MARIPOSA.COM"
         IFS=','
         for worker in $WORKER_HOSTS; do
@@ -804,7 +778,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         sudo chown tommy:hadoop  $KEYTABS_DIR/tommy.keytab
         sudo chmod 400 $KEYTABS_DIR/*.keytab
         
-        log "Kerberos Principals and keytabs created."
+        log "Kerberos Principals and keytabs created"
     fi
 
     # start Kerberos services
@@ -813,23 +787,18 @@ if [[ "$IS_MASTER" == "true" ]]; then
     sudo service krb5-admin-server start
     until nc -zv $MASTER_HOST 88; do sleep 1; done
 
-    # 1. Start Vault
+    # start HashiCorp Vault
+    log "Starting Vault..."
     vault server --config=/etc/vault.d/vault.hcl > /var/lib/vault/vault.log 2>&1 &
+    sleep 1
     
-    # 2. Setup environment for the CLI
-    export VAULT_SKIP_VERIFY=true
-
-    until curl --silent $VAULT_ADDR/v1/sys/health | grep -q '"initialized"'; do
-        info "Waiting for Vault API to respond..."
-        sleep 1
-    done
-
-    # 3. Initialization Logic
+    # initialization Logic
     if [ ! -f "/var/lib/vault/initialized" ]; then
-        log "Initializing Vault..."
+        log "First time run. Initializing Vault..."
 
         # init
         INIT_INFO=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
+
         # get root toke for first time usage
         export VAULT_TOKEN=$(echo "$INIT_INFO" | jq -r '.root_token')
 
@@ -839,19 +808,24 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
         # unseal the vault
         vault operator unseal "$(cat /var/lib/vault/unseal.key)"
-        # enable approle security mechanism
+        # enable approle auth method
         vault auth enable approle
         # enable kv engine
         vault secrets enable -path=secret kv-v2
         # define policy
-        vault policy write hadoop-policy /etc/vault.d/hadoop-policy.hcl
+        vault policy write hadoop-policy - <<EOF
+path "secret/data/hadoop/config" {
+  capabilities = ["read"]
+}
+EOF
         # define role
-        vault write auth/approle/role/spark token_policies="hadoop-policy" token_ttl=1h
+        vault write auth/approle/role/hadoop token_policies="hadoop-policy"
         
         # get role-id/secret-id
-        vault read  -field=role_id           auth/approle/role/spark/role-id    > /var/lib/vault/hadoop.approle
-        echo >>   /var/lib/vault/hadoop.approle
-        vault write -field=secret_id -force  auth/approle/role/spark/secret-id >> /var/lib/vault/hadoop.approle
+        ROLE_ID=$(vault read -field=role_id auth/approle/role/hadoop/role-id)
+        SECRET_ID=$(vault write -field=secret_id -force  auth/approle/role/hadoop/secret-id)
+        echo $ROLE_ID    > /var/lib/vault/hadoop.approle
+        echo $SECRET_ID >> /var/lib/vault/hadoop.approle
         chmod 400 /var/lib/vault/hadoop.approle
         
         # put passwords
@@ -862,11 +836,14 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "Vault initialized"
     else
         vault operator unseal "$(cat /var/lib/vault/unseal.key)"
+        info "OK: Vault unsealed"
     fi
 
-    export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$(head -1 /var/lib/vault/hadoop.approle)" secret_id="$(tail -1 /var/lib/vault/hadoop.approle)")
+    # getting vault token for this session
+    ROLE_ID=$(sed -n '1p' "/var/lib/vault/hadoop.approle")
+    SECRET_ID=$(sed -n '2p' "/var/lib/vault/hadoop.approle")
+    export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
     check_env "VAULT_TOKEN"
-    info "Vault is ready"
 
     # format HDFS
     if [ ! -f "$HADOOP_HOME/dfs/name/current/VERSION" ]; then
