@@ -41,6 +41,7 @@ check_env "ZOOKEEPER_HOME"
 check_env "KAFKA_HOME"
 check_env "AIRFLOW_HOME"
 check_env "HUE_HOME"
+check_env "VAULT_HOME"
 check_env "HADOOP_CONF_DIR"
 check_env "IS_MASTER"
 check_env "MASTER_HOST"
@@ -56,7 +57,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     info "Setting up Vault..."
     cat << EOF | sudo tee /etc/vault.d/vault.hcl
 storage "file" {
-  path = "/var/lib/vault/data"
+  path = "$VAULT_HOME/data"
 }
 
 listener "tcp" {
@@ -789,11 +790,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
     # start HashiCorp Vault
     log "Starting Vault..."
-    vault server --config=/etc/vault.d/vault.hcl > /var/lib/vault/vault.log 2>&1 &
+    vault server --config=/etc/vault.d/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
     sleep 1
     
     # initialization Logic
-    if [ ! -f "/var/lib/vault/initialized" ]; then
+    if [ ! -f "$VAULT_HOME/initialized" ]; then
         log "First time run. Initializing Vault..."
 
         # init
@@ -803,11 +804,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
         export VAULT_TOKEN=$(echo "$INIT_INFO" | jq -r '.root_token')
 
         # store the unseal.key
-        echo "$INIT_INFO" | jq -r '.unseal_keys_b64[0]' > /var/lib/vault/unseal.key
-        chmod 400 /var/lib/vault/unseal.key
+        echo "$INIT_INFO" | jq -r '.unseal_keys_b64[0]' > $VAULT_HOME/unseal.key
+        chmod 400 $VAULT_HOME/unseal.key
 
         # unseal the vault
-        vault operator unseal "$(cat /var/lib/vault/unseal.key)"
+        vault operator unseal "$(cat $VAULT_HOME/unseal.key)"
         # enable approle auth method
         vault auth enable approle
         # enable kv engine
@@ -824,24 +825,24 @@ EOF
         # get role-id/secret-id
         ROLE_ID=$(vault read -field=role_id auth/approle/role/hadoop/role-id)
         SECRET_ID=$(vault write -field=secret_id -force  auth/approle/role/hadoop/secret-id)
-        echo $ROLE_ID    > /var/lib/vault/hadoop.approle
-        echo $SECRET_ID >> /var/lib/vault/hadoop.approle
-        chmod 400 /var/lib/vault/hadoop.approle
+        echo $ROLE_ID    > $VAULT_HOME/hadoop.approle
+        echo $SECRET_ID >> $VAULT_HOME/hadoop.approle
+        chmod 400          $VAULT_HOME/hadoop.approle
         
         # put passwords
         log "Put password for Airflow"
         vault kv put secret/hadoop/config admin="$(openssl rand -base64 9)"
             
-        touch /var/lib/vault/initialized
+        touch $VAULT_HOME/initialized
         info "Vault initialized"
     else
-        vault operator unseal "$(cat /var/lib/vault/unseal.key)"
+        vault operator unseal "$(cat $VAULT_HOME/unseal.key)"
         info "OK: Vault unsealed"
     fi
 
     # getting vault token for this session
-    ROLE_ID=$(sed -n '1p' "/var/lib/vault/hadoop.approle")
-    SECRET_ID=$(sed -n '2p' "/var/lib/vault/hadoop.approle")
+    ROLE_ID=$(sed -n '1p' "$VAULT_HOME/hadoop.approle")
+    SECRET_ID=$(sed -n '2p' "$VAULT_HOME/hadoop.approle")
     export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
     check_env "VAULT_TOKEN"
 

@@ -6,12 +6,11 @@ LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 ENV KEYTABS_DIR=/etc/security/keytabs
 ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
 
-
 # add HashiCorp repository and install vault
 RUN wget --output-document=- https://apt.releases.hashicorp.com/gpg | gpg --dearmor --output /usr/share/keyrings/hashicorp-archive-keyring.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list && \
-    apt update && apt install --yes vault
-RUN apt install --yes jq
+    apt update && apt install --yes vault jq
+ENV VAULT_HOME=/var/lib/vault
 ENV VAULT_ADDR='http://127.0.0.1:8200'
 
 USER hadoop
