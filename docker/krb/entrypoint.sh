@@ -47,34 +47,117 @@ check_env "IS_MASTER"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "ZK_ID"
-check_env "KAFKA_CLUSTER_ID"
-check_env "JKS_PASSWORD"
 check_env "KEYTABS_DIR"
+
+
+# DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
+MY_HOSTNAME=$(hostname)
+export VAULT_ADDR=http://$MASTER_HOST:8200
 
 
 # setup up HashiCorp Vault
 if [[ "$IS_MASTER" == "true" ]]; then
+    # create main config
     cat << EOF | sudo tee /etc/vault.d/vault.hcl
 storage "file" {
   path = "$VAULT_HOME/data"
 }
 
 listener "tcp" {
-  address     = "127.0.0.1:8200"
+  address     = "$MASTER_HOST:8200"
   tls_disable = "true"
 }
 EOF
+    # start HashiCorp Vault
+    log "Starting Vault..."
+    vault server --config=/etc/vault.d/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
+    sleep 1
+
+    # initialization Logic
+    if [ ! -f "$VAULT_HOME/initialized" ]; then
+        log "First time run. Initializing Vault..."
+
+        # init
+        INIT_INFO=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
+
+        # get root toke for first time usage
+        export VAULT_TOKEN=$(echo "$INIT_INFO" | jq -r '.root_token')
+
+        # store the unseal.key
+        echo "$INIT_INFO" | jq -r '.unseal_keys_b64[0]' > $VAULT_HOME/unseal.key
+        chmod 400 $VAULT_HOME/unseal.key
+
+        # unseal the vault
+        vault operator unseal "$(cat $VAULT_HOME/unseal.key)"
+        # enable approle auth method
+        vault auth enable approle
+        # enable kv engine
+        vault secrets enable -path=secret kv-v2
+        # define policy
+        vault policy write hadoop-policy - <<EOF
+path "secret/data/hadoop/postgres" {
+  capabilities = ["read"]
+}
+path "secret/data/hadoop/kerberos" {
+  capabilities = ["read"]
+}
+path "secret/data/hadoop/airflow" {
+  capabilities = ["read"]
+}
+path "secret/data/hadoop/kafka" {
+  capabilities = ["read"]
+}
+path "secret/data/hadoop/jks" {
+  capabilities = ["read"]
+}
+path "secret/data/hadoop/hue" {
+  capabilities = ["read"]
+}
+EOF
+        # define role
+        vault write auth/approle/role/hadoop token_policies="hadoop-policy"
+
+        # generate role-id/secret-id for this new role
+        ROLE_ID=$(vault read -field=role_id auth/approle/role/hadoop/role-id)
+        SECRET_ID=$(vault write -field=secret_id -force auth/approle/role/hadoop/secret-id)
+        echo $ROLE_ID    > $VAULT_HOME/hadoop.approle
+        echo $SECRET_ID >> $VAULT_HOME/hadoop.approle
+        chmod 400          $VAULT_HOME/hadoop.approle
+
+        # put passwords
+        log "Generating random passwords..."
+        vault kv put secret/hadoop/postgres hive="$(openssl rand -base64 24)" hue="$(openssl rand -base64 24)" airflow="$(openssl rand -base64 24)"
+        vault kv put secret/hadoop/kerberos password="$(openssl rand -base64 24)"
+        vault kv put secret/hadoop/airflow admin="$(openssl rand -base64 9)"
+        vault kv put secret/hadoop/kafka cluster_id="$(openssl rand -base64 6)"
+        vault kv put secret/hadoop/jks keypass="$(openssl rand -base64 24)" storepass="$(openssl rand -base64 24)"
+        vault kv put secret/hadoop/hue secret_key="$(openssl rand -base64 24)"
+
+        touch $VAULT_HOME/initialized
+        info "Vault initialized"
+    else
+        vault operator unseal "$(cat $VAULT_HOME/unseal.key)"
+        info "OK: Vault unsealed"
+    fi
 fi
 
+# getting vault token for this session
+while [ ! -f $VAULT_HOME/hadoop.approle ]; do sleep 1; log "."; done
+until nc -zv $MASTER_HOST 8200; do sleep 1; done
+sleep 1    # wait for unseal (TODO: curl -s $VAULT_ADDR/v1/sys/seal-status)
+ROLE_ID=$(sed -n '1p' "$VAULT_HOME/hadoop.approle")
+SECRET_ID=$(sed -n '2p' "$VAULT_HOME/hadoop.approle")
+export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
+check_env "VAULT_TOKEN"
 
-# DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
-MY_HOSTNAME=$(hostname)
+
 
 # generate temp self-signed SSL certificate to enable SASL to auth data transfer protocol
 # https://cwiki.apache.org/confluence/display/HADOOP/Secure+DataNode
 MY_KEYSTORE="$HADOOP_CONF_DIR/certs/$MY_HOSTNAME.keystore.jks"
 TRUSTSTORE="$HADOOP_CONF_DIR/certs/truststore.jks"
-
+JKS_PASSWORD=$(vault kv get -field=keypass secret/hadoop/jks)
+check_env "JKS_PASSWORD"
 if [ ! -f "$MY_KEYSTORE" ]; then
     log "Generating SSL for $MY_HOSTNAME..."
 
@@ -118,6 +201,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     fi
     sudo service postgresql start
 
+    HIVE_DB_PASSWORD=$(vault kv get -field=hive secret/hadoop/postgres)
     check_env "HIVE_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hive';")
     if [ "$USER_EXISTS" != "1" ]; then
@@ -130,6 +214,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: user 'hive' exists"
     fi
 
+    AIRFLOW_DB_PASSWORD=$(vault kv get -field=airflow secret/hadoop/postgres)
     check_env "AIRFLOW_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='airflow';")
     if [ "$USER_EXISTS" != "1" ]; then
@@ -142,6 +227,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: user 'airflow' exists"
     fi
 
+    HUE_DB_PASSWORD=$(vault kv get -field=hue secret/hadoop/postgres)
     check_env "HUE_DB_PASSWORD"
     USER_EXISTS=$(sudo -u postgres psql --tuples-only --no-align --command="SELECT 1 FROM pg_roles WHERE rolname='hue';")
     if [ "$USER_EXISTS" != "1" ]; then
@@ -651,6 +737,7 @@ EOF
 
 # setup Hue
 if [[ "$IS_MASTER" == "true" ]]; then
+    HUE_PASSWORD=$(vault kv get -field=secret_key secret/hadoop/hue)
     check_env "HUE_PASSWORD"
     cat <<EOF > $HUE_HOME/desktop/conf/hue.ini
 [desktop]
@@ -749,6 +836,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # initialize Kerberos KDC Database
     if [ ! -f "/var/lib/krb5kdc/principal" ]; then
         log "First time run. Initializing Kerberos KDC..."
+        KRB5_PASSWORD=$(vault kv get -field=password secret/hadoop/kerberos)
         check_env "KRB5_PASSWORD"
         sudo kdb5_util create -s -P "$KRB5_PASSWORD"
         
@@ -786,64 +874,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
     sudo service krb5-kdc start
     sudo service krb5-admin-server start
     until nc -zv $MASTER_HOST 88; do sleep 1; done
-
-    # start HashiCorp Vault
-    log "Starting Vault..."
-    vault server --config=/etc/vault.d/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
-    sleep 1
-    
-    # initialization Logic
-    if [ ! -f "$VAULT_HOME/initialized" ]; then
-        log "First time run. Initializing Vault..."
-
-        # init
-        INIT_INFO=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
-
-        # get root toke for first time usage
-        export VAULT_TOKEN=$(echo "$INIT_INFO" | jq -r '.root_token')
-
-        # store the unseal.key
-        echo "$INIT_INFO" | jq -r '.unseal_keys_b64[0]' > $VAULT_HOME/unseal.key
-        chmod 400 $VAULT_HOME/unseal.key
-
-        # unseal the vault
-        vault operator unseal "$(cat $VAULT_HOME/unseal.key)"
-        # enable approle auth method
-        vault auth enable approle
-        # enable kv engine
-        vault secrets enable -path=secret kv-v2
-        # define policy
-        vault policy write hadoop-policy - <<EOF
-path "secret/data/hadoop/config" {
-  capabilities = ["read"]
-}
-EOF
-        # define role
-        vault write auth/approle/role/hadoop token_policies="hadoop-policy"
-        
-        # generate role-id/secret-id for this new role
-        ROLE_ID=$(vault read -field=role_id auth/approle/role/hadoop/role-id)
-        SECRET_ID=$(vault write -field=secret_id -force auth/approle/role/hadoop/secret-id)
-        echo $ROLE_ID    > $VAULT_HOME/hadoop.approle
-        echo $SECRET_ID >> $VAULT_HOME/hadoop.approle
-        chmod 400          $VAULT_HOME/hadoop.approle
-        
-        # put passwords
-        log "Generating a new password for Airflow"
-        vault kv put secret/hadoop/config admin="$(openssl rand -base64 9)"
-            
-        touch $VAULT_HOME/initialized
-        info "Vault initialized"
-    else
-        vault operator unseal "$(cat $VAULT_HOME/unseal.key)"
-        info "OK: Vault unsealed"
-    fi
-
-    # getting vault token for this session
-    ROLE_ID=$(sed -n '1p' "$VAULT_HOME/hadoop.approle")
-    SECRET_ID=$(sed -n '2p' "$VAULT_HOME/hadoop.approle")
-    export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
-    check_env "VAULT_TOKEN"
 
     # format HDFS
     if [ ! -f "$HADOOP_HOME/dfs/name/current/VERSION" ]; then
@@ -900,7 +930,7 @@ EOF
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
         log "Starting Apache Airflow..."
 
-        AIRFLOW_PASSWORD=$(vault kv get -field=admin secret/hadoop/config)
+        AIRFLOW_PASSWORD=$(vault kv get -field=admin secret/hadoop/airflow)
         check_env "AIRFLOW_PASSWORD"
 
         export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql://airflow:$AIRFLOW_DB_PASSWORD@localhost:5432/airflow_db"
@@ -987,6 +1017,8 @@ fi
 log "Starting Kafka Server..."
 if [ ! -f "$KAFKA_HOME/data/meta.properties" ]; then
     log "First time run. Formatting Kafka storage"
+    KAFKA_CLUSTER_ID=$(vault kv get -field=cluster_id secret/hadoop/kafka)
+    check_env "KAFKA_CLUSTER_ID"
     $KAFKA_HOME/bin/kafka-storage.sh format --cluster-id $KAFKA_CLUSTER_ID --config $KAFKA_HOME/config/server.properties
 else
     info "OK: Kafka storage already formatted"

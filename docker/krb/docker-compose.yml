@@ -7,15 +7,8 @@ services:
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=1
-      - KAFKA_CLUSTER_ID=mariposaCluster2026
-      - HIVE_DB_PASSWORD=marip0sa_pHv
-      - AIRFLOW_DB_PASSWORD=marip0sa_pAf
-      - HUE_DB_PASSWORD=marip0sa_pHu
-      - KRB5_PASSWORD=marip0sa_kRb
-      - JKS_PASSWORD=marip0sa_jKs
-      - HUE_PASSWORD=marip0sa_hUe
       - SKIP_AIRFLOW=false
-      - SKIP_HUE=true
+      - SKIP_HUE=false
     volumes:
       - ~/hadoop/kdc_conf:/etc/krb5kdc
       - ~/hadoop/kdc_data:/var/lib/krb5kdc
@@ -25,8 +18,8 @@ services:
       - ~/hadoop/airflow:/opt/airflow/metadata
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
       - ~/hadoop/workspace:/home/hadoop/workspace
-      - ~/hadoop/vault_data:/var/lib/vault
         # shared across all nodes
+      - ~/hadoop/vault_data:/var/lib/vault
       - ~/hadoop/keytabs:/etc/security/keytabs
       - ~/hadoop/certs:/opt/hadoop/etc/hadoop/certs
     ports:
@@ -47,13 +40,12 @@ services:
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=2
-      - KAFKA_CLUSTER_ID=mariposaCluster2026
-      - JKS_PASSWORD=marip0sa_jKs
     volumes:
       - ~/hadoop/hdfs2_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk2_data:/opt/zookeeper/data
       - ~/hadoop/kafka2_data:/opt/kafka/data
         # shared across all nodes
+      - ~/hadoop/vault_data:/var/lib/vault
       - ~/hadoop/keytabs:/etc/security/keytabs
       - ~/hadoop/certs:/opt/hadoop/etc/hadoop/certs
     ports:
@@ -67,13 +59,12 @@ services:
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=3
-      - KAFKA_CLUSTER_ID=mariposaCluster2026
-      - JKS_PASSWORD=marip0sa_jKs
     volumes:
       - ~/hadoop/hdfs3_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk3_data:/opt/zookeeper/data
       - ~/hadoop/kafka3_data:/opt/kafka/data
         # shared across all nodes
+      - ~/hadoop/vault_data:/var/lib/vault
       - ~/hadoop/keytabs:/etc/security/keytabs
       - ~/hadoop/certs:/opt/hadoop/etc/hadoop/certs
     ports:
