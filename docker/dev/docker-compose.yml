@@ -13,7 +13,7 @@ services:
       - HUE_DB_PASSWORD=111444
       - HUE_PASSWORD=hue_secret
       - SKIP_HUE=false
-      - SKIP_AIRFLOW=true
+      - SKIP_AIRFLOW=false
     volumes:
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
       - ~/hadoop/zk1_data:/opt/zookeeper/data

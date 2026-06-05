@@ -5,7 +5,7 @@ FROM ubuntu:26.04 AS builder
 RUN apt update && apt install --yes software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
 RUN apt install --yes wget curl make git gcc g++ python3.9-dev python3.9-venv libkrb5-dev libsasl2-dev libldap2-dev
 
-# download HUE 4.11.0
+# download HUE 4.11.0 (original: https://cdn.gethue.com/downloads/hue-4.11.0.tgz)
 ENV HUE_HOME=/opt/hue
 RUN wget --output-document=- http://mitrakoff.com/cache/hue-4.11.0.tgz | \
     tar --extract --gzip --directory /opt && mv /opt/hue-4.11.0 $HUE_HOME

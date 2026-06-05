@@ -49,6 +49,7 @@ check_env "WORKER_HOSTS"
 check_env "ZK_ID"
 check_env "KEYTABS_DIR"
 check_env "CERTS_DIR"
+check_env "KAFKA_OPTS"
 
 
 # DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
