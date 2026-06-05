@@ -31,17 +31,22 @@ RUN wget --output-document=- https://archive.apache.org/dist/hive/hive-4.1.0/apa
     tar --extract --gzip --directory /opt && mv /opt/apache-hive-4.1.0-bin $HIVE_HOME
 # download a newer Postgres driver because std Hive driver it too old and doesn't support 'scram-sha-256'
 RUN wget --directory-prefix $HIVE_HOME/lib https://jdbc.postgresql.org/download/postgresql-42.7.10.jar
+# fix SLF4J multiple bindings error
+RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
 
 
-# download Apache HBase 2.5.13 (2.5.13 is a latest stable release, do NOT use 2.6.4, it contains a bug with WAL replay)
+# download Apache HBase 2.5.14 (2.5.14 is a latest stable release, do NOT use 2.6.4, it contains a bug with WAL replay)
 ENV HBASE_HOME=/opt/hbase
-RUN wget --output-document=- https://downloads.apache.org/hbase/2.5.13/hbase-2.5.13-bin.tar.gz | \
-    tar --extract --gzip --directory /opt && mv /opt/hbase-2.5.13 $HBASE_HOME
+RUN wget --output-document=- https://downloads.apache.org/hbase/2.5.14/hbase-2.5.14-bin.tar.gz | \
+    tar --extract --gzip --directory /opt && mv /opt/hbase-2.5.14 $HBASE_HOME
 # add HBase-Spark connector
-RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-spark-1.1.0.jar
-RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/jars/hbase-spark-protocol-shaded-1.1.0.jar
+RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/cache/hbase-spark-1.1.0.jar
+RUN wget --directory-prefix $SPARK_HOME/jars/ http://mitrakoff.com/cache/hbase-spark-protocol-shaded-1.1.0.jar
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
+# fix SLF4J multiple bindings error
+RUN rm $HBASE_HOME/lib/client-facing-thirdparty/log4j-slf4j-impl-*.jar
+# patch HBase
 COPY mariposa-hbase-patch-2.5.13.jar $HBASE_HOME/lib/
 
 
@@ -57,7 +62,7 @@ RUN wget --output-document=- https://downloads.apache.org/tez/0.10.5/apache-tez-
     tar --extract --gzip --directory /opt && mv /opt/apache-tez-0.10.5-bin $TEZ_HOME
 
 
-# update PATH
+# update PATH (all but tez)
 ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$SPARK_HOME/bin:$SPARK_HOME/sbin:$HIVE_HOME/bin:$HBASE_HOME/bin:$ZOOKEEPER_HOME/bin:$KAFKA_HOME/bin
 
 
@@ -68,14 +73,11 @@ RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg ma
 
 
 # sudo        start services
-# postgresql  Hive/Airflow/HUE
-# krb5        Kerberos (KRB only)
-# netcat      nc
-# sasl2       HUE
 # openssh     quick-start services (DEV only)
+# postgresql  Hive/Airflow/HUE
+# libsasl2    HUE (even for DEV!)
 # mc          optional
-RUN apt update && apt install --yes sudo openssh-server krb5-kdc krb5-admin-server postgresql-16 netcat-openbsd \
-  libsasl2-modules-gssapi-mit libsasl2-modules mc && apt clean
+RUN apt update && apt install --yes sudo openssh-server postgresql-16 libsasl2-modules mc && apt clean
 
 
 # copy-paste Apache Airflow
@@ -92,21 +94,15 @@ COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/python3.12/ /usr/local/
 COPY --from=mitrakov/hadoop-airflow:1.0.0 /usr/local/lib/libpython3.12* /usr/local/lib/
 
 
-# copy-paste HUE and fix "encodebytes" function
+# copy-paste HUE
 ENV HUE_HOME=/opt/hue
 COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/bin/python3.9 /usr/bin/python3.9
 COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/lib/python3.9 /usr/lib/python3.9
 COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
 
 
-# fix warning: "SLF4J: Class path contains multiple SLF4J bindings."
-RUN rm $HIVE_HOME/lib/log4j-slf4j-impl-*.jar
-RUN rm $HBASE_HOME/lib/client-facing-thirdparty/log4j-slf4j-impl-*.jar
-
-
 # create user 'hadoop' and add it to sudoers (w/o password)
 RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-RUN useradd --create-home --shell /bin/bash tommy
 
 
 # switch ownership to 'hadoop'
