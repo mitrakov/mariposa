@@ -21,7 +21,7 @@ services:
         # shared across all nodes
       - ~/hadoop/vault_data:/var/lib/vault
       - ~/hadoop/keytabs:/etc/security/keytabs
-      - ~/hadoop/certs:/opt/hadoop/etc/hadoop/certs
+      - ~/hadoop/certs:/etc/vault/certs
     ports:
       - "9870:9870"   # HDFS UI http
       - "9871:9871"   # HDFS UI https
@@ -47,7 +47,7 @@ services:
         # shared across all nodes
       - ~/hadoop/vault_data:/var/lib/vault
       - ~/hadoop/keytabs:/etc/security/keytabs
-      - ~/hadoop/certs:/opt/hadoop/etc/hadoop/certs
+      - ~/hadoop/certs:/etc/vault/certs
     ports:
       - "8042:8042"   # NodeManager
 
@@ -66,6 +66,6 @@ services:
         # shared across all nodes
       - ~/hadoop/vault_data:/var/lib/vault
       - ~/hadoop/keytabs:/etc/security/keytabs
-      - ~/hadoop/certs:/opt/hadoop/etc/hadoop/certs
+      - ~/hadoop/certs:/etc/vault/certs
     ports:
       - "8043:8042"   # NodeManager
