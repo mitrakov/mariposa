@@ -48,6 +48,7 @@ check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "ZK_ID"
 check_env "KEYTABS_DIR"
+check_env "CERTS_DIR"
 
 
 # DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
@@ -81,10 +82,10 @@ EOF
         INIT_INFO=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
 
         # get root toke for first time usage
-        export VAULT_TOKEN=$(echo "$INIT_INFO" | jq -r '.root_token')
+        export VAULT_TOKEN=$(echo "$INIT_INFO" | jq --raw-output '.root_token')
 
         # store the unseal.key
-        echo "$INIT_INFO" | jq -r '.unseal_keys_b64[0]' > $VAULT_HOME/unseal.key
+        echo "$INIT_INFO" | jq --raw-output '.unseal_keys_b64[0]' > $VAULT_HOME/unseal.key
         chmod 400 $VAULT_HOME/unseal.key
 
         # unseal the vault
@@ -95,6 +96,9 @@ EOF
         vault secrets enable -path=secret kv-v2
         # define policy
         vault policy write hadoop-policy - <<EOF
+path "pki/sign/mariposa" {
+  capabilities = ["update"]
+}
 path "secret/data/hadoop/postgres" {
   capabilities = ["read"]
 }
@@ -130,8 +134,16 @@ EOF
         vault kv put secret/hadoop/kerberos password="$(openssl rand -base64 24)"
         vault kv put secret/hadoop/airflow admin="$(openssl rand -base64 9)"
         vault kv put secret/hadoop/kafka cluster_id="$(openssl rand -base64 6)"
-        vault kv put secret/hadoop/jks keypass="$(openssl rand -base64 24)" storepass="$(openssl rand -base64 24)"
+        vault kv put secret/hadoop/jks storepass="$(openssl rand -base64 24)"
         vault kv put secret/hadoop/hue secret_key="$(openssl rand -base64 24)"
+
+        # enable PKI
+        vault secrets enable pki
+        vault secrets tune -max-lease-ttl=87600h pki       # must-have
+        # generate Root CA
+        vault write -field=certificate pki/root/generate/internal common_name="mariposa-ca" ttl=87600h > $CERTS_DIR/root_ca.crt
+        # create a role for nodes to sign their public keys
+        vault write pki/roles/mariposa allowed_domains="host" allow_subdomains=true ttl=87599h
 
         touch $VAULT_HOME/initialized
         info "Vault initialized"
@@ -143,8 +155,10 @@ fi
 
 # getting vault token for this session
 while [ ! -f $VAULT_HOME/hadoop.approle ]; do sleep 1; log "."; done
-until nc -zv $MASTER_HOST 8200; do sleep 1; done
-sleep 1    # wait for unseal (TODO: curl -s $VAULT_ADDR/v1/sys/seal-status)
+until curl --silent --fail http://$MASTER_HOST:8200/v1/sys/health | grep --quiet '"sealed":false'; do
+    log "Waiting for Vault to be unsealed..."
+    sleep 1
+done
 ROLE_ID=$(sed -n '1p' "$VAULT_HOME/hadoop.approle")
 SECRET_ID=$(sed -n '2p' "$VAULT_HOME/hadoop.approle")
 export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
@@ -152,35 +166,35 @@ check_env "VAULT_TOKEN"
 
 
 
-# generate temp self-signed SSL certificate to enable SASL to auth data transfer protocol
+# generate SSL certificates to enable SASL to auth data transfer protocol
 # https://cwiki.apache.org/confluence/display/HADOOP/Secure+DataNode
-MY_KEYSTORE="$HADOOP_CONF_DIR/certs/$MY_HOSTNAME.keystore.jks"
-TRUSTSTORE="$HADOOP_CONF_DIR/certs/truststore.jks"
-JKS_PASSWORD=$(vault kv get -field=keypass secret/hadoop/jks)
+MY_KEYSTORE="$CERTS_DIR/$MY_HOSTNAME.keystore.jks"
+TRUSTSTORE="$CERTS_DIR/truststore.jks"
+JKS_PASSWORD=$(vault kv get -field=storepass secret/hadoop/jks)
 check_env "JKS_PASSWORD"
 if [ ! -f "$MY_KEYSTORE" ]; then
     log "Generating SSL for $MY_HOSTNAME..."
 
-    # 1. Create node-specific keystore
-    keytool -genkeypair -alias "$MY_HOSTNAME" -keyalg RSA -validity 9999 \
-      -keystore "$MY_KEYSTORE" \
-      -storepass "$JKS_PASSWORD" -keypass "$JKS_PASSWORD" \
-      -dname "CN=$MY_HOSTNAME" -ext "SAN=dns:$MY_HOSTNAME" \
-      -storetype PKCS12 -noprompt
+    # Generate a private key locally (no certificate yet)
+    keytool -genkeypair -alias "$MY_HOSTNAME" -keyalg RSA -validity 3650 \
+        -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD" -dname "CN=$MY_HOSTNAME"
 
-    # 2. Export this node's certificate
-    keytool -export -alias "$MY_HOSTNAME" \
-      -file $HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer \
-      -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD"
+    # Generate a CSR
+    keytool -certreq -alias "$MY_HOSTNAME" -keystore "$MY_KEYSTORE" \
+        -storepass "$JKS_PASSWORD" -file "$CERTS_DIR/$MY_HOSTNAME.csr"
 
-    # 3. Import into the SHARED truststore
+    # Send CSR to Vault and get a signed certificate back
+    vault write -format=json pki/sign/mariposa \
+        common_name="$MY_HOSTNAME" csr=@"$CERTS_DIR/$MY_HOSTNAME.csr" | jq --raw-output .data.certificate > "$CERTS_DIR/$MY_HOSTNAME.crt"
+
+    # Import the Root CA and the signed cert into the Keystore
     sleep $ZK_ID    # must-have to avoid race-conditions!
-    keytool -import -alias "$MY_HOSTNAME" \
-      -file $HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer \
-      -keystore "$TRUSTSTORE" \
-      -storepass "$JKS_PASSWORD" -noprompt
+    keytool -importcert -alias rootca -file $CERTS_DIR/root_ca.crt \
+        -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD" -noprompt
+    keytool -importcert -alias "$MY_HOSTNAME" -file "$CERTS_DIR/$MY_HOSTNAME.crt" \
+        -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD"
 
-    rm -vf $HADOOP_CONF_DIR/certs/$MY_HOSTNAME.cer
+    rm --verbose --force $CERTS_DIR/$MY_HOSTNAME.csr $CERTS_DIR/$MY_HOSTNAME.crt
     info "SSL certificates stored in $MY_KEYSTORE"
 else
     info "OK: Keystore already exists: $MY_KEYSTORE"
@@ -891,7 +905,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
     # start Zookeeper
     log "Starting Zookeeper..."
-    rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
+    rm --verbose --force $ZOOKEEPER_HOME/data/zookeeper_server.pid
     zkServer.sh start
 
     # create directories on HDFS
@@ -1003,7 +1017,7 @@ else      # WORKERs
 
     # start Zookeeper
     log "Starting Zookeeper..."
-    rm -vf $ZOOKEEPER_HOME/data/zookeeper_server.pid
+    rm --verbose --force $ZOOKEEPER_HOME/data/zookeeper_server.pid
     zkServer.sh start
 
     # start HBase

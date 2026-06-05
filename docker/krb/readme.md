@@ -16,6 +16,14 @@ spark.sql("INSERT INTO hello_world VALUES (1, 'It is working')")
 spark.sql("SELECT * FROM hello_world").show()
 ```
 
+## Check certs
+```sh
+export VAULT_ADDR=http://namenode.host:8200
+export V A U L T _ T O K E N=...
+vault kv get secret/hadoop/jks
+keytool -list -v -keystore /etc/vault/certs/namenode.host.keystore.jks -storepass Eb7Yy1KKJJ1HHxnad0Fi6ZQtdG2PxA3J
+```
+
 # Tommy
 ```sh
 kinit -kt $KEYTABS_DIR/tommy.keytab $(whoami)@MARIPOSA.COM
