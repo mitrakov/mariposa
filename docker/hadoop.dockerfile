@@ -108,8 +108,9 @@ COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/lib/python3.9 /usr/lib/python3.9
 COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
 
 
-# create user 'hadoop' and add it to sudoers (w/o password)
-RUN useradd --create-home --shell /bin/bash hadoop && echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+# create user 'hadoop' and add it to sudoers (keep 2 sep. commands to avoid errors "useradd: user 'hadoop' already exists")
+RUN useradd --create-home --shell /bin/bash hadoop
+RUN echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 
 # switch ownership to 'hadoop'

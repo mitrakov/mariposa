@@ -82,7 +82,7 @@ function LABEL() {
   info "LABEL $*"
 }
 function USER() {
-  info "USER $*"
+  info "USER $*"     # TODO: sudo su -?
 }
 function ENTRYPOINT() {
   info "ENTRYPOINT $*"
