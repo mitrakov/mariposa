@@ -1,24 +1,29 @@
-# docker build --tag mitrakov/hadoop-krb:1.0.0 .
+# docker build --tag mitrakov/hadoop-krb:1.0.1 .
+# 1.0.0 (2026-06-05): mvp
+# 1.0.1 (2026-06-13): install vault w/o VPN
+
 FROM mitrakov/hadoop:1.0.0
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
 
-# add HashiCorp repository (VPN needed!!!!!!!!!!!!!!!!!)
-RUN wget --output-document=- https://apt.releases.hashicorp.com/gpg | gpg --dearmor --output /usr/share/keyrings/hashicorp-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list && \
-    apt update
+# install HashiCorp vault manually because downloads are restricted in RF
+ENV VAULT_HOME=/opt/vault
+ENV CERTS_DIR=$VAULT_HOME/certs
+RUN wget http://mitrakoff.com/cache/vault_2.0.2_linux_$(uname -m).zip && \
+    unzip vault_2.0.2_linux_$(uname -m).zip -d $VAULT_HOME/ && \
+    rm -f vault_2.0.2_linux_$(uname -m).zip && \
+    mkdir $CERTS_DIR && \
+    chown -R hadoop:hadoop $VAULT_HOME
+ENV PATH=$PATH:$VAULT_HOME
 
 # krb5     kerberos
 # libsasl2 extra SASL modules for GSSAPI
 # netcat   nc
-# vault    hashicorp vault
 # jq       jq
-RUN apt install --yes krb5-kdc krb5-admin-server libsasl2-modules-gssapi-mit netcat-openbsd vault jq
+RUN apt install --yes krb5-kdc krb5-admin-server libsasl2-modules-gssapi-mit netcat-openbsd jq
 
-# extra ENV variables for Kerberos/Vault
-ENV VAULT_HOME=/var/lib/vault
+# extra ENV variables for Kerberos
 ENV KEYTABS_DIR=/etc/security/keytabs
-ENV CERTS_DIR=/etc/vault/certs
 ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
 
 # add extra user

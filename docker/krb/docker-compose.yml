@@ -1,6 +1,6 @@
 services:
   namenode:
-    image: mitrakov/hadoop-krb:1.0.0
+    image: mitrakov/hadoop-krb:1.0.1
     hostname: namenode.host
     environment:
       - IS_MASTER=true
@@ -17,11 +17,11 @@ services:
       - ~/hadoop/kafka1_data:/opt/kafka/data
       - ~/hadoop/airflow:/opt/airflow/metadata
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
+      - ~/hadoop/vault_data:/opt/vault/data
       - ~/hadoop/workspace:/home/hadoop/workspace
         # shared across all nodes
-      - ~/hadoop/vault_data:/var/lib/vault
+      - ~/hadoop/certs:/opt/vault/certs
       - ~/hadoop/keytabs:/etc/security/keytabs
-      - ~/hadoop/certs:/etc/vault/certs
     ports:
       - "9870:9870"   # HDFS UI http
       - "9871:9871"   # HDFS UI https
@@ -33,7 +33,7 @@ services:
       - "16010:16010" # HBase
 
   datanode1:
-    image: mitrakov/hadoop-krb:1.0.0
+    image: mitrakov/hadoop-krb:1.0.1
     hostname: datanode1.host
     environment:
       - IS_MASTER=false
@@ -45,14 +45,13 @@ services:
       - ~/hadoop/zk2_data:/opt/zookeeper/data
       - ~/hadoop/kafka2_data:/opt/kafka/data
         # shared across all nodes
-      - ~/hadoop/vault_data:/var/lib/vault
+      - ~/hadoop/certs:/opt/vault/certs
       - ~/hadoop/keytabs:/etc/security/keytabs
-      - ~/hadoop/certs:/etc/vault/certs
     ports:
       - "8042:8042"   # NodeManager
 
   datanode2:
-    image: mitrakov/hadoop-krb:1.0.0
+    image: mitrakov/hadoop-krb:1.0.1
     hostname: datanode2.host
     environment:
       - IS_MASTER=false
@@ -64,8 +63,7 @@ services:
       - ~/hadoop/zk3_data:/opt/zookeeper/data
       - ~/hadoop/kafka3_data:/opt/kafka/data
         # shared across all nodes
-      - ~/hadoop/vault_data:/var/lib/vault
+      - ~/hadoop/certs:/opt/vault/certs
       - ~/hadoop/keytabs:/etc/security/keytabs
-      - ~/hadoop/certs:/etc/vault/certs
     ports:
       - "8043:8042"   # NodeManager
