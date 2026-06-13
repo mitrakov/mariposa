@@ -7,20 +7,20 @@ ssh-copy-id -i ~/.ssh/mariposa/id_rsa.pub hadoop@192.168.1.143
 
 cat << TOM | sudo tee -a /etc/hosts
 192.168.1.49   node49.host
-192.168.1.132  node132.host
+192.168.1.131  node131.host
 192.168.1.137  node137.host
 192.168.1.143  node143.host
 TOM
 
 ssh -i ~/.ssh/mariposa/id_rsa hadoop@node49.host
-ssh -i ~/.ssh/mariposa/id_rsa hadoop@node132.host
+ssh -i ~/.ssh/mariposa/id_rsa hadoop@node131.host
 ssh -i ~/.ssh/mariposa/id_rsa hadoop@node137.host
 ssh -i ~/.ssh/mariposa/id_rsa hadoop@node143.host
 
-scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node49.host:/home/hadoop/
-scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node132.host:/home/hadoop/
-scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node137.host:/home/hadoop/
-scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node143.host:/home/hadoop/
+scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node49.host:~
+scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node131.host:~
+scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node137.host:~
+scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node143.host:~
 
 
 
@@ -32,7 +32,7 @@ sudo apt install --yes mc
 
 cat << TOM | sudo tee -a /etc/hosts
 192.168.1.49   node49.host
-192.168.1.132  node132.host
+192.168.1.132  node131.host
 192.168.1.137  node137.host
 192.168.1.143  node143.host
 TOM
@@ -52,7 +52,7 @@ sudo chown hadoop:hadoop /entrypoint.sh
 cat << EOF | sudo tee --append /etc/profile.d/mariposa.sh
 export IS_MASTER=false
 export MASTER_HOST=node49.host
-export WORKER_HOSTS=node132.host,node137.host,node143.host
+export WORKER_HOSTS=node131.host,node137.host,node143.host
 export ZK_ID=N
 EOF
 
@@ -82,3 +82,4 @@ sudo reboot
 
 
 # TODO: [ERROR] Error: environment variable 'JAVA_HOME' is not set or empty
+[ERROR] datanodes say "."

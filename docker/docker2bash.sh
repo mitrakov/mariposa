@@ -57,7 +57,7 @@ function FROM() {
   if [[ "$1" == eclipse-temurin:17 ]]; then
     apt install --yes openjdk-17-jdk wget gpg curl
     mkdir --parents /opt/hue
-    ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+    ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
   else
     warn "FROM $* is ignored. Please install packages manually"
   fi
