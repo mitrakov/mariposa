@@ -70,9 +70,9 @@ listener "tcp" {
   tls_disable = "true"
 }
 EOF
-    # start HashiCorp Vault
+    # start HashiCorp Vault (as sudo to avoid error: "mlock syscall is not available" on real Ubuntu)
     log "Starting Vault..."
-    vault server --config=$VAULT_HOME/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
+    sudo $VAULT_HOME/vault server --config=$VAULT_HOME/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
     sleep 1
 
     # initialization Logic
@@ -208,7 +208,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     PG_DATA_DIR="/var/lib/postgresql/16/main"
 
     sudo chown -R postgres:postgres /var/lib/postgresql/16
-    if [ ! -s "$PG_DATA_DIR/PG_VERSION" ]; then
+    if sudo [ ! -f "$PG_DATA_DIR/PG_VERSION" ]; then                                # sudo needed for real Ubuntu
         log "First time run. Initializing PostgreSQL database..."
         sudo -u postgres /usr/lib/postgresql/16/bin/initdb -D "$PG_DATA_DIR"        # initdb must be run as the postgres user
     else
