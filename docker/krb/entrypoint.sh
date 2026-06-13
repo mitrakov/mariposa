@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# entrypoint.sh for image: mitrakov/hadoop-krb:1.0.0
+# entrypoint.sh for image: mitrakov/hadoop-krb:1.0.1
 set -euo pipefail
 
 # helpers
@@ -60,7 +60,7 @@ export VAULT_ADDR=http://$MASTER_HOST:8200
 # setup up HashiCorp Vault
 if [[ "$IS_MASTER" == "true" ]]; then
     # create main config
-    cat << EOF | sudo tee /etc/vault.d/vault.hcl
+    cat << EOF | sudo tee $VAULT_HOME/vault.hcl
 storage "file" {
   path = "$VAULT_HOME/data"
 }
@@ -72,11 +72,11 @@ listener "tcp" {
 EOF
     # start HashiCorp Vault
     log "Starting Vault..."
-    vault server --config=/etc/vault.d/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
+    vault server --config=$VAULT_HOME/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
     sleep 1
 
     # initialization Logic
-    if [ ! -f "$VAULT_HOME/initialized" ]; then
+    if [ ! -f "$VAULT_HOME/data/initialized" ]; then
         log "First time run. Initializing Vault..."
 
         # init
@@ -86,11 +86,11 @@ EOF
         export VAULT_TOKEN=$(echo "$INIT_INFO" | jq --raw-output '.root_token')
 
         # store the unseal.key
-        echo "$INIT_INFO" | jq --raw-output '.unseal_keys_b64[0]' > $VAULT_HOME/unseal.key
-        chmod 400 $VAULT_HOME/unseal.key
+        echo "$INIT_INFO" | jq --raw-output '.unseal_keys_b64[0]' > $VAULT_HOME/data/unseal.key
+        chmod 400 $VAULT_HOME/data/unseal.key
 
         # unseal the vault
-        vault operator unseal "$(cat $VAULT_HOME/unseal.key)"
+        vault operator unseal "$(cat $VAULT_HOME/data/unseal.key)"
         # enable approle auth method
         vault auth enable approle
         # enable kv engine
@@ -125,9 +125,9 @@ EOF
         # generate role-id/secret-id for this new role
         ROLE_ID=$(vault read -field=role_id auth/approle/role/hadoop/role-id)
         SECRET_ID=$(vault write -field=secret_id -force auth/approle/role/hadoop/secret-id)
-        echo $ROLE_ID    > $VAULT_HOME/hadoop.approle
-        echo $SECRET_ID >> $VAULT_HOME/hadoop.approle
-        chmod 400          $VAULT_HOME/hadoop.approle
+        echo $ROLE_ID    > $CERTS_DIR/hadoop.approle
+        echo $SECRET_ID >> $CERTS_DIR/hadoop.approle
+        chmod 400          $CERTS_DIR/hadoop.approle
 
         # put passwords
         log "Generating random passwords..."
@@ -146,22 +146,22 @@ EOF
         # create a role for nodes to sign their public keys
         vault write pki/roles/mariposa allowed_domains="host" allow_subdomains=true ttl=87599h
 
-        touch $VAULT_HOME/initialized
+        touch $VAULT_HOME/data/initialized
         info "Vault initialized"
     else
-        vault operator unseal "$(cat $VAULT_HOME/unseal.key)"
+        vault operator unseal "$(cat $VAULT_HOME/data/unseal.key)"
         info "OK: Vault unsealed"
     fi
 fi
 
 # getting vault token for this session
-while [ ! -f $VAULT_HOME/hadoop.approle ]; do sleep 1; log "."; done
+while [ ! -f $CERTS_DIR/hadoop.approle ]; do sleep 1; log "."; done
 until curl --silent --fail http://$MASTER_HOST:8200/v1/sys/health | grep --quiet '"sealed":false'; do
     log "Waiting for Vault to be unsealed..."
     sleep 1
 done
-ROLE_ID=$(sed -n '1p' "$VAULT_HOME/hadoop.approle")
-SECRET_ID=$(sed -n '2p' "$VAULT_HOME/hadoop.approle")
+ROLE_ID=$(sed -n '1p' "$CERTS_DIR/hadoop.approle")
+SECRET_ID=$(sed -n '2p' "$CERTS_DIR/hadoop.approle")
 export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
 check_env "VAULT_TOKEN"
 
