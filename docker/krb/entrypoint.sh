@@ -73,7 +73,7 @@ EOF
     # start HashiCorp Vault (as sudo to avoid error: "mlock syscall is not available" on real Ubuntu)
     log "Starting Vault..."
     sudo $VAULT_HOME/vault server --config=$VAULT_HOME/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
-    sleep 1
+    until nc -zv $MASTER_HOST 8200; do sleep 1; done
 
     # initialization Logic
     if [ ! -f "$VAULT_HOME/data/initialized" ]; then
@@ -186,12 +186,14 @@ if [ ! -f "$MY_KEYSTORE" ]; then
 
     # Send CSR to Vault and get a signed certificate back
     vault write -format=json pki/sign/mariposa \
-        common_name="$MY_HOSTNAME" csr=@"$CERTS_DIR/$MY_HOSTNAME.csr" | jq --raw-output .data.certificate > "$CERTS_DIR/$MY_HOSTNAME.crt"
+        common_name="$MY_HOSTNAME" csr=@"$CERTS_DIR/$MY_HOSTNAME.csr" ttl="3648d" | jq --raw-output .data.certificate > "$CERTS_DIR/$MY_HOSTNAME.crt"
 
     # Import the Root CA and the signed cert into the Keystore
     sleep $ZK_ID    # must-have to avoid race-conditions!
     keytool -importcert -alias rootca -file $CERTS_DIR/root_ca.crt \
         -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD" -noprompt
+    keytool -importcert -alias rootca -trustcacerts -file "$CERTS_DIR/root_ca.crt" \
+        -keystore "$TRUSTSTORE" -storepass "$JKS_PASSWORD" -noprompt
     keytool -importcert -alias "$MY_HOSTNAME" -file "$CERTS_DIR/$MY_HOSTNAME.crt" \
         -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD"
 
@@ -849,12 +851,12 @@ fi
 
 if [[ "$IS_MASTER" == "true" ]]; then
     # initialize Kerberos KDC Database
-    if [ ! -f "/var/lib/krb5kdc/principal" ]; then
+    if sudo [ ! -f "/var/lib/krb5kdc/principal" ]; then         # sudo needed for real Ubuntu
         log "First time run. Initializing Kerberos KDC..."
         KRB5_PASSWORD=$(vault kv get -field=password secret/hadoop/kerberos)
         check_env "KRB5_PASSWORD"
         sudo kdb5_util create -s -P "$KRB5_PASSWORD"
-        
+
         # create Principals and their proper keytabs
         # -randkey means we don't want a human password; we'll use keytabs
         sudo kadmin.local -q "addprinc -randkey hadoop/$MASTER_HOST@MARIPOSA.COM"

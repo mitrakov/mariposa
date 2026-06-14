@@ -57,6 +57,16 @@ export ZK_ID=N
 EOF
 
 
+# from Master node:
+scp $VAULT_HOME/certs/hadoop.approle node131.host:$VAULT_HOME/certs/
+scp $VAULT_HOME/certs/hadoop.approle node137.host:$VAULT_HOME/certs/
+scp $VAULT_HOME/certs/hadoop.approle node143.host:$VAULT_HOME/certs/
+scp $KEYTABS_DIR/node131.host.keytab node131.host:$KEYTABS_DIR/
+scp $KEYTABS_DIR/node137.host.keytab node137.host:$KEYTABS_DIR/
+scp $KEYTABS_DIR/node143.host.keytab node143.host:$KEYTABS_DIR/
+
+
+# TODO: autostart
 cat << EOF | sudo tee -a /etc/systemd/system/mariposa.service
 [Unit]
 Description=Mariposa Hadoop/Spark Services
@@ -74,12 +84,10 @@ WantedBy=multi-user.target
 EOF
 
 
-sudo systemctl daemon-reload && sudo systemctl enable mariposa.service
-# see logs: journalctl -u mariposa.service
-
+sudo systemctl daemon-reload && sudo systemctl enable mariposa.service    # logs: journalctl -u mariposa.service
 sudo reboot
-
-
-
 # TODO: [ERROR] Error: environment variable 'JAVA_HOME' is not set or empty
-[ERROR] datanodes say "."
+
+
+# NEXT: FileNotFoundException: /opt/vault/certs/root_ca.crt (No such file or directory)
+# NEXT: truststore for all?
