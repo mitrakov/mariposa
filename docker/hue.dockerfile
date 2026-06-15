@@ -1,4 +1,5 @@
 # docker build --file hue.dockerfile --tag mitrakov/hadoop-hue:1.0.0 .
+# docker build --file hue.dockerfile --tag mitrakov/hadoop-hue:1.0.0 --platform linux/amd64 .
 FROM ubuntu:26.04 AS builder
 
 # install tools
@@ -11,8 +12,9 @@ RUN wget --output-document=- http://mitrakoff.com/cache/hue-4.11.0.tgz | \
     tar --extract --gzip --directory /opt && mv /opt/hue-4.11.0 $HUE_HOME
 WORKDIR $HUE_HOME
 
-# download Node.js 18 (note it is for arm64!)
-RUN curl -fsSL https://nodejs.org/dist/v18.19.0/node-v18.19.0-linux-arm64.tar.xz | tar -xJ --strip-components=1 -C /usr/local
+# download Node.js 18 (choose arm64/x64)
+RUN curl -fsSL https://nodejs.org/dist/v18.19.0/node-v18.19.0-linux-x64.tar.xz   | tar -xJ --strip-components=1 -C /usr/local
+#RUN curl -fsSL https://nodejs.org/dist/v18.19.0/node-v18.19.0-linux-arm64.tar.xz | tar -xJ --strip-components=1 -C /usr/local
 
 # create virtual env
 RUN mkdir -p build/env && python3.9 -m venv build/env

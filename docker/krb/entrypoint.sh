@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # entrypoint.sh for image: mitrakov/hadoop-krb:1.0.1
+# 1.0.0 (2026-06-05): mvp
+# 1.0.1 (2026-06-15): adapt script for real Ubuntu
 set -euo pipefail
 
 # helpers
@@ -753,6 +755,7 @@ EOF
 
 
 # setup Hue
+# set ccache_path to $HUE_HOME, because on real Ubuntu /var/run/hue/ is getting cleared after reboot
 if [[ "$IS_MASTER" == "true" ]]; then
     HUE_PASSWORD=$(vault kv get -field=secret_key secret/hadoop/hue)
     check_env "HUE_PASSWORD"
@@ -773,6 +776,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
   [[kerberos]]
     hue_keytab=$KEYTABS_DIR/$MASTER_HOST.keytab
     hue_principal=hue/$MASTER_HOST@MARIPOSA.COM
+    ccache_path=$HUE_HOME/hue_krb5_ccache
 
 [hadoop]
   [[hdfs_clusters]]
@@ -958,11 +962,9 @@ if [[ "$IS_MASTER" == "true" ]]; then
 
         echo "{\"admin\":\"$AIRFLOW_PASSWORD\", \"tommy\":\"tommy\"}" > "$AIRFLOW_HOME/simple_auth_manager_passwords.json.generated"
 
-        airflowMetadata="/opt/airflow/metadata"
-        if [ ! -f "$airflowMetadata/.init_done" ]; then
+        if [ ! -f "$AIRFLOW_HOME/airflow.cfg" ]; then
             log "First time run. Initializing Airflow database..."
             airflow db migrate
-            touch "$airflowMetadata/.init_done"
             info "Airflow database initialized"
         else
             info "OK: Airflow database already initialized"
@@ -1046,4 +1048,6 @@ kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 # infinite loop
 kinit -kt $KEYTABS_DIR/$(hostname).keytab hadoop/$(hostname)@MARIPOSA.COM && klist
 log "Done!"
-tail -f /dev/null
+if [[ -f /.dockerenv ]]; then
+  tail -f /dev/null
+fi

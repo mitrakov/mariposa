@@ -15,7 +15,6 @@ services:
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
       - ~/hadoop/zk1_data:/opt/zookeeper/data
       - ~/hadoop/kafka1_data:/opt/kafka/data
-      - ~/hadoop/airflow:/opt/airflow/metadata
       - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
       - ~/hadoop/vault_data:/opt/vault/data
       - ~/hadoop/workspace:/home/hadoop/workspace
