@@ -1,3 +1,5 @@
+# Cluster Setup
+
 ssh-keygen -t rsa -C "mariposa"
 
 ssh-copy-id -i ~/.ssh/mariposa/id_rsa.pub hadoop@192.168.1.49
@@ -12,19 +14,19 @@ cat << TOM | sudo tee -a /etc/hosts
 192.168.1.143  node143.host
 TOM
 
-ssh -i ~/.ssh/mariposa/id_rsa hadoop@node49.host
-ssh -i ~/.ssh/mariposa/id_rsa hadoop@node131.host
-ssh -i ~/.ssh/mariposa/id_rsa hadoop@node137.host
-ssh -i ~/.ssh/mariposa/id_rsa hadoop@node143.host
-
 scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node49.host:~
 scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node131.host:~
 scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node137.host:~
 scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node143.host:~
 
+ssh -i ~/.ssh/mariposa/id_rsa hadoop@node49.host
+ssh -i ~/.ssh/mariposa/id_rsa hadoop@node131.host
+ssh -i ~/.ssh/mariposa/id_rsa hadoop@node137.host
+ssh -i ~/.ssh/mariposa/id_rsa hadoop@node143.host
 
 
-===============
+
+# Every node setup
 
 hostnamectl set-hostname nodeXXX.host        # replace XXX
 sudo apt install --yes mc
@@ -38,9 +40,8 @@ cat << TOM | sudo tee -a /etc/hosts
 TOM
 
 
-sudo mkdir --parents /var/lib/vault        && sudo chown -R hadoop:hadoop /var/lib/vault && \
 sudo mkdir --parents /etc/security/keytabs && sudo chown -R hadoop:hadoop /etc/security/keytabs && \
-sudo mkdir --parents /etc/vault/certs      && sudo chown -R hadoop:hadoop /etc/vault/certs
+sudo mkdir --parents /opt/vault/certs      && sudo chown -R hadoop:hadoop /opt/vault/certs
 
 
 sudo ./docker2bash.sh hadoop.dockerfile
@@ -58,9 +59,9 @@ EOF
 
 
 # from Master node:
-scp $VAULT_HOME/certs/hadoop.approle node131.host:$VAULT_HOME/certs/
-scp $VAULT_HOME/certs/hadoop.approle node137.host:$VAULT_HOME/certs/
-scp $VAULT_HOME/certs/hadoop.approle node143.host:$VAULT_HOME/certs/
+scp $CERTS_DIR/hadoop.approle node131.host:$CERTS_DIR/
+scp $CERTS_DIR/hadoop.approle node137.host:$CERTS_DIR/
+scp $CERTS_DIR/hadoop.approle node143.host:$CERTS_DIR/
 scp $KEYTABS_DIR/node131.host.keytab node131.host:$KEYTABS_DIR/
 scp $KEYTABS_DIR/node137.host.keytab node137.host:$KEYTABS_DIR/
 scp $KEYTABS_DIR/node143.host.keytab node143.host:$KEYTABS_DIR/
@@ -87,7 +88,3 @@ EOF
 sudo systemctl daemon-reload && sudo systemctl enable mariposa.service    # logs: journalctl -u mariposa.service
 sudo reboot
 # TODO: [ERROR] Error: environment variable 'JAVA_HOME' is not set or empty
-
-
-# NEXT: FileNotFoundException: /opt/vault/certs/root_ca.crt (No such file or directory)
-# NEXT: truststore for all?
