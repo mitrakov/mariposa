@@ -22,9 +22,10 @@ ENV PATH=$PATH:$VAULT_HOME
 # jq       jq
 RUN apt install --yes krb5-kdc krb5-admin-server libsasl2-modules-gssapi-mit netcat-openbsd jq
 
-# extra ENV variables for Kerberos
+# extra ENV variables and folders for Kerberos
 ENV KEYTABS_DIR=/etc/security/keytabs
 ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
+RUN mkdir $KEYTABS_DIR && chown hadoop:hadoop $KEYTABS_DIR
 
 # add extra user
 RUN useradd --create-home --shell /bin/bash tommy

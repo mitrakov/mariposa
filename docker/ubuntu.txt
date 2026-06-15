@@ -29,7 +29,6 @@ ssh -i ~/.ssh/mariposa/id_rsa hadoop@node143.host
 # Every node setup
 
 hostnamectl set-hostname nodeXXX.host        # replace XXX
-sudo apt install --yes mc
 
 
 cat << TOM | sudo tee -a /etc/hosts
@@ -38,10 +37,6 @@ cat << TOM | sudo tee -a /etc/hosts
 192.168.1.137  node137.host
 192.168.1.143  node143.host
 TOM
-
-
-sudo mkdir --parents /etc/security/keytabs && sudo chown -R hadoop:hadoop /etc/security/keytabs && \
-sudo mkdir --parents /opt/vault/certs      && sudo chown -R hadoop:hadoop /opt/vault/certs
 
 
 sudo ./docker2bash.sh hadoop.dockerfile

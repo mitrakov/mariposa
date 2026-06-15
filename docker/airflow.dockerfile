@@ -1,4 +1,5 @@
-# docker build --file airflow.dockerfile --tag mitrakov/hadoop-airflow:1.0.0 . && say hola
+# docker build --file airflow.dockerfile --tag mitrakov/hadoop-airflow:1.0.0 .
+# docker build --file airflow.dockerfile --tag mitrakov/hadoop-airflow:1.0.0 --platform linux/amd64 .
 FROM python:3.12-slim-bookworm AS builder
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 ENV AIRFLOW_HOME=/opt/airflow
