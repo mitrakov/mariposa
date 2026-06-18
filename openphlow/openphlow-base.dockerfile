@@ -44,7 +44,7 @@ RUN wget --output-document=- http://mitrakoff.com/cache/hbase-2.4.12-bin.tar.gz 
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
 # fix SLF4J multiple bindings error
-# RUN rm $HBASE_HOME/lib/client-facing-thirdparty/slf4j-api-*.jar
+# RUN rm $HBASE_HOME/lib/client-facing-thirdparty/slf4j-reload4j-*.jar
 
 
 # download Apache Kafka 4.2.0 (non-Zookeeper version)
@@ -111,8 +111,10 @@ RUN mkdir $KEYTABS_DIR && chown hadoop:hadoop $KEYTABS_DIR
 
 
 # TODO: move up
+COPY hbase-patch-2.4.12.jar $HBASE_HOME/lib/
 ENV HUE_HOME=/opt/hue
 RUN mkdir $HUE_HOME && chown hadoop:hadoop $HUE_HOME
+RUN rm $HBASE_HOME/lib/client-facing-thirdparty/slf4j-reload4j-*.jar
 
 # extra shit for old Hive
 RUN useradd --create-home --shell /bin/bash hive

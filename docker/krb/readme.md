@@ -58,6 +58,7 @@ kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic the-topic 
 - run:
 
 ```sh
+PATCH_DIR=/home/hadoop/hbase-2.5.13/hbase-server/src/main/java
 javac -cp "$(hbase classpath)" $PATCH_DIR/org/apache/hadoop/hbase/io/FSDataInputStreamWrapper.java
 jar cvf mariposa-hbase-patch-2.5.13.jar -C $PATCH_DIR .
 ```
