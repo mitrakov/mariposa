@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# entrypoint.sh for image: mitrakov/hadoop-krb:1.0.1
-# 1.0.0 (2026-06-05): mvp
-# 1.0.1 (2026-06-15): adapt script for real Ubuntu
+# entrypoint.sh for image: mitrakov/hadoop-krb:1.0.2
 set -euo pipefail
 
 # helpers
