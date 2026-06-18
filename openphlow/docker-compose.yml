@@ -1,0 +1,66 @@
+services:
+  master:
+    image: mitrakov/openphlow:1.0.0
+    hostname: master.host
+    environment:
+      - IS_MASTER=true
+      - MASTER_HOST=master.host
+      - WORKER_HOSTS=ganza1.host,ganza2.host
+      - ZK_ID=1
+      - SKIP_HUE=true
+    volumes:
+      - ~/hadoop/kdc_conf:/etc/krb5kdc
+      - ~/hadoop/kdc_data:/var/lib/krb5kdc
+      - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
+      - ~/hadoop/zk1_data:/opt/zookeeper/data
+      - ~/hadoop/kafka1_data:/opt/kafka/data
+      - ~/hadoop/postgres_data:/var/lib/postgresql/16/main
+      - ~/hadoop/vault_data:/opt/vault/data
+      - ~/hadoop/workspace:/home/hadoop/workspace
+        # shared across all nodes
+      - ~/hadoop/certs:/opt/vault/certs
+      - ~/hadoop/keytabs:/etc/security/keytabs
+    ports:
+      - "9870:9870"   # HDFS UI http
+      - "9871:9871"   # HDFS UI https
+      - "8088:8088"   # YARN UI
+      - "8888:8888"   # HUE
+      - "10002:10002" # HiveServer2
+      - "18080:18080" # Spark
+      - "16010:16010" # HBase
+
+  ganza1:
+    image: mitrakov/openphlow:1.0.0
+    hostname: ganza1.host
+    environment:
+      - IS_MASTER=false
+      - MASTER_HOST=master.host
+      - WORKER_HOSTS=ganza1.host,ganza2.host
+      - ZK_ID=2
+    volumes:
+      - ~/hadoop/hdfs2_data:/opt/hadoop/dfs/data
+      - ~/hadoop/zk2_data:/opt/zookeeper/data
+      - ~/hadoop/kafka2_data:/opt/kafka/data
+        # shared across all nodes
+      - ~/hadoop/certs:/opt/vault/certs
+      - ~/hadoop/keytabs:/etc/security/keytabs
+    ports:
+      - "8042:8042"   # NodeManager
+
+  ganza2:
+    image: mitrakov/openphlow:1.0.0
+    hostname: ganza2.host
+    environment:
+      - IS_MASTER=false
+      - MASTER_HOST=master.host
+      - WORKER_HOSTS=ganza1.host,ganza2.host
+      - ZK_ID=3
+    volumes:
+      - ~/hadoop/hdfs3_data:/opt/hadoop/dfs/data
+      - ~/hadoop/zk3_data:/opt/zookeeper/data
+      - ~/hadoop/kafka3_data:/opt/kafka/data
+        # shared across all nodes
+      - ~/hadoop/certs:/opt/vault/certs
+      - ~/hadoop/keytabs:/etc/security/keytabs
+    ports:
+      - "8043:8042"   # NodeManager

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail  # exit on any error, undefined variable, or pipe failure
+# entrypoint.sh for image: mitrakov/openblow:1.0.0
+set -euo pipefail
 
 # helpers
 RED='\033[0;31m'
@@ -7,23 +8,12 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;36m'
 PURPLE='\033[0;35m'
-NC='\033[0m' # no colour
-function log() {
-    message="[$(date +'%Y-%m-%d %H:%M:%S')] [LOG]   $1"
-    echo -e "${GREEN}${message}${NC}"
-}
-function info() {
-    message="[$(date +'%Y-%m-%d %H:%M:%S')] [INFO]  $1"
-    echo -e "${BLUE}${message}${NC}"
-}
-function warn() {
-    message="[$(date +'%Y-%m-%d %H:%M:%S')] [WARN]  $1"
-    echo -e "${YELLOW}${message}${NC}"
-}
-function error() {
-    message="[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $1"
-    echo -e "${RED}${message}${NC}"
-}
+NC='\033[0m'
+function debug() { echo -e "${PURPLE}$(date +'%Y-%m-%d %H:%M:%S') [DEBUG] $1${NC}"; }
+function log()   { echo -e "${GREEN}$(date +'%Y-%m-%d %H:%M:%S') [LOG]   $1${NC}"; }
+function info()  { echo -e "${BLUE}$(date +'%Y-%m-%d %H:%M:%S') [INFO]  $1${NC}"; }
+function warn()  { echo -e "${YELLOW}$(date +'%Y-%m-%d %H:%M:%S') [WARN]  $1${NC}"; }
+function error() { echo -e "${RED}$(date +'%Y-%m-%d %H:%M:%S') [ERROR] $1${NC}"; }
 function check_env() {
     if [[ -z "${!1:-}" ]]; then
         error "Error: environment variable '$1' is not set or empty"
@@ -37,60 +27,10 @@ function check_env() {
         fi
     fi
 }
-function check_os() {
-    local result=""
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        result="MacOS $(sw_vers -productVersion) (Build: $(sw_vers -buildVersion))"
-    elif [[ -f /etc/os-release ]]; then
-        # linux distributions with /etc/os-release
-        source /etc/os-release
-        result="$ID $VERSION_ID ($PRETTY_NAME)"
-    elif [[ -f /etc/redhat-release ]]; then
-        # fallback for older RHEL systems without /etc/os-release
-        result=$(cat /etc/redhat-release)
-    else
-        error "Unable to detect operating system"
-        exit 1
-    fi
-
-    info "OS: $result"
-}
-function check_primary_ip() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS - use route and ifconfig
-        primary_interface=$(route get default | grep interface | awk '{print $2}')
-        ipv4_addr=$(ifconfig "$primary_interface" | grep 'inet ' | awk '{print $2}')
-    else
-        # Linux - use ip command
-        primary_interface=$(ip route | grep default | awk '{print $5}' | head -1)
-        ipv4_addr=$(ip -4 addr show "$primary_interface" | grep inet | awk '{print $2}' | cut -d'/' -f1 | head -1)
-    fi
-    
-    info "Default IPv4 address: $ipv4_addr"
-}
-function check_hostname() {
-    info "Hostname: $(hostname)"
-}
-function check_java() {
-    if command -v java &> /dev/null; then
-        java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-    
-        if [[ -n "$java_version" ]]; then
-            info "Java version: $java_version"
-        else
-            warn "Cannot detect Java version"
-        fi
-    else
-        warn "'java' command not found"
-    fi
-}
 
 
 
-# =====
-
-
-
+# checks
 check_env "JAVA_HOME"
 check_env "SPARK_HOME"
 check_env "HADOOP_HOME"
@@ -104,10 +44,6 @@ check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "ZK_ID"
 
-check_os
-check_hostname
-check_primary_ip
-check_java
 
 # start SSH daemon
 log "Starting SSH..."
