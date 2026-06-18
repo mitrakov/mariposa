@@ -77,7 +77,7 @@ beeline -u jdbc:hive2://localhost:10000 -n hadoop
 beeline -u "jdbc:hive2://node49.host:10000/default;principal=hive/node49.host@MARIPOSA.COM;auth=kerberos"
 ```
 ```sql
-create table your_table(id string);
+CREATE TABLE your_table (id string);
 INSERT INTO your_table VALUES ('444');
 SELECT * FROM your_table;
 ```

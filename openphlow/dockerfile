@@ -1,0 +1,8 @@
+# docker build --tag mitrakov/openphlow:1.0.0 .
+FROM mitrakov/openphlow-base:1.0.0
+LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
+
+USER hadoop
+
+COPY openphlow.sh /openphlow.sh
+ENTRYPOINT ["/bin/bash", "/openphlow.sh"]
