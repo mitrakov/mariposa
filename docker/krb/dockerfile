@@ -1,6 +1,7 @@
-# docker build --tag mitrakov/hadoop-krb:1.0.1 .
+# docker build --tag mitrakov/hadoop-krb:1.0.2 .
 # 1.0.0 (2026-06-05): mvp
 # 1.0.1 (2026-06-13): install vault w/o VPN
+# 1.0.2 (2026-06-15): run on real Ubuntu
 
 FROM mitrakov/hadoop:1.0.0
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
