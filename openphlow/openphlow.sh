@@ -129,7 +129,7 @@ EOF
         log "Generating random passwords..."
         vault kv put secret/hadoop/postgres hive="$(openssl rand -base64 24)" hue="$(openssl rand -base64 24)"
         vault kv put secret/hadoop/kerberos password="$(openssl rand -base64 24)"
-        vault kv put secret/hadoop/kafka cluster_id="4L99ydgNTwKC-gA5TSbJOQ"
+        vault kv put secret/hadoop/kafka cluster_id="4L99ydgNTwKC1gA5TSbJOQ"
         vault kv put secret/hadoop/jks storepass="$(openssl rand -base64 24)"
         vault kv put secret/hadoop/hue secret_key="$(openssl rand -base64 24)"
 
@@ -458,6 +458,7 @@ spark.yarn.jars                                  hdfs:///spark/libs/*.jar
 spark.hadoop.hive.metastore.uris                 thrift://$MASTER_HOST:9083
 spark.hadoop.hive.metastore.sasl.enabled         true
 spark.hadoop.hive.metastore.kerberos.principal   hive/$MASTER_HOST@DEV.DF.SBRF.RU
+spark.sql.hive.metastore.version                 3.1.2
 spark.sql.hive.metastore.jars                    $HIVE_HOME/lib/*
 spark.kerberos.principal                         hadoop/$MY_HOSTNAME@DEV.DF.SBRF.RU
 spark.kerberos.keytab                            $KEYTABS_DIR/$MY_HOSTNAME.keytab
