@@ -44,7 +44,9 @@ RUN wget --output-document=- http://mitrakoff.com/cache/hbase-2.4.12-bin.tar.gz 
 # set JAVA_HOME (must-have)
 RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
 # fix SLF4J multiple bindings error
-# RUN rm $HBASE_HOME/lib/client-facing-thirdparty/slf4j-reload4j-*.jar
+RUN rm $HBASE_HOME/lib/client-facing-thirdparty/slf4j-reload4j-*.jar
+# patch HBase
+COPY hbase-patch-2.4.12.jar $HBASE_HOME/lib/
 
 
 # download Apache Kafka 4.2.0 (non-Zookeeper version)
@@ -53,10 +55,10 @@ RUN wget --output-document=- http://mitrakoff.com/cache/kafka_2.12-3.2.0.tgz | \
     tar --extract --gzip --directory /opt && mv /opt/kafka_2.12-3.2.0 $KAFKA_HOME
 
 
-# download Apache Tez 0.9.1 (for Hive)
+# download Apache Tez 0.10.5 (for Hive), our version is 0.9.1, doesn't work, try in the middle
 ENV TEZ_HOME=/opt/tez
-RUN wget --output-document=- http://mitrakoff.com/cache/apache-tez-0.9.1-bin.tar.gz | \
-    tar --extract --gzip --directory /opt && mv /opt/apache-tez-0.9.1-bin $TEZ_HOME
+RUN wget --output-document=- http://mitrakoff.com/cache/apache-tez-0.10.5-bin.tar.gz | \
+    tar --extract --gzip --directory /opt && mv /opt/apache-tez-0.10.5-bin $TEZ_HOME
 
 
 # update PATH (all but tez)
@@ -75,6 +77,11 @@ RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg ma
 # libsasl2    HUE
 # mc          optional
 RUN apt update && apt install --yes sudo openssh-server postgresql-16 libsasl2-modules mc && apt clean
+
+
+# copy-paste HUE
+ENV HUE_HOME=/opt/hue
+RUN mkdir $HUE_HOME
 
 
 # create user 'hadoop' and add it to sudoers
@@ -100,22 +107,15 @@ ENV PATH=$PATH:$VAULT_HOME
 
 # Add Kerberos
 RUN apt install --yes krb5-kdc krb5-admin-server libsasl2-modules-gssapi-mit netcat-openbsd jq
-
 # extra ENV variables and folders for Kerberos
 ENV KEYTABS_DIR=/etc/security/keytabs
 ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
 RUN mkdir $KEYTABS_DIR && chown hadoop:hadoop $KEYTABS_DIR
 
 
-# in your image, add "USER hadoop"
-
-
-# TODO: move up
-COPY hbase-patch-2.4.12.jar $HBASE_HOME/lib/
-ENV HUE_HOME=/opt/hue
-RUN mkdir $HUE_HOME && chown hadoop:hadoop $HUE_HOME
-RUN rm $HBASE_HOME/lib/client-facing-thirdparty/slf4j-reload4j-*.jar
-
 # extra shit for old Hive
 RUN useradd --create-home --shell /bin/bash hive
 RUN usermod -a -G hadoop hive
+
+
+# in your image, add "USER hadoop"
