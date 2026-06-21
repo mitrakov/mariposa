@@ -188,12 +188,12 @@ if [ ! -f "$MY_KEYSTORE" ]; then
     vault write -format=json pki/sign/mariposa \
         common_name="$MY_HOSTNAME" csr=@"$CERTS_DIR/$MY_HOSTNAME.csr" ttl="3648d" | jq --raw-output .data.certificate > "$CERTS_DIR/$MY_HOSTNAME.crt"
 
-    # Import the Root CA and the signed cert into the Keystore
+    # Import the Root CA and the signed cert into the Keystore ("|| true" needed only for docker as all nodes share the same volume)
     sleep $ZK_ID    # must-have to avoid race-conditions!
     keytool -importcert -alias rootca -file $CERTS_DIR/root_ca.crt \
-        -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD" -noprompt
+        -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD" -noprompt || true
     keytool -importcert -alias rootca -trustcacerts -file "$CERTS_DIR/root_ca.crt" \
-        -keystore "$TRUSTSTORE" -storepass "$JKS_PASSWORD" -noprompt
+        -keystore "$TRUSTSTORE" -storepass "$JKS_PASSWORD" -noprompt || true
     keytool -importcert -alias "$MY_HOSTNAME" -file "$CERTS_DIR/$MY_HOSTNAME.crt" \
         -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD"
 
