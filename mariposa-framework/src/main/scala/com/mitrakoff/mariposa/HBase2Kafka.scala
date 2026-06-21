@@ -10,12 +10,14 @@ case class HBase2Kafka private (
     private val hbaseCatalog: String = "{}",
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
+    private val truststorePassword: String = "",
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
 
   def withHBaseJsonCatalog(catalog: String): HBase2Kafka = copy(hbaseCatalog = catalog)
   def withKafkaTopic(topic: String): HBase2Kafka = copy(kafkaTopic = topic)
   def withKafkaBootstrapServers(servers: String): HBase2Kafka = copy(kafkaBootstrapServers = servers)
+  def withTruststorePass(password: String): HBase2Kafka = copy(truststorePassword = password)
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa-HBase2Kafka ===")
@@ -47,7 +49,7 @@ case class HBase2Kafka private (
       "topic"                    -> kafkaTopic,
       "kafka.security.protocol"  -> "SASL_SSL",
       "kafka.sasl.kerberos.service.name" -> "kafka",
-      "kafka.ssl.truststore.location" -> "/opt/hadoop/etc/hadoop/certs/truststore.jks",
+      "kafka.ssl.truststore.location" -> "/opt/vault/certs/truststore.jks",
       "kafka.ssl.truststore.password" -> "marip0sa_jKs",
     )
 
@@ -76,11 +78,13 @@ object HBase2Kafka {
     val hbaseCatalog   = sys.props.getOrElse("app.hbase.json.catalog", throwErr)
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
     val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")
+    val truststorePass = sys.props.getOrElse("app.security.truststore.password", "")
 
     builder()
       .withHBaseJsonCatalog(Mariposa.readFileLocal(hbaseCatalog))
       .withKafkaTopic(kafkaTopic)
       .withKafkaBootstrapServers(kafkaBootstrap)
+      .withTruststorePass(truststorePass)
       .build()
       .run()
   }

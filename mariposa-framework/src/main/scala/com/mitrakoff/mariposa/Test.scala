@@ -49,7 +49,7 @@ class Test extends ScalaDsl with EN {
     "group.id" -> "mariposa-test-group", // fix InvalidGroupIdException: To use the group management or offset commit APIs...
     "security.protocol" -> "SASL_SSL",
     "sasl.kerberos.service.name" -> "kafka",
-    "ssl.truststore.location" -> "/opt/hadoop/etc/hadoop/certs/truststore.jks",
+    "ssl.truststore.location" -> "/opt/vault/certs/truststore.jks",
     "ssl.truststore.password" -> "marip0sa_jKs",
   ).asJava)
 

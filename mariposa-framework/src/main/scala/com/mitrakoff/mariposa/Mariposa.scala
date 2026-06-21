@@ -32,6 +32,7 @@ object Mariposa extends App {
     if (sys.props exists (_._1.startsWith("app.")))
       logger.info("App properties are:")
     sys.props collect { case (k, v) if k.startsWith("app.") =>
+      // TODO: skip passwords
       logger.info("{}: {}", k, v)
     }
   }
@@ -71,6 +72,7 @@ object Mariposa extends App {
 
       val infinite = options.get("infinite").flatMap(_.toBooleanOption).getOrElse(false)
       val interval = options.getOrElse("pollInterval", "5 seconds")
+      val truststorePass = options.getOrElse("truststorePassword", "")
 
       cmd.target.getType match {
         case MariposaSQLParser.HBASE_TABLE =>
@@ -92,6 +94,7 @@ object Mariposa extends App {
             .withKafkaBootstrapServers(servers)
             .withRunInfinitely(infinite)
             .withPollInterval(interval)
+            .withTruststorePass(truststorePass)
             .build()
             .run()
       }

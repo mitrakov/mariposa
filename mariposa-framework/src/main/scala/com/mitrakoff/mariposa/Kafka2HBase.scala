@@ -14,6 +14,7 @@ case class Kafka2HBase private (
     private val kafkaBootstrapServers: String = "localhost:9092",
     private val pollInterval: String = "5 seconds",
     private val infinite: Boolean = false,
+    private val truststorePassword: String = "",
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -22,6 +23,7 @@ case class Kafka2HBase private (
   def withKafkaBootstrapServers(servers: String): Kafka2HBase = copy(kafkaBootstrapServers = servers)
   def withPollInterval(interval: String): Kafka2HBase = copy(pollInterval = interval)
   def withRunInfinitely(infinite: Boolean): Kafka2HBase = copy(infinite = infinite)
+  def withTruststorePass(password: String): Kafka2HBase = copy(truststorePassword = password)
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa-Kafka2HBase ===")
@@ -49,7 +51,7 @@ case class Kafka2HBase private (
       "failOnDataLoss"           -> "false", // fix: "Some data may have been lost because they are not available in Kafka any more"
       "kafka.security.protocol"  -> "SASL_SSL",
       "kafka.sasl.kerberos.service.name" -> "kafka",
-      "kafka.ssl.truststore.location" -> "/opt/hadoop/etc/hadoop/certs/truststore.jks",
+      "kafka.ssl.truststore.location" -> "/opt/vault/certs/truststore.jks",
       "kafka.ssl.truststore.password" -> "marip0sa_jKs",
     )
 
@@ -87,7 +89,8 @@ case class Kafka2HBase private (
   private def printParameters(): Unit = {
     logger.info("Builder parameters are:")
     (productElementNames zip productIterator).toList sortBy (_._1) foreach { case (k, v) =>
-      logger.info("{}: {}", k, v)
+      val key = if (k.toLowerCase.contains("password") || k.toLowerCase.contains("secret")) "*"*k.length else k
+      logger.info("{}: {}", key, v)
     }
   }
 }
@@ -104,6 +107,7 @@ object Kafka2HBase {
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
     val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")
     val pollInterval   = sys.props.getOrElse("app.kafka.poll.interval", "5 seconds")
+    val truststorePass = sys.props.getOrElse("app.security.truststore.password", "")
     val kafkaInfinite  = sys.props.get("app.kafka.run.infinitely").flatMap(_.toBooleanOption).getOrElse(false)
 
     builder()
@@ -112,6 +116,7 @@ object Kafka2HBase {
       .withKafkaBootstrapServers(kafkaBootstrap)
       .withPollInterval(pollInterval)
       .withRunInfinitely(kafkaInfinite)
+      .withTruststorePass(truststorePass)
       .build()
       .run()
   }

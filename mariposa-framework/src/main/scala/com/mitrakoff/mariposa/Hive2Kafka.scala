@@ -10,12 +10,14 @@ case class Hive2Kafka  private (
     private val hiveTable: String = "myTable",
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
+    private val truststorePassword: String = "",
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
 
   def withHiveTable(table: String): Hive2Kafka = copy(hiveTable = table)
   def withKafkaTopic(topic: String): Hive2Kafka  = copy(kafkaTopic = topic)
   def withKafkaBootstrapServers(servers: String): Hive2Kafka  = copy(kafkaBootstrapServers = servers)
+  def withTruststorePass(password: String): Hive2Kafka  = copy(truststorePassword = password)
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa-Hive2Kafka ===")
@@ -39,7 +41,7 @@ case class Hive2Kafka  private (
       "topic"                    -> kafkaTopic,
       "kafka.security.protocol"  -> "SASL_SSL",
       "kafka.sasl.kerberos.service.name" -> "kafka",
-      "kafka.ssl.truststore.location" -> "/opt/hadoop/etc/hadoop/certs/truststore.jks",
+      "kafka.ssl.truststore.location" -> "/opt/vault/certs/truststore.jks",
       "kafka.ssl.truststore.password" -> "marip0sa_jKs",
     )
 
@@ -68,11 +70,13 @@ object Hive2Kafka {
     val hiveTable      = sys.props.getOrElse("app.hive.table", throwErr)
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
     val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")
+    val truststorePass = sys.props.getOrElse("app.security.truststore.password", "")
 
     builder()
       .withHiveTable(hiveTable)
       .withKafkaTopic(kafkaTopic)
       .withKafkaBootstrapServers(kafkaBootstrap)
+      .withTruststorePass(truststorePass)
       .build()
       .run()
   }
