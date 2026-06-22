@@ -159,6 +159,7 @@ ROLE_ID=$(sed -n '1p' "$CERTS_DIR/hadoop.approle")
 SECRET_ID=$(sed -n '2p' "$CERTS_DIR/hadoop.approle")
 export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
 check_env "VAULT_TOKEN"
+sleep 1
 
 
 
@@ -439,14 +440,22 @@ EOF
 # spark.*.extraClassPath                         HBASE support
 export HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.4.12.jar:\
 $HBASE_HOME/lib/hbase-common-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-hadoop-compat-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-hadoop2-compat-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-http-2.4.12.jar:\
 $HBASE_HOME/lib/hbase-protocol-2.4.12.jar:\
 $HBASE_HOME/lib/hbase-protocol-shaded-2.4.12.jar:\
 $HBASE_HOME/lib/hbase-server-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-metrics-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-metrics-api-2.4.12.jar:\
 $HBASE_HOME/lib/hbase-mapreduce-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-procedure-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-replication-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-zookeeper-2.4.12.jar:\
+$HBASE_HOME/lib/hbase-shaded-gson-3.5.1.jar:\
 $HBASE_HOME/lib/hbase-shaded-miscellaneous-3.5.1.jar:\
 $HBASE_HOME/lib/hbase-shaded-protobuf-3.5.1.jar:\
 $HBASE_HOME/lib/hbase-shaded-netty-3.5.1.jar:\
-$HBASE_HOME/lib/hbase-unsafe-3.5.1.jar:\
 $HBASE_HOME/lib/protobuf-java-2.5.0.jar"
 
 cat <<EOF > $SPARK_HOME/conf/spark-defaults.conf
