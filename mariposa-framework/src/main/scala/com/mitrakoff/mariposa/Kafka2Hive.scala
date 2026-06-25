@@ -98,8 +98,8 @@ case class Kafka2Hive  private (
   private def printParameters(): Unit = {
     logger.info("Builder parameters are:")
     (productElementNames zip productIterator).toList.sortBy(_._1).foreach { case (k, v) =>
-      val key = if (k.toLowerCase.contains("password") || k.toLowerCase.contains("secret")) "*" * k.length else k
-      logger.info("{}: {}", key, v)
+      val value = if (k.toLowerCase.contains("password") || k.toLowerCase.contains("secret")) "*" * v.toString.length else v
+      logger.info("{}: {}", k, value)
     }
   }
 }

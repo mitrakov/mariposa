@@ -160,8 +160,8 @@ until curl --silent --fail http://$MASTER_HOST:8200/v1/sys/health | grep --quiet
     log "Waiting for Vault to be unsealed..."
     sleep 1
 done
-ROLE_ID=$(sed -n '1p' "$CERTS_DIR/hadoop.approle")
-SECRET_ID=$(sed -n '2p' "$CERTS_DIR/hadoop.approle")
+ROLE_ID=$(sed --quiet '1p' "$CERTS_DIR/hadoop.approle")
+SECRET_ID=$(sed --quiet '2p' "$CERTS_DIR/hadoop.approle")
 export VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")
 check_env "VAULT_TOKEN"
 
