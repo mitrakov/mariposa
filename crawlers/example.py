@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Simple hh.ru scraper that pushes related vacancies to Kafka.
+Simple scraper that makes http requests in a loop and pushes json messages to Kafka.
 
-./hh.py --topic temp-topic --kafka-config sasl.py.properties --current-id-file id.txt
+./example.py --topic temp-topic --kafka-config sasl.py.properties --current-id-file id.txt
 
 properties file example:
 bootstrap.servers=$(hostname):9092
@@ -21,6 +21,8 @@ from argparse import ArgumentParser
 from configparser import ConfigParser
 from confluent_kafka import Producer
 
+
+# parses cmd line arguments
 def parse_args():
     parser = ArgumentParser(description="Scrape hh.ru and push to Kafka")
     parser.add_argument("--topic", required=True, help="Kafka topic to publish to")
@@ -29,6 +31,8 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=1, help="Number of IDs to process (default: 1)")
     return parser.parse_args()
 
+
+# loads properties for Apache Kafka
 def load_properties(filepath: str) -> dict[str, str]:
     config = ConfigParser()
     config.optionxform = str           # preserve case
@@ -37,6 +41,8 @@ def load_properties(filepath: str) -> dict[str, str]:
     config.read_string(content)
     return dict(config.items("root"))
 
+
+# reads current ID from a simple text file (in Prod, use more robust tools)
 def read_current_id(cur_id_file: str) -> int:
     if os.path.exists(cur_id_file):
         with open(cur_id_file, 'r') as f:
@@ -45,10 +51,14 @@ def read_current_id(cur_id_file: str) -> int:
                 return int(content)
     return -1
 
+
+# writes current ID to a simple text file (in Prod, use more robust tools)
 def write_current_id(cur_id_file: str, cur_id: int):
     with open(cur_id_file, 'w') as f:
         f.write(str(cur_id))
 
+
+# makes an HTTP request to data source web-site; returns tuple {List[Json]; Error}
 def make_request(vacancy_id: int) -> tuple[list[dict[str, object]], bool]:
     url = f"https://hh.ru/shards/vacancy/related_vacancies?vacancyId={vacancy_id}"
     try:
@@ -63,65 +73,27 @@ def make_request(vacancy_id: int) -> tuple[list[dict[str, object]], bool]:
         print(f"Failed to fetch {url}: {e}")
         return [], False
 
+
+# extracts data from json and makes a new json for Apache Kafka; add your logic here
 def extract_message(vacancy: dict) -> dict:
-    company = vacancy.get("company", {})
-    address = vacancy.get("address", {})
-    reviews = company.get("employerReviews", {})
-    compensation = vacancy.get("compensation", {})
-    area = vacancy.get("area", {})
-    snippet = vacancy.get("snippet", {})
-    
+    metro = vacancy.get("metroStations", {}).get("metro", [])
     return {
-        "vacancy_id":            vacancy.get("vacancyId"),
-        "name":                  vacancy.get("name"),
-        "created":               vacancy.get("creationTime"),
-        "published":             vacancy.get("publicationTime", {}).get("$"),
-        "schedule":              vacancy.get("@workSchedule"),
-        "experience":            vacancy.get("workExperience"),
-        "employment":            vacancy.get("employmentForm"),
-        "user_test":             vacancy.get("userTestPresent"),
-        "internship":            vacancy.get("internship"),
-        "night_shifts":          vacancy.get("nightShifts"),
-        "accept_labor_contract": vacancy.get("acceptLaborContract"),
-        "work_formats":          next((t.get("workFormatsElement")        for t in vacancy.get("workFormats", [])), None),
-        "working_hours":         next((t.get("workingHoursElement")       for t in vacancy.get("workingHours", [])), None),
-        "schedule_by_days":      next((t.get("workScheduleByDaysElement") for t in vacancy.get("workScheduleByDays", [])), None),
-        "experimental":          next((t.get("experimentalMode")          for t in vacancy.get("experimentalModes", [])), None),
-        "responses":             vacancy.get("responsesCount"),
-        "responses_total":       vacancy.get("totalResponsesCount"),
-        "company_name":          company.get("name"),
-        "company_id":            company.get("id"),
-        "company_category":      company.get("@category"),
-        "company_url":           company.get("companySiteUrl"),
-        "company_acc":           company.get("accreditedITEmployer"),
-        "company_reviews":       reviews.get("totalRating"),
-        "company_reviews_cnt":   reviews.get("reviewsCount"),
-        "address":               address.get("displayName"),
-        "district":              address.get("districtDto", {}).get("name"),
-        "metro":                 next((t.get("name") for t in address.get("metroStations", {}).get("metro", [])), None),
-        "salary_from":           compensation.get("from"),
-        "salary_to":             compensation.get("to"),
-        "salary_currency":       compensation.get("currencyCode"),
-        "salary_gross":          compensation.get("gross"),
-        "salary_per_mode_from":  compensation.get("perModeFrom"),
-        "salary_per_mode_to":    compensation.get("perModeTo"),
-        "salary_mode":           compensation.get("mode"),
-        "salary_frequency":      compensation.get("frequency"),
-        "area_id":               area.get("@id"),
-        "area_name":             area.get("name"),
-        "snippet_req":           snippet.get("req"),
-        "snippet_resp":          snippet.get("resp"),
-        "snippet_cond":          snippet.get("cond"),
-        "snippet_skill":         snippet.get("skill"),
+        "id":    vacancy.get("vacancyId"),
+        "name":  vacancy.get("name"),
+        "metro": next((t.get("name") for t in metro), None),     # gets first element of array, or None
     }
 
+
+# callback function for Kafka Producer
 def delivery_callback(err, msg, vacancy_id: int, file_for_id: str):
     if err:
         print(f"❌ Failed to send vacancy {vacancy_id} to {msg.topic()}: {err}")
     else:
-        write_current_id(file_for_id, vacancy_id + 1)
+        write_current_id(file_for_id, vacancy_id + 1)            # write a new ID into a text file
         print(f"Vacancy {vacancy_id} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
 
+
+# main
 def main():
     args = parse_args()
 
@@ -139,33 +111,34 @@ def main():
         return
 
     kafka_conf = load_properties(args.kafka_config)
-    kafka_conf = {str(k): str(v) for k, v in kafka_conf.items()}  # convert all k & v to strings
+    kafka_conf = {str(k): str(v) for k, v in kafka_conf.items()}  # converts all keys & values to strings to avoid issues
     print(f"Kafka config: {kafka_conf}")
 
     producer = Producer(kafka_conf)
 
-    err_count = 0                                 # simple circuit-breaker
-    for vac_id in range(cur_id, cur_id + args.batch_size):
+    err_count = 0
+    for vac_id in range(cur_id, cur_id + args.batch_size):        # main loop
         print(f"\n\n\nProcessing vacancy ID {vac_id}")
         vacancies, ok = make_request(vac_id)
 
         if not ok:
             err_count += 1
-            if err_count >= 10:
+            if err_count >= 10:                                   # simple circuit-breaker
                 print("Too many errors to call API. Exiting...")
                 break
         else:
-            err_count = 0
+            err_count = 0                                         # reset circuit-breaker
 
+        # process each message, convert to Json and push to Kafka topic
         for vacancy in vacancies:
             msg = extract_message(vacancy)
-            msg.update({"api_vacancy_id": vac_id, "api_capture_date": datetime.now().isoformat()})
-            payload = json.dumps(msg, ensure_ascii=False)
+            msg.update({"api_vacancy_id": vac_id, "api_capture_date": datetime.now().isoformat()})   # add extra data for tracking
+            payload = json.dumps(msg, ensure_ascii=False)                                            # convert dict to a real json
             print(f"\nSending to Kafka: {payload}")
             producer.produce(args.topic, key=None, value=payload.encode("utf-8"),  # queue msg to producer (async, run in background)
                 callback=lambda e, m, v=vac_id, f=args.current_id_file: delivery_callback(e, m, v, f))
 
-        producer.poll(0)                          # process callbacks
+        producer.poll(0)                          # process callbacks (in 0 seconds)
 
         if vac_id < cur_id + args.batch_size - 1: # all but last
             time.sleep(3)                         # sleep 3 sec to respect the server
@@ -173,5 +146,7 @@ def main():
     producer.flush()                              # block until done
     print("Done!")
 
+
+# entry point
 if __name__ == "__main__":
     main()

@@ -33,7 +33,7 @@ case class Kafka2Hive  private (
     val spark = SparkSession.builder()
       .appName(s"Mariposa-Kafka2Hive-$kafkaTopic")
       .config("spark.sql.warehouse.dir", "/user/hive/warehouse")
-      .config("hive.metastore.uris", "thrift://localhost:9083")
+      .config("hive.metastore.uris", "thrift://node49.host:9083")       // TODO: hardcode
       .enableHiveSupport()
       .getOrCreate()
 
@@ -56,6 +56,7 @@ case class Kafka2Hive  private (
     val kafkaDF = spark.readStream.format("kafka").options(kafkaOptions).load()
 
     // parse JSON using Hive schema
+    // TODO: lowercase json keys for f*cking Hive
     val processedDF = kafkaDF
       .selectExpr("CAST(value AS STRING) as json_payload")
       .select(from_json(col("json_payload"), hiveSchema).as("data"))

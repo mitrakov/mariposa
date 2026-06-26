@@ -75,7 +75,7 @@ hadoop jar $TEZ_HOME/tez-examples-0.10.5.jar orderedwordcount /apps/tez/f.txt /a
 ## Beeline
 ```sh
 beeline -u jdbc:hive2://localhost:10000 -n hadoop
-beeline -u "jdbc:hive2://node49.host:10000/default;principal=hive/node49.host@MARIPOSA.COM;auth=kerberos"
+beeline -u "jdbc:hive2://$MASTER_HOST:10000/default;principal=hive/$MASTER_HOST@MARIPOSA.COM;auth=kerberos"
 ```
 ```sql
 CREATE TABLE your_table (id string);
