@@ -2,7 +2,7 @@
 """
 Simple hh.ru scraper that pushes related vacancies to Kafka.
 
-./hh.py --topic temp-topic --kafka-config sasl.py.properties --current-id-file id.txt
+./hh.py --topic hh-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 10000
 
 properties file example:
 bootstrap.servers=$(hostname):9092
@@ -73,42 +73,42 @@ def extract_message(vacancy: dict) -> dict:
     
     return {
         "vacancy_id":            vacancy.get("vacancyId"),
-        "name":                  vacancy.get("name"),
-        "created":               vacancy.get("creationTime"),
         "published":             vacancy.get("publicationTime", {}).get("$"),
+        "name":                  vacancy.get("name"),
+        "area_name":             area.get("name"),
+        "salary_from":           compensation.get("from"),
+        "salary_to":             compensation.get("to"),
+        "currency":              compensation.get("currencyCode"),
+        "salary_frequency":      compensation.get("frequency"),
+        "gross":                 compensation.get("gross"),
         "schedule":              vacancy.get("@workSchedule"),
-        "experience":            vacancy.get("workExperience"),
         "employment":            vacancy.get("employmentForm"),
+        "working_hours":         next((t.get("workingHoursElement")       for t in vacancy.get("workingHours", [])), None),
+        "schedule_by_days":      next((t.get("workScheduleByDaysElement") for t in vacancy.get("workScheduleByDays", [])), None),
+        "company_name":          company.get("name"),
+        "work_formats":          next((t.get("workFormatsElement")        for t in vacancy.get("workFormats", [])), None),
+        "metro":                 next((t.get("name") for t in address.get("metroStations", {}).get("metro", [])), None),
+        "district":              address.get("districtDto", {}).get("name"),
+        "address":               address.get("displayName"),
+        "created":               vacancy.get("creationTime"),
+        "experience":            vacancy.get("workExperience"),
         "user_test":             vacancy.get("userTestPresent"),
         "internship":            vacancy.get("internship"),
         "night_shifts":          vacancy.get("nightShifts"),
         "accept_labor_contract": vacancy.get("acceptLaborContract"),
-        "work_formats":          next((t.get("workFormatsElement")        for t in vacancy.get("workFormats", [])), None),
-        "working_hours":         next((t.get("workingHoursElement")       for t in vacancy.get("workingHours", [])), None),
-        "schedule_by_days":      next((t.get("workScheduleByDaysElement") for t in vacancy.get("workScheduleByDays", [])), None),
         "experimental":          next((t.get("experimentalMode")          for t in vacancy.get("experimentalModes", [])), None),
         "responses":             vacancy.get("responsesCount"),
         "responses_total":       vacancy.get("totalResponsesCount"),
-        "company_name":          company.get("name"),
         "company_id":            company.get("id"),
         "company_category":      company.get("@category"),
         "company_url":           company.get("companySiteUrl"),
         "company_acc":           company.get("accreditedITEmployer"),
         "company_reviews":       reviews.get("totalRating"),
         "company_reviews_cnt":   reviews.get("reviewsCount"),
-        "address":               address.get("displayName"),
-        "district":              address.get("districtDto", {}).get("name"),
-        "metro":                 next((t.get("name") for t in address.get("metroStations", {}).get("metro", [])), None),
-        "salary_from":           compensation.get("from"),
-        "salary_to":             compensation.get("to"),
-        "salary_currency":       compensation.get("currencyCode"),
-        "salary_gross":          compensation.get("gross"),
         "salary_per_mode_from":  compensation.get("perModeFrom"),
         "salary_per_mode_to":    compensation.get("perModeTo"),
         "salary_mode":           compensation.get("mode"),
-        "salary_frequency":      compensation.get("frequency"),
         "area_id":               area.get("@id"),
-        "area_name":             area.get("name"),
         "snippet_req":           snippet.get("req"),
         "snippet_resp":          snippet.get("resp"),
         "snippet_cond":          snippet.get("cond"),
@@ -144,14 +144,14 @@ def main():
 
     producer = Producer(kafka_conf)
 
-    err_count = 0                                 # simple circuit-breaker
+    err_count = 0
     for vac_id in range(cur_id, cur_id + args.batch_size):
         print(f"\n\n\nProcessing vacancy ID {vac_id}")
         vacancies, ok = make_request(vac_id)
 
         if not ok:
             err_count += 1
-            if err_count >= 10:
+            if err_count >= 20:
                 print("Too many errors to call API. Exiting...")
                 break
         else:
@@ -168,7 +168,7 @@ def main():
         producer.poll(0)                          # process callbacks
 
         if vac_id < cur_id + args.batch_size - 1: # all but last
-            time.sleep(3)                         # sleep 3 sec to respect the server
+            time.sleep(3)                         # sleep to respect the server
 
     producer.flush()                              # block until done
     print("Done!")
