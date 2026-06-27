@@ -4,7 +4,7 @@ JKS_PASSWORD=...
 spark-submit \
   --deploy-mode cluster \
   --driver-java-options=" \
-   -Dapp.hive.table=hh.import_data \
+   -Dapp.hive.table=hh.t_import \
    -Dapp.kafka.topic=hh-import \
    -Dapp.kafka.run.infinitely=true \
    -Dapp.security.truststore.password=$JKS_PASSWORD \
