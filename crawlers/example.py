@@ -64,7 +64,7 @@ def make_request(vacancy_id: int) -> tuple[list[dict[str, object]], bool]:
     try:
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
         if resp.status_code == 404:
-            print(f"Vacancy ID {vacancy_id} not found (404).")
+            print(f"Not found: {vacancy_id} (404).")
             return [], False
         resp.raise_for_status()    # throw for 4xx,5xx errors
         data = resp.json()
@@ -87,10 +87,10 @@ def extract_message(vacancy: dict) -> dict:
 # callback function for Kafka Producer
 def delivery_callback(err, msg, vacancy_id: int, file_for_id: str):
     if err:
-        print(f"❌ Failed to send vacancy {vacancy_id} to {msg.topic()}: {err}")
+        print(f"❌ Failed to send {vacancy_id} to {msg.topic()}: {err}")
     else:
         write_current_id(file_for_id, vacancy_id + 1)            # write a new ID into a text file
-        print(f"Vacancy {vacancy_id} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
+        print(f"Item {vacancy_id} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
 
 
 # main
@@ -118,7 +118,7 @@ def main():
 
     err_count = 0
     for vac_id in range(cur_id, cur_id + args.batch_size):        # main loop
-        print(f"\n\n\nProcessing vacancy ID {vac_id}")
+        print(f"\n\n\nProcessing ID {vac_id}")
         vacancies, ok = make_request(vac_id)
 
         if not ok:
@@ -139,9 +139,7 @@ def main():
                 callback=lambda e, m, v=vac_id, f=args.current_id_file: delivery_callback(e, m, v, f))
 
         producer.poll(0)                          # process callbacks (in 0 seconds)
-
-        if vac_id < cur_id + args.batch_size - 1: # all but last
-            time.sleep(3)                         # sleep 3 sec to respect the server
+        time.sleep(3)                             # sleep 3 sec to respect the server
 
     producer.flush()                              # block until done
     print("Done!")
