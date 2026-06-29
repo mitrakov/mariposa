@@ -3,6 +3,10 @@
 JKS_PASSWORD=...
 spark-submit \
   --deploy-mode cluster \
+  --driver-memory 512m \
+  --executor-memory 1g \
+  --executor-cores 1 \
+  --num-executors 2 \
   --driver-java-options=" \
    -Dapp.hive.table=hh.t_import \
    -Dapp.kafka.topic=hh-import \
