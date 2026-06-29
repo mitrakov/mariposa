@@ -207,6 +207,8 @@ def main():
     for id in range(cur_id, cur_id + args.batch_size):            # main loop
         print(f"\n\n\nProcessing Registration Number: {id}")
         data, ok = make_request(id)
+        if not "reg_number" in data:                              # skip, if page is empty
+            continue;
 
         if not ok:
             err_count += 1

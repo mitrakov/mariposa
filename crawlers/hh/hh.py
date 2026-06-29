@@ -2,7 +2,7 @@
 """
 Simple hh.ru scraper that pushes related vacancies to Kafka.
 
-./hh.py --topic hh-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 10000
+./hh.py --topic hh-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 28800
 
 properties file example:
 bootstrap.servers=$(hostname):9092

@@ -197,6 +197,10 @@ if [ ! -f "$MY_KEYSTORE" ]; then
     keytool -importcert -alias "$MY_HOSTNAME" -file "$CERTS_DIR/$MY_HOSTNAME.crt" \
         -keystore "$MY_KEYSTORE" -storepass "$JKS_PASSWORD"
 
+    # optional: import rootca to JAVA_HOME (needed for "hdfs fsck /")
+    keytool -importcert -alias rootca -file $CERTS_DIR/root_ca.crt \
+         -keystore $JAVA_HOME/lib/security/cacerts -storepass "$JKS_PASSWORD" -noprompt || true
+
     rm --verbose --force $CERTS_DIR/$MY_HOSTNAME.csr $CERTS_DIR/$MY_HOSTNAME.crt
     info "SSL certificates stored in $MY_KEYSTORE"
 else
@@ -940,6 +944,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
         info "OK: Hive Metastore detected"
     fi
 
+    rm --force $HIVE_HOME/conf/hiveserver2.pid              # just in case of non-graceful shutdown, normally not required
     hive --service metastore   > "$HIVE_HOME/logs/metastore.log" 2>&1 &
     log "Wait for HDFS to exit Safe Mode..."
     hdfs dfsadmin -safemode wait                                        # must have
