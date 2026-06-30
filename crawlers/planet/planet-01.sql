@@ -1,3 +1,4 @@
+CREATE SCHEMA IF NOT EXISTS planet;
 CREATE TABLE IF NOT EXISTS planet.t_import (
     profile_url                         STRING          COMMENT 'PRIMARY KEY: Полный URL-адрес профиля пользователя',
     name_age                            STRING          COMMENT 'Имя и возраст пользователя (например: Алла, 27)',
