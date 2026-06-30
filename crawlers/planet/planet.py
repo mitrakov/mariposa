@@ -309,8 +309,8 @@ def main():
                         msg.update({"api_capture_date": datetime.now().isoformat()})           # add extra data for tracking
                         payload = json.dumps(msg, ensure_ascii=False)                          # convert dict to a real json
                         print(f"Sending to Kafka: {payload}")
-                        #producer.produce(args.topic, key=None, value=payload.encode("utf-8"),  # queue msg to producer (async, run in background)
-                        #    callback=lambda e, m, v=link_tag['href']: delivery_callback(e, m, v))
+                        producer.produce(args.topic, key=None, value=payload.encode("utf-8"),  # queue msg to producer (async, run in background)
+                            callback=lambda e, m, v=link_tag['href']: delivery_callback(e, m, v))
                     
                     time.sleep(1.5)               # sleep N sec to respect the server
 
