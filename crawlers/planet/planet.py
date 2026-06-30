@@ -1,29 +1,34 @@
+#!/usr/bin/env python3
+
+import os
 import re
 import json
 import time
 import requests
+from datetime import datetime
 from bs4 import BeautifulSoup
-from kafka import KafkaProducer
+from argparse import ArgumentParser
+from confluent_kafka import Producer
+from configparser import ConfigParser
 
-# === CONFIGURACIÓN DE KAFKA ===
-KAFKA_BROKERS = ['localhost:9092']
-KAFKA_TOPIC = 'loveplanet_profiles'
 
-# Inicializar el productor de Kafka
-# producer = KafkaProducer(
-#     bootstrap_servers=KAFKA_BROKERS,
-#     value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode('utf-8')
-# )
+# parses cmd line arguments
+def parse_args():
+    parser = ArgumentParser(description="Scrape hh.ru and push to Kafka")
+    parser.add_argument("--topic", required=True, help="Kafka topic to publish to")
+    parser.add_argument("--kafka-config", required=True, help="Kafka properties file")
+    return parser.parse_args()
 
-# === CONFIGURACIÓN DEL RASPADOR ===
-DOMAIN = "https://loveplanet.ru"
-SEARCH_URL_PATTERN = DOMAIN + "/a-search/d-1/p-{page}"
-LINK_PATTERN = re.compile(r"^/page/\w+/frl-2$")
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-}
+# loads properties for Apache Kafka
+def load_properties(filepath: str) -> dict[str, str]:
+    config = ConfigParser()
+    config.optionxform = str           # preserve case
+    with open(filepath) as f:
+        content = "[root]\n" + f.read()
+    config.read_string(content)
+    return dict(config.items("root"))
+
 
 def transliterate_to_ascii(text):
     """Translitera caracteres cirílicos a texto ASCII plano y limpio."""
@@ -45,44 +50,45 @@ def transliterate_to_ascii(text):
         res.append(cyrillic_translit.get(char, char))
     return ''.join(res)
 
+
 def clean_hive_key(prefix, raw_key):
     """Translates common keys or applies transliteration as a fallback for Hive."""
     translations = {
         "внешность": "appearance",
-        "отношения": "relationship_status",
+        "отношения": "status",
         "дети": "children",
         "домашние_животные": "pets",
-        "жилищные_условия": "housing_conditions",
+        "жилищные_условия": "housing",
         "наличие_автомобиля": "has_car",
         "образование": "education",
+        "учебное_заведение": "university",
+        "год_выпуска": "graduate_year",
         "доход": "income",
         "сфера_деятельности": "industry",
-        "должность": "job_title",
+        "должность": "job",
         "курение": "smoking",
         "алкоголь": "alcohol",
         "знание_языков": "languages",
         "спорт": "sports",
-        "ваше_образование": "your_education",
+        "ваше_образование": "education",
         "любимая_музыка": "favorite_music",
         "любимые_фильмы": "favorite_movies",
         "любимые_книги": "favorite_books",
         "любимые_блюда": "favorite_dishes",
-        "самое_хорошее_в_жизни": "best_thing_in_life",
-        "самое_ужасное_в_жизни": "worst_thing_in_life",
-        "какие_качества_вы_цените_в_людях": "valued_qualities_in_people",
-        
-        # FIXED: Removed the comma so it catches the normalized key string perfectly
-        "что_вы_могли_бы_простить_а_что_нет": "what_can_you_forgive",
-        
-        "ваши_достоинства": "your_strengths",
-        "ваши_недостатки": "your_weaknesses",
-        "чем_интересна_ваша_работа": "why_job_is_interesting",
-        "самый_авантюрный_поступок": "most_adventurous_act",
-        "что_вам_нравится_или_не_нравится_в_телевизоре": "tv_opinions",
-        "как_вы_относитесь_к_мату": "opinion_on_profanity",
-        "любимые_города_и_страны": "favorite_cities_and_countries",
+        "самое_хорошее_в_жизни": "best_thing",
+        "самое_ужасное_в_жизни": "worst_thing",
+        "какие_качества_вы_цените_в_людях": "valued_qualities",
+        "что_вы_могли_бы_простить_а_что_нет": "what_forgive",
+        "ваши_достоинства": "strengths",
+        "ваши_недостатки": "weaknesses",
+        "чем_интересна_ваша_работа": "job_interesting",
+        "самый_авантюрный_поступок": "adventure",
+        "что_вам_нравится_или_не_нравится_в_телевизоре": "tv",
+        "как_вы_относитесь_к_мату": "profanity",
+        "любимые_города_и_страны": "favorite_cities",
         "любимые_места": "favorite_places",
-        "какое_место_занимает_в_вашей_жизни_религия": "religion_importance"
+        "любимые_занятия": "favorite_hobby",
+        "какое_место_занимает_в_вашей_жизни_религия": "religion"
     }
     
     normalized_key = raw_key.lower().strip().replace(' ', '_')
@@ -95,16 +101,16 @@ def clean_hive_key(prefix, raw_key):
 
 
 
-def flatten_profile(raw_data):
+def flatten_profile(raw_data: dict[str, object]) -> dict[str, object]:
     """Flattens the nested dictionary into a single-level structure with Hive-compatible keys."""
     flat_data = {
-        "display_name_age": raw_data["display_name_age"],
-        "main_photo_url": raw_data["main_photo_url"],
+        "name_age": raw_data["name_age"],
+        "photo_url": raw_data["photo_url"],
         "city": raw_data["city"],
-        "current_visitors": raw_data["current_visitors"],
-        "status_quote": raw_data["status_quote"],
+        "visitors": raw_data["visitors"],
+        "quote": raw_data["quote"],
         "seeking": raw_data["seeking"],
-        "about_self": raw_data["about_self"],
+        "about": raw_data["about"],
         "target_search": raw_data["target_search"],
         "profile_url": raw_data["profile_url"],
         "interests": raw_data["interests"] if raw_data["interests"] else []
@@ -128,13 +134,15 @@ def flatten_profile(raw_data):
         
     return flat_data
 
-def parse_profile_page(profile_url):
+
+def parse_profile_page(profile_url: str) -> dict[str, object]:
     """Fetches individual profile page and pulls raw structured values using None as fallback."""
     try:
-        response = requests.get(profile_url, headers=HEADERS, timeout=10)
+        response = requests.get(profile_url, headers={"User-Agent": "Mozilla/5.0"})
         if response.status_code != 200:
-            print(f"   Failed to fetch profile: {profile_url} (Status: {response.status_code})")
+            print(f"Failed to fetch profile: {profile_url} (Status: {response.status_code})")
             return None
+        response.raise_for_status()    # throw for 4xx,5xx errors
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
@@ -237,70 +245,85 @@ def parse_profile_page(profile_url):
                         self_portrait[label_key] = value
 
         return {
-            "display_name_age": display_name,
-            "main_photo_url": main_photo_url,
+            "name_age": display_name,
+            "photo_url": main_photo_url,
             "city": city,
-            "current_visitors": visitors_count,
-            "status_quote": status_text,
+            "visitors": visitors_count,
+            "quote": status_text,
             "interests": interests,
             "seeking": seeking_text,
-            "about_self": about_text,
+            "about": about_text,
             "target_search": target_search_text,
             "personal_details": personal_info,
             "self_portrait": self_portrait,
             "profile_url": profile_url
         }
-
-    except requests.exceptions.RequestException as e:
-        print(f"   Network error on subpage {profile_url}: {e}")
+    except Exception as e:
+        print(f"Error on subpage {profile_url}: {e}")
         return None
 
 
-def main_scraper():
-    print(f"🚀 Iniciando Streaming a Kafka en el tópico: '{KAFKA_TOPIC}'...")
+# callback for Kafka Producer
+def delivery_callback(err, msg, url: str):
+    if err:
+        print(f"❌ Failed to send {url} to {msg.topic()}: {err}")
+    else:
+        print(f"Item {url} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
+
+
+def main():
+    args = parse_args()
+
+    if not os.path.exists(args.kafka_config):
+        print(f"Config file not found: {args.kafka_config}")
+        return
+
+    kafka_conf = load_properties(args.kafka_config)
+    kafka_conf = {str(k): str(v) for k, v in kafka_conf.items()}  # converts all keys & values to strings to avoid issues
+    print(f"Kafka config: {kafka_conf}")
+
+    producer = Producer(kafka_conf)
 
     for page in range(0, 1001):
-        search_url = SEARCH_URL_PATTERN.format(page=page)
         print(f"\n--- Scraping Index Page {page} ---")
-        
         try:
-            response = requests.get(search_url, headers=HEADERS, timeout=10)
-            if response.status_code != 200:
-                print(f"Skipping directory page {page}: Status {response.status_code}")
+            response = requests.get(f"https://loveplanet.ru/a-search/d-1/p-{page}", headers={"User-Agent": "Mozilla/5.0"})
+            if response.status_code == 404:
+                print(f"Not found {page}: Status {response.status_code}")
                 continue
+            response.raise_for_status()    # throw for 4xx,5xx errors
                 
             soup = BeautifulSoup(response.text, 'html.parser')
             containers = soup.find_all('div', class_='buser_usinfo')
             
             for container in containers:
                 link_tag = container.find('a', class_='buser_usname', href=True)
-                if link_tag and LINK_PATTERN.match(link_tag['href']):
-                    full_profile_url = DOMAIN + link_tag['href']
+                if link_tag and re.compile(r"^/page/\w+/frl-2$").match(link_tag['href']):
+                    full_profile_url = f"https://loveplanet.ru{link_tag['href']}"
                     
-                    print(f" -> Processing profile: {full_profile_url}")
+                    print(f"\nProcessing profile: {full_profile_url}")
                     profile_data = parse_profile_page(full_profile_url)
                     
                     if profile_data:
-                        # 1. Aplanar el diccionario antes de enviarlo
-                        flattened_data = flatten_profile(profile_data)
-                        
-                        # 2. Transmitir el evento directamente a Kafka
-                        ##producer.send(KAFKA_TOPIC, value=flattened_data)
-                        print(f"    Evento enviado a Kafka para: {json.dumps(flattened_data, ensure_ascii=False)}")
+                        msg = flatten_profile(profile_data)
+                        msg.update({"api_capture_date": datetime.now().isoformat()})           # add extra data for tracking
+                        payload = json.dumps(msg, ensure_ascii=False)                          # convert dict to a real json
+                        print(f"Sending to Kafka: {payload}")
+                        #producer.produce(args.topic, key=None, value=payload.encode("utf-8"),  # queue msg to producer (async, run in background)
+                        #    callback=lambda e, m, v=link_tag['href']: delivery_callback(e, m, v))
                     
-                    time.sleep(1.5)
-                    
-        except requests.exceptions.RequestException as e:
-            print(f"Network error on index {page}: {e}")
+                    time.sleep(1.5)               # sleep N sec to respect the server
+
+        except Exception as e:
+            print(f"Error on page {page}: {e}")
             
         time.sleep(1)
-        
-        # Forzar el envío de los mensajes acumulados en el buffer antes de pasar a la siguiente página
-        #producer.flush()
+        producer.flush()
 
-    # Cerrar el productor de forma limpia al terminar las 1000 páginas
-    #producer.close()
-    print("\n Transmission complete. Kafka Producer closed successfully.")
+    producer.flush()                              # block until done
+    print("Done!")
 
+
+# entry point
 if __name__ == "__main__":
-    main_scraper()
+    main()

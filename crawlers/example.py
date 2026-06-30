@@ -18,8 +18,8 @@ import time
 import requests
 from datetime import datetime
 from argparse import ArgumentParser
-from configparser import ConfigParser
 from confluent_kafka import Producer
+from configparser import ConfigParser
 
 
 # parses cmd line arguments
@@ -59,12 +59,12 @@ def write_current_id(cur_id_file: str, cur_id: int):
 
 
 # makes an HTTP request to data source web-site; returns tuple {List[Json]; Error}
-def make_request(vacancy_id: int) -> tuple[list[dict[str, object]], bool]:
-    url = f"https://hh.ru/shards/vacancy/related_vacancies?vacancyId={vacancy_id}"
+def make_request(id: int) -> tuple[list[dict[str, object]], bool]:
+    url = f"https://hh.ru/shards/vacancy/related_vacancies?vacancyId={id}"
     try:
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
         if resp.status_code == 404:
-            print(f"Not found: {vacancy_id} (404).")
+            print(f"Not found: {id} (404).")
             return [], False
         resp.raise_for_status()    # throw for 4xx,5xx errors
         data = resp.json()
@@ -84,13 +84,13 @@ def extract_message(vacancy: dict) -> dict:
     }
 
 
-# callback function for Kafka Producer
-def delivery_callback(err, msg, vacancy_id: int, file_for_id: str):
+# callback for Kafka Producer
+def delivery_callback(err, msg, id: int, file_for_id: str):
     if err:
-        print(f"❌ Failed to send {vacancy_id} to {msg.topic()}: {err}")
+        print(f"❌ Failed to send {id} to {msg.topic()}: {err}")
     else:
-        write_current_id(file_for_id, vacancy_id + 1)            # write a new ID into a text file
-        print(f"Item {vacancy_id} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
+        write_current_id(file_for_id, id + 1)            # write a new ID into a text file
+        print(f"Item {id} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
 
 
 # main
@@ -139,7 +139,7 @@ def main():
                 callback=lambda e, m, v=vac_id, f=args.current_id_file: delivery_callback(e, m, v, f))
 
         producer.poll(0)                          # process callbacks (in 0 seconds)
-        time.sleep(3)                             # sleep 3 sec to respect the server
+        time.sleep(3)                             # sleep N sec to respect the server
 
     producer.flush()                              # block until done
     print("Done!")
