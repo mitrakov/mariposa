@@ -1,6 +1,8 @@
 services:
   master:
     image: mitrakov/openphlow:1.0.0
+    networks:
+      - openphlow-net
     hostname: master.host
     environment:
       - IS_MASTER=true
@@ -31,6 +33,8 @@ services:
 
   ganza1:
     image: mitrakov/openphlow:1.0.0
+    networks:
+      - openphlow-net
     hostname: ganza1.host
     environment:
       - IS_MASTER=false
@@ -49,6 +53,8 @@ services:
 
   ganza2:
     image: mitrakov/openphlow:1.0.0
+    networks:
+      - openphlow-net
     hostname: ganza2.host
     environment:
       - IS_MASTER=false
@@ -64,3 +70,7 @@ services:
       - ~/hadoop/keytabs:/etc/security/keytabs
     ports:
       - "8043:8042"   # NodeManager
+
+networks:
+  openphlow-net:
+    name: openphlow-default-net   # by default Docker creates "openphlow_default" which is wrong for Hive libs (contains '_')
