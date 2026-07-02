@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
 
+"""
+Simple loveplanet.ru scraper that pushes users' profiles to Kafka.
+
+./planet.py --topic planet-import --kafka-config kafka.properties
+
+properties file example:
+bootstrap.servers=$(hostname):9092
+security.protocol=SASL_SSL
+ssl.ca.location=/opt/vault/certs/root_ca.crt
+sasl.kerberos.principal=hadoop/$(hostname)@MARIPOSA.COM
+sasl.kerberos.keytab=/etc/security/keytabs/$(hostname).keytab
+"""
+
 import os
 import re
 import json
@@ -326,4 +339,6 @@ def main():
 
 # entry point
 if __name__ == "__main__":
-    main()
+    while True:
+        main()
+        time.sleep(5 * 60 * 60)    # 5h
