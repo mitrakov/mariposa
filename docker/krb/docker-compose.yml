@@ -7,6 +7,7 @@ services:
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=1
+      - MARIPOSA_BOOT_DELAY_SEC=15
       - SKIP_AIRFLOW=false
       - SKIP_HUE=false
     volumes:
@@ -39,6 +40,7 @@ services:
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=2
+      - MARIPOSA_BOOT_DELAY_SEC=15
     volumes:
       - ~/hadoop/hdfs2_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk2_data:/opt/zookeeper/data
@@ -57,6 +59,7 @@ services:
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=3
+      - MARIPOSA_BOOT_DELAY_SEC=15
     volumes:
       - ~/hadoop/hdfs3_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk3_data:/opt/zookeeper/data
