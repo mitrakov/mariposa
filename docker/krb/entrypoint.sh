@@ -50,6 +50,7 @@ check_env "ZK_ID"
 check_env "KEYTABS_DIR"
 check_env "CERTS_DIR"
 check_env "KAFKA_OPTS"
+check_env "MARIPOSA_BOOT_DELAY_SEC"
 
 
 # DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
@@ -1029,7 +1030,7 @@ else      # WORKERs
     zkServer.sh start
 
     # start HBase
-    sleep 15     # simple sync with master
+    sleep $MARIPOSA_BOOT_DELAY_SEC     # simple sync with master
     log "Starting HBase RegionServer..."
     kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@MARIPOSA.COM && klist
     hbase-daemon.sh start regionserver
