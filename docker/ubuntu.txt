@@ -64,4 +64,26 @@ scp $KEYTABS_DIR/node143.host.keytab node143.host:$KEYTABS_DIR/
 
 # autostart
 crontab -e
-@reboot /entrypoint.sh > /home/hadoop/mariposa_boot.log 2>&1
+@reboot /entrypoint.sh > /home/hadoop/boot.log 2>&1
+@reboot /home/hadoop/autorun.sh > /home/hadoop/autorun.log 2>&1
+
+
+# autorun.sh for master:
+#!/usr/bin/env bash
+sleep 220
+/home/hadoop/spark-hh-import.sh
+sleep 30
+/home/hadoop/spark-planet-import.sh
+
+
+# autorun.sh for slaves:
+#!/usr/bin/env bash
+sleep 250
+/home/hadoop/spark-hh-import.sh
+(cd /home/hadoop/hh && /hh.py --topic hh-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 28800)
+
+
+#!/usr/bin/env bash
+sleep 250
+/home/hadoop/spark-hh-import.sh
+(cd /home/hadoop/planet && ./planet.py --topic planet-import --kafka-config kafka.properties)
