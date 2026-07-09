@@ -1,1 +1,0 @@
-bootstrap.servers=$(hostname):9092

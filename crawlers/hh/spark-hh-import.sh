@@ -3,7 +3,7 @@
 JKS_PASSWORD=...
 spark-submit \
   --deploy-mode cluster \
-  --driver-memory 768m \
+  --driver-memory 600m \
   --executor-memory 1g \
   --executor-cores 1 \
   --num-executors 2 \
