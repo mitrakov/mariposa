@@ -120,7 +120,7 @@ def delivery_callback(err, msg, vacancy_id: int, file_for_id: str):
         print(f"❌ Failed to send vacancy {vacancy_id} to {msg.topic()}: {err}")
     else:
         write_current_id(file_for_id, vacancy_id + 1)
-        print(f"Vacancy {vacancy_id} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
+        print(f"ID={vacancy_id} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
 
 def main():
     args = parse_args()
@@ -161,14 +161,14 @@ def main():
             msg = extract_message(vacancy)
             msg.update({"api_vacancy_id": vac_id, "api_capture_date": datetime.now().isoformat()})
             payload = json.dumps(msg, ensure_ascii=False)
-            print(f"\nSending to Kafka: {payload}")
+            print(f"\n{payload}")
             producer.produce(args.topic, key=None, value=payload.encode("utf-8"),  # queue msg to producer (async, run in background)
                 callback=lambda e, m, v=vac_id, f=args.current_id_file: delivery_callback(e, m, v, f))
 
         producer.poll(0)                          # process callbacks
 
         if vac_id < cur_id + args.batch_size - 1: # all but last
-            time.sleep(3)                         # sleep to respect the server
+            time.sleep(2)                         # sleep to respect the server
 
     producer.flush()                              # block until done
     print("Done!")

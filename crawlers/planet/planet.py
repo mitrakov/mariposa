@@ -56,7 +56,7 @@ def transliterate_to_ascii(text):
     text = text.lower().strip().replace(' ', '_')
     # Eliminar puntuación común que Hive rechaza en columnas
     text = re.sub(r'[^a-z0-9_а-яё]', '', text)
-    
+
     # Aplicar transliteración carácter por carácter
     res = []
     for char in text:
@@ -103,10 +103,10 @@ def clean_hive_key(prefix, raw_key):
         "любимые_занятия": "favorite_hobby",
         "какое_место_занимает_в_вашей_жизни_религия": "religion"
     }
-    
+
     normalized_key = raw_key.lower().strip().replace(' ', '_')
     normalized_key = re.sub(r'[^a-z0-9_а-яё]', '', normalized_key)
-    
+
     if normalized_key in translations:
         return f"{prefix}_{translations[normalized_key]}"
     else:
@@ -128,23 +128,23 @@ def flatten_profile(raw_data: dict[str, object]) -> dict[str, object]:
         "profile_url": raw_data["profile_url"],
         "interests": raw_data["interests"] if raw_data["interests"] else []
     }
-    
+
     # Flatten Personal Details block
     for key, val in raw_data["personal_details"].items():
         flat_key = clean_hive_key("personal", key)
         flat_data[flat_key] = val
-            
+
     # Guarantee critical array keys default to an empty list instead of None
     if "personal_languages" not in flat_data:
         flat_data["personal_languages"] = []
     if "personal_sports" not in flat_data:
         flat_data["personal_sports"] = []
-        
+
     # Flatten Self Portrait block
     for key, val in raw_data["self_portrait"].items():
         flat_key = clean_hive_key("portrait", key)
         flat_data[flat_key] = val
-        
+
     return flat_data
 
 
@@ -156,13 +156,13 @@ def parse_profile_page(profile_url: str) -> dict[str, object]:
             print(f"Failed to fetch profile: {profile_url} (Status: {response.status_code})")
             return None
         response.raise_for_status()    # throw for 4xx,5xx errors
-        
+
         soup = BeautifulSoup(response.text, 'html.parser')
-        
+
         # 1. Name & Age
         name_age_tag = soup.find('span', class_='fbold fsize20')
         display_name = name_age_tag.get_text(strip=True) if name_age_tag else None
-        
+
         # 2. Main Photo
         main_photo_url = None
         photo_container = soup.find('div', class_=re.compile(r'prof-photo'))
@@ -170,7 +170,7 @@ def parse_profile_page(profile_url: str) -> dict[str, object]:
             img_tag = photo_container.find('img')
             if img_tag and img_tag.has_attr('src'):
                 main_photo_url = img_tag['src']
-        
+
         # 3. City & Live Traffic Count
         city = None
         visitors_count = 0
@@ -185,20 +185,20 @@ def parse_profile_page(profile_url: str) -> dict[str, object]:
                 visitors_text = visitors_div.get_text(strip=True)
                 if visitors_text.isdigit():
                     visitors_count = int(visitors_text)
-                    
+
         # 4. Profile Quote Status Line
         status_text = None
         status_div = soup.find('div', class_=re.compile(r'prof-status'))
         if status_div:
             status_text = status_div.get_text(strip=True)
-        
+
         # 5. Interests Cloud Array
         interests = []
         tag_container = soup.find('div', id='tag-container')
         if tag_container:
             tag_links = tag_container.find_all('a')
             interests = [tag.get_text(strip=True) for tag in tag_links if tag.get_text(strip=True)]
-        
+
         # 6. Seeking Paragraph Block
         seeking_title = soup.find('div', string=re.compile("Я ищу", re.IGNORECASE))
         seeking_text = None
@@ -206,7 +206,7 @@ def parse_profile_page(profile_url: str) -> dict[str, object]:
             seeking_ul = seeking_title.find_next_sibling('ul')
             if seeking_ul:
                 seeking_text = seeking_ul.get_text(strip=True)
-                
+
         # 7. About Self Paragraph Block
         about_title = soup.find('div', string=re.compile("Свободно о себе", re.IGNORECASE))
         about_text = None
@@ -305,23 +305,23 @@ def main():
                 print(f"Not found {page}: Status {response.status_code}")
                 continue
             response.raise_for_status()    # throw for 4xx,5xx errors
-                
+
             soup = BeautifulSoup(response.text, 'html.parser')
             containers = soup.find_all('div', class_='buser_usinfo')
-            
+
             for container in containers:
                 link_tag = container.find('a', class_='buser_usname', href=True)
                 if link_tag and re.compile(r"^/page/\w+/frl-2$").match(link_tag['href']):
                     full_profile_url = f"https://loveplanet.ru{link_tag['href']}"
-                    
+
                     print(f"\nProcessing profile: {full_profile_url}")
                     profile_data = parse_profile_page(full_profile_url)
-                    
+
                     if profile_data:
                         msg = flatten_profile(profile_data)
                         msg.update({"api_capture_date": datetime.now().isoformat()})           # add extra data for tracking
                         payload = json.dumps(msg, ensure_ascii=False)                          # convert dict to a real json
-                        print(f"Sending to Kafka: {payload}")
+                        print(f"{payload}")
                         producer.produce(args.topic, key=None, value=payload.encode("utf-8"),  # queue msg to producer (async, run in background)
                             callback=lambda e, m, v=link_tag['href']: delivery_callback(e, m, v))
                     
@@ -329,8 +329,7 @@ def main():
 
         except Exception as e:
             print(f"Error on page {page}: {e}")
-            
-        time.sleep(1)
+
         producer.flush()
 
     producer.flush()                              # block until done
@@ -341,4 +340,4 @@ def main():
 if __name__ == "__main__":
     while True:
         main()
-        time.sleep(5 * 60 * 60)    # 5h
+        time.sleep(3 * 3600)                      # pause N hours
