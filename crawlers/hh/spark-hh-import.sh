@@ -2,9 +2,10 @@
 
 JKS_PASSWORD=...
 spark-submit \
+  --name "Mariposa-Kafka2Hive-hh-import" \
   --deploy-mode cluster \
-  --driver-memory 600m \
-  --executor-memory 1g \
+  --driver-memory 1024m \
+  --executor-memory 1024m \
   --executor-cores 1 \
   --num-executors 2 \
   --driver-java-options=" \
