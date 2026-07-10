@@ -79,11 +79,9 @@ sleep 30
 # autorun.sh for slaves:
 #!/usr/bin/env bash
 sleep 250
-/home/hadoop/spark-hh-import.sh
-(cd /home/hadoop/hh && /hh.py --topic hh-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 28800)
+(cd /home/hadoop/hh && ./hh.py --topic hh-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 28800 &)
 
 
 #!/usr/bin/env bash
 sleep 250
-/home/hadoop/spark-hh-import.sh
-(cd /home/hadoop/planet && ./planet.py --topic planet-import --kafka-config kafka.properties)
+(cd /home/hadoop/planet && ./planet.py --topic planet-import --kafka-config kafka.properties &)
