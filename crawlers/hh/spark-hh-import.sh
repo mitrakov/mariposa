@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 JKS_PASSWORD=...
-spark-submit \
+/opt/spark/bin/spark-submit \
   --name "Mariposa-Kafka2Hive-hh-import" \
   --deploy-mode cluster \
   --driver-memory 1024m \
@@ -13,7 +13,7 @@ spark-submit \
    -Dapp.kafka.topic=hh-import \
    -Dapp.kafka.run.infinitely=true \
    -Dapp.security.truststore.password=$JKS_PASSWORD \
-   -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
-  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
+   -Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf" \
+  --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.Kafka2Hive \
-  mariposa-assembly-1.0.0.jar &
+  /home/hadoop/mariposa-assembly-1.0.0.jar &
