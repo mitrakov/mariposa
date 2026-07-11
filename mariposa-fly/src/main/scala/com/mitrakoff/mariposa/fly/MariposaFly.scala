@@ -1,90 +1,54 @@
 package com.mitrakoff.mariposa.fly
 
 import org.apache.spark.sql.SparkSession
+import java.io.File
 import scala.tools.nsc.interpreter.IMain
 import scala.tools.nsc.Settings
 import scala.tools.nsc.interpreter.shell.ReplReporterImpl
 import scala.tools.nsc.interpreter.shell.ReplReporterImpl.defaultOut
 import scala.io.Source
-import java.io.File
 
-object MariposaFly {
-  def main(args: Array[String]): Unit = {
-    if (args.length < 1) {
-      println("Usage: spark-submit driver.jar <path-to-JobClassName.scala>")
-      sys.exit(1)
-    }
+object MariposaFly extends App {
+  // basic checks
+  if (args.length < 1) {
+    println("Usage: spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-assembly-1.0.0.jar MyJob.scala")
+    sys.exit(1)
+  }
+  
+  // create spark session
+  val className = new File(args.head).getName
+  val spark = SparkSession.builder().appName(s"Mariposa-Fly: $className").enableHiveSupport().getOrCreate()
 
-    val scriptFile = new File(args(0))
-    if (!scriptFile.exists()) {
-      println(s"Error: File not found at ${scriptFile.getAbsolutePath}")
-      sys.exit(1)
-    }
+  try {
+    // read user *.scala file
+    val src = Source.fromFile(args.head)
+    val scriptContent = src.mkString
+    src.close()
 
-    val fileName = scriptFile.getName
-    if (!fileName.endsWith(".scala")) {
-      println(s"Error: Target file $fileName must have a .scala extension")
-      sys.exit(1)
-    }
-    val className = fileName.stripSuffix(".scala")
+    // add spark classpath to interpreter settings
+    val driverJarPath = this.getClass.getProtectionDomain.getCodeSource.getLocation.getPath
+    val existingClasspath = sys.props("java.class.path")
+    val settings = new Settings()
+    settings.usejavacp.value = true
+    settings.classpath.value = s"$existingClasspath:$driverJarPath"
 
-    val spark = SparkSession.builder()
-      .appName(s"Mariposa-Fly: $className")
-      .enableHiveSupport()
-      .getOrCreate()
+    // create interpreter
+    val sparkClassLoader = Thread.currentThread().getContextClassLoader
+    val reporter = new ReplReporterImpl(settings, defaultOut)
+    val interpreter = new IMain(settings, Some(sparkClassLoader), settings, reporter)
 
-    try {
-      val src = Source.fromFile(scriptFile)
-      val scriptContent = src.mkString
-      src.close()
+    // compile & load user class
+    println(s"Compiling: $className...")
+    if (!interpreter.compileString(scriptContent))
+      throw new RuntimeException(s"Compilation failed for class: $className")
+    val job = interpreter.classLoader.loadClass(className).getDeclaredConstructor().newInstance().asInstanceOf[MariposaJob]
 
-      val settings = new Settings()
-      settings.usejavacp.value = true
-
-      // Locate the physical path of the driver.jar housing MariposaJob
-      val driverJarPath = this.getClass.getProtectionDomain.getCodeSource.getLocation.getPath
-      val existingClasspath = System.getProperty("java.class.path")
-      settings.classpath.value = s"$existingClasspath:$driverJarPath"
-
-      // --- CRUCIAL CLASSLOADER FIX START ---
-      // Get Spark's active classloader context
-      val sparkClassLoader = Thread.currentThread().getContextClassLoader
-
-      val reporter = new ReplReporterImpl(settings, defaultOut)
-
-      // Explicitly pass Spark's classloader as the parent to the interpreter environment
-      val interpreter = new IMain(
-        settings,
-        Some(sparkClassLoader), // Encapsulate in an Option
-        settings,                // Pass settings a second time for compilerSettings
-        reporter
-      )
-      // ---- CRUCIAL CLASSLOADER FIX END ----
-
-      println(s"Compiling $className on-the-fly...")
-
-      if (!interpreter.compileString(scriptContent)) {
-        throw new RuntimeException(s"Compilation failed for code in: $fileName")
-      }
-
-      val classLoader = interpreter.classLoader
-      val runtimeClass = classLoader.loadClass(className)
-
-      // Now this cast will succeed flawlessly!
-      val jobInstance = runtimeClass.getDeclaredConstructor().newInstance().asInstanceOf[MariposaJob]
-
-      println(s"Executing runtime class: $className")
-      jobInstance.run(spark)
-
-      println(s"Job $className completed successfully!")
-
-    } catch {
-      case e: Exception =>
-        e.printStackTrace()
-        sys.exit(1)
-    } finally {
-      spark.stop()
-    }
+    // run user class
+    println(s"Executing: $className...")
+    job.run(spark)
+    println(s"SUCCESS: $className")
+  } finally {
+    spark.stop()
   }
 }
 
