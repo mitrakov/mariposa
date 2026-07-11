@@ -151,8 +151,8 @@ def main():
 
         if not ok:
             err_count += 1
-            if err_count >= 20:
-                print("Too many errors to call API. Exiting...")
+            if err_count >= 99:
+                print(f"Too many errors to call API ({err_count}). Exiting...")
                 break
         else:
             err_count = 0

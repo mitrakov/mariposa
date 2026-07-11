@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TODO: check if /etc/environment file is ok afterwards
 # execute dockerfile as bash (Ubuntu, root/sudo)
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive        # skip shitty dialogs
@@ -67,8 +68,8 @@ function RUN() {
 }
 function ENV() {
   export "$1"
-  if ! grep --quiet "export $1" /etc/profile.d/mariposa.sh; then
-    echo "export $1" >> /etc/profile.d/mariposa.sh
+  if ! grep --quiet "$1" /etc/environment; then
+    echo "$1" >> /etc/environment
   fi
 }
 function COPY() {
@@ -100,7 +101,6 @@ info "Welcome to docker2bash.sh. I'll help you execute $* as Bash"
 sleep 2
 
 apt update                                   # update ubuntu package manager
-source /etc/profile.d/mariposa.sh || true    # export variables from prev. docker files
 
 set -x                                       # turn debug on
 source "$1"
