@@ -40,15 +40,15 @@ object MariposaFly extends App {
     println(s"Compiling: $className...")
     if (!interpreter.compileString(scriptContent))
       throw new RuntimeException(s"Compilation failed for class: $className")
-    val job = interpreter.classLoader.loadClass(className).getDeclaredConstructor().newInstance().asInstanceOf[MariposaJob]
+    val jobClass = interpreter.classLoader.loadClass(className)
+    val job = jobClass.getDeclaredConstructor().newInstance()
+    val runMethod = jobClass.getMethod("run", classOf[SparkSession])
 
     // run user class
-    println(s"Executing: $className...")
-    job.run(spark)
+    println(s"Executing: $className.run(spark)...")
+    runMethod.invoke(job, spark)
     println(s"SUCCESS: $className")
   } finally {
     spark.stop()
   }
 }
-
-trait MariposaJob { def run(spark: SparkSession): Unit }
