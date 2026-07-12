@@ -1,0 +1,26 @@
+SELECT city,
+    COUNT(*) as total,
+    ROUND((COUNT(CASE WHEN gender = 'man'     THEN 1 END) * 100.0) / COUNT(*), 2) as men,
+    ROUND((COUNT(CASE WHEN gender = 'woman'   THEN 1 END) * 100.0) / COUNT(*), 2) as women,
+    ROUND((COUNT(CASE WHEN gender = 'unknown' THEN 1 END) * 100.0) / COUNT(*), 2) as unknown
+FROM planet.t_basic_etl WHERE lower(city) IN ('москва') GROUP BY city;
+
+city    total   men    women   unknown
+Москва  14089   58.85   35.35   5.80
+
+
+
+
+SELECT city,
+    COUNT(*) as norm_users,
+    ROUND((COUNT(CASE WHEN gender = 'man'   THEN 1 END) * 100.0) / COUNT(*), 2) as men,
+    ROUND((COUNT(CASE WHEN gender = 'woman' THEN 1 END) * 100.0) / COUNT(*), 2) as women
+FROM planet.t_basic_etl
+WHERE 
+    lower(city) IN ('москва','санкт-петербург')
+    AND gender IN ('man', 'woman')
+GROUP BY city;
+
+city        norm_users  men     women
+Москва         13281    62.40   37.60
+Санкт-Петербург 4891    58.35   41.65
