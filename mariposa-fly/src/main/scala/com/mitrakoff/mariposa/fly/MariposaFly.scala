@@ -16,7 +16,7 @@ object MariposaFly extends App {
   }
   
   // create spark session
-  val className = new File(args.head).getName
+  val className = new File(args.head).getName.stripSuffix(".scala")
   val spark = SparkSession.builder().appName(s"Mariposa-Fly: $className").enableHiveSupport().getOrCreate()
 
   try {
