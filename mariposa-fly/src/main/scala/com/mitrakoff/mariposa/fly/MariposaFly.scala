@@ -29,7 +29,6 @@ object MariposaFly extends App {
     val driverJarPath = this.getClass.getProtectionDomain.getCodeSource.getLocation.getPath
     val existingClasspath = sys.props("java.class.path")
     val settings = new Settings()
-    settings.usejavacp.value = true
     settings.classpath.value = s"$existingClasspath:$driverJarPath"
 
     // create interpreter
