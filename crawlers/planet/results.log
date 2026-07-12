@@ -1,26 +1,51 @@
-SELECT city,
+SELECT 
+    city,
     COUNT(*) as total,
     ROUND((COUNT(CASE WHEN gender = 'man'     THEN 1 END) * 100.0) / COUNT(*), 2) as men,
     ROUND((COUNT(CASE WHEN gender = 'woman'   THEN 1 END) * 100.0) / COUNT(*), 2) as women,
     ROUND((COUNT(CASE WHEN gender = 'unknown' THEN 1 END) * 100.0) / COUNT(*), 2) as unknown
-FROM planet.t_basic_etl WHERE lower(city) IN ('москва') GROUP BY city;
+FROM planet.t_basic_etl
+WHERE
+    lower(city) IN ('москва','санкт-петербург','новосибирск','нижний новгород','екатеринбург','пермь','великий новгород','псков')
+GROUP BY city
+ORDER BY total DESC
+;
 
-city    total   men    women   unknown
-Москва  14089   58.85   35.35   5.80
+city             total   men   women   unknown
+Москва          14087   60.52   35.56   3.93
+Санкт-Петербург 5112    57.24   39.96   2.80
+Екатеринбург    1360    61.18   35.96   2.87
+Новосибирск     1287    58.04   39.70   2.25
+Нижний Новгород     949 61.54   35.93   2.53
+Пермь               625 60.48   37.60   1.92
+Великий Новгород    142 61.97   35.21   2.82
+Псков               124 65.32   33.87   0.81
 
 
 
+===
 
-SELECT city,
-    COUNT(*) as norm_users,
+
+
+SELECT
+    city,
+    COUNT(*) as total,
     ROUND((COUNT(CASE WHEN gender = 'man'   THEN 1 END) * 100.0) / COUNT(*), 2) as men,
     ROUND((COUNT(CASE WHEN gender = 'woman' THEN 1 END) * 100.0) / COUNT(*), 2) as women
 FROM planet.t_basic_etl
 WHERE 
-    lower(city) IN ('москва','санкт-петербург')
+    lower(city) IN ('москва','санкт-петербург','новосибирск','нижний новгород','екатеринбург','пермь','великий новгород','псков')
     AND gender IN ('man', 'woman')
-GROUP BY city;
+GROUP BY city
+ORDER BY women DESC
+;
 
-city        norm_users  men     women
-Москва         13281    62.40   37.60
-Санкт-Петербург 4891    58.35   41.65
+city           total     men    women
+Санкт-Петербург 4969    58.89   41.11
+Новосибирск     1258    59.38   40.62
+Пермь               613 61.66   38.34
+Екатеринбург    1321    62.98   37.02
+Москва          13534   62.99   37.01
+Нижний Новгород     925 63.14   36.86
+Великий Новгород    138 63.77   36.23
+Псков               123 65.85   34.15
