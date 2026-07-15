@@ -1,28 +1,3 @@
-
-Logs for container_1783666251674_0002_01_000001
-ResourceManager
-
-    RM Home 
-
-NodeManager
-Tools
-	
-
-WARNING: Using incubator modules: jdk.incubator.vector
-2026-07-10T07:54:31,323 INFO  [main] util.SignalUtils: Registering signal handler for TERM
-2026-07-10T07:54:31,347 INFO  [main] util.SignalUtils: Registering signal handler for HUP
-2026-07-10T07:54:31,348 INFO  [main] util.SignalUtils: Registering signal handler for INT
-2026-07-10T07:54:34,044 WARN  [main] util.NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
-2026-07-10T07:54:34,721 INFO  [main] deploy.SparkHadoopUtil: Attempting to login to Kerberos using principal: hadoop/node49.host@MARIPOSA.COM and keytab: node49.host.keytab-4eb53206-c450-4c0e-8a9c-ee07d16ae552
-2026-07-10T07:54:35,101 INFO  [main] security.UserGroupInformation: Login successful for user hadoop/node49.host@MARIPOSA.COM using keytab file node49.host.keytab-4eb53206-c450-4c0e-8a9c-ee07d16ae552. Keytab auto renewal enabled : false
-2026-07-10T07:54:35,269 INFO  [main] yarn.ApplicationMaster: ApplicationAttemptId: appattempt_1783666251674_0002_000001
-2026-07-10T07:54:37,832 INFO  [main] yarn.ApplicationMaster: Starting the user application in a separate Thread
-2026-07-10T07:54:37,978 INFO  [main] yarn.ApplicationMaster: Waiting for spark context initialization...
-2026-07-10T07:54:38,007 INFO  [Driver] mariposa.Mariposa$: App properties are:
-2026-07-10T07:54:38,019 INFO  [Driver] mariposa.Mariposa$: app.kafka.topic: planet-import
-2026-07-10T07:54:38,019 INFO  [Driver] mariposa.Mariposa$: app.kafka.run.infinitely: true
-2026-07-10T07:54:38,024 INFO  [Driver] mariposa.Mariposa$: app.security.truststore.password: nkfvEv9bNXrKch7TXn7/Vfpdv3cvKoT2
-2026-07-10T07:54:38,024 INFO  [Driver] mariposa.Mariposa$: app.hive.table: planet.t_import
 2026-07-10T07:54:38,057 INFO  [Driver] mariposa.Kafka2Hive: === Mariposa-Kafka2Hive ===
 2026-07-10T07:54:38,057 INFO  [Driver] mariposa.Kafka2Hive: Builder parameters are:
 2026-07-10T07:54:38,068 INFO  [Driver] mariposa.Kafka2Hive: hiveTable: planet.t_import

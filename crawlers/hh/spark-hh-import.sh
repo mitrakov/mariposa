@@ -7,7 +7,7 @@ spark-submit \
   --name "Kafka2Hive-hh-import" \
   --deploy-mode cluster \
   --driver-memory 1024m \
-  --executor-memory 1024m \
+  --executor-memory 1000m \
   --executor-cores 1 \
   --num-executors 2 \
   --driver-java-options=" \
