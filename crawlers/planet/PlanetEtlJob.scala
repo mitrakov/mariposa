@@ -1,3 +1,4 @@
+// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-assembly-1.0.0.jar PlanetEtlJob.scala &
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.{DataFrame, SparkSession}
@@ -92,13 +93,13 @@ class PlanetEtlJob {
       "shch" -> "щ", "sh" -> "ш", "ch" -> "ч", "zh" -> "ж", "kh" -> "х",
       "ya"   -> "я", "yu" -> "ю", "yo" -> "ё", "ts" -> "ц", "a"  -> "а",
       "b"    -> "б", "v"  -> "в", "g"  -> "г", "d"  -> "д", "e"  -> "е",
-      "z"    -> "з", "i"  -> "и", "j"  -> "дж", "k"  -> "к", "l"  -> "л",
+      "z"    -> "з", "i"  -> "и", "j"  -> "дж", "k" -> "к", "l"  -> "л",
       "m"    -> "м", "n"  -> "н", "o"  -> "о", "p"  -> "п", "r"  -> "р",
       "s"    -> "с", "t"  -> "т", "u"  -> "у", "f"  -> "ф", "y"  -> "й",
       "x"    -> "кс", "th" -> "т", "w" -> "в", "h"  -> "х", "é"  -> "е",
       "c"    -> "ц"
     )
-    
+
     val femaleSeq = femaleNames.map(name => (name.toLowerCase, false)).toSeq
     val maleSeq   = maleNames.map(name => (name.toLowerCase, true)).toSeq
     val dictionaryDf = (femaleSeq ++ maleSeq).toDF("lookup_name", "is_male_dict")
@@ -119,8 +120,8 @@ class PlanetEtlJob {
         .when(col("personal_status").isInCollection(femaleStatuses), false)
         .when(col("seeking").rlike("(?i)(женщин|девуш)"), true)
         .when(col("seeking").rlike("(?i)(мужчин|парн)"), false)
-        .when(col("cyrillic_name").rlike("(?i)[йнрмксвлй]$"), true)         // Match on Cyrillic endings
-        .when(col("cyrillic_name").rlike("(?i)[ая]$"), false)               // Match on Cyrillic endings
+        .when(col("cyrillic_name").rlike("(?i)[йнрмксвлй]$"), true)
+        .when(col("cyrillic_name").rlike("(?i)[ая]$"), false)
         .otherwise(lit(null))
     ).drop("lookup_name", "is_male_dict", "cyrillic_name")
 
