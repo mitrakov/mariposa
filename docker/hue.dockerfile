@@ -1,6 +1,8 @@
-# docker build --file hue.dockerfile --tag mitrakov/hadoop-hue:1.0.0 .
-# docker build --file hue.dockerfile --tag mitrakov/hadoop-hue:1.0.0 --platform linux/amd64 .
+# docker buildx build --file hue.dockerfile --tag mitrakov/hadoop-hue:1.0.0 .
+# docker buildx build --file hue.dockerfile --tag mitrakov/hadoop-hue:1.0.0 --platform linux/amd64 .
 FROM ubuntu:26.04 AS builder
+
+ARG TARGETARCH
 
 # install tools
 RUN apt update && apt install --yes software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
@@ -13,8 +15,8 @@ RUN wget --output-document=- http://mitrakoff.com/cache/hue-4.11.0.tgz | \
 WORKDIR $HUE_HOME
 
 # download Node.js 18 (choose arm64/x64)
-RUN curl -fsSL https://nodejs.org/dist/v18.19.0/node-v18.19.0-linux-x64.tar.xz   | tar -xJ --strip-components=1 -C /usr/local
-#RUN curl -fsSL https://nodejs.org/dist/v18.19.0/node-v18.19.0-linux-arm64.tar.xz | tar -xJ --strip-components=1 -C /usr/local
+RUN NODE_ARCH=$(if [ "$TARGETARCH" = "amd64" ]; then echo x64; else echo arm64; fi) && \
+    curl -fsSL "https://nodejs.org/dist/v18.19.0/node-v18.19.0-linux-$NODE_ARCH.tar.xz" | tar -xJ --strip-components=1 -C /usr/local
 
 # create virtual env
 RUN mkdir -p build/env && python3.9 -m venv build/env

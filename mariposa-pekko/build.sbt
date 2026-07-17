@@ -21,9 +21,12 @@ libraryDependencies ++= Seq(
 
 // Assembly strategy to fix merge conflicts between Hadoop/HBase and Pekko jars
 assembly / assemblyMergeStrategy := {
+  case "reference.conf" => MergeStrategy.concat // concat all reference.conf files so Pekko can read its settings
   case PathList("META-INF", xs @ _*) =>
     xs match {
       case "MANIFEST.MF" :: Nil => MergeStrategy.discard
+      // Discard conflicting signature files from Hadoop dependencies (TODO check)
+      case x if x.endsWith(".SF") || x.endsWith(".DSA") || x.endsWith(".RSA") => MergeStrategy.discard
       case _ => MergeStrategy.first
     }
   case _ => MergeStrategy.first
