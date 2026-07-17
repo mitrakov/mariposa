@@ -26,6 +26,24 @@ java -Djava.security.auth.login.config=/path/to/hbase-jaas.conf \
      -Djava.security.krb5.conf=/etc/krb5.conf \
      -jar my-hbase-pekko-app-assembly-1.0.jar
 
+// simple:
+hbase shell:
+create 'users', 'info'
+put 'users', 'your_test_row_key', 'info:email', 'tommy@mariposa.COM'
+
+export HBASE_CONF_DIR=/opt/hbase/conf
+java -cp "mariposa-pekko-assembly-1.0.jar:$HBASE_CONF_DIR" Main
+curl -v http://localhost:7012/user/your_test_row_key
+
+// kerberos:
+export HBASE_CONF_DIR=/opt/hbase/conf
+java \
+  -Djava.security.auth.login.config=$HBASE_CONF_DIR/hbase-jaas.conf \
+  -Djava.security.krb5.conf=/etc/krb5.conf \
+  --add-exports=java.security.jgss/sun.security.krb5=ALL-UNNAMED \
+  --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED \
+  -cp "mariposa-pekko-assembly-1.0.jar:$HBASE_CONF_DIR" \
+  Main
  */
 object Main extends App {
   
@@ -44,7 +62,7 @@ object Main extends App {
   UserGroupInformation.setConfiguration(hbaseConfig)
   UserGroupInformation.loginUserFromKeytab(
     "tommy@MARIPOSA.COM",
-    "/var/lib/hadoop/keytabs/tommy.keytab" // Ensure this matches your $KEYTABS_DIR
+    "/etc/security/keytabs/tommy.keytab" // should match $KEYTABS_DIR
   )
 
   println(s"Authenticated successfully as: ${UserGroupInformation.getLoginUser}")
@@ -55,7 +73,7 @@ object Main extends App {
 
   // 2. Initialize Pekko Typed Actor System
   implicit val system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "Mariposa")
-  implicit val ec: ExecutionContext = system.executionContext
+  //implicit val ec: ExecutionContext = system.executionContext
   implicit val hbaseEC: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(20))
 
   // 3. Define HTTP Routes
@@ -91,7 +109,7 @@ object Main extends App {
 
 
   // 4. Start HTTP Server
-  val bindingFuture = Http().newServerAt("0.0.0.0", 8080).bind(routes)
+  val bindingFuture = Http().newServerAt("0.0.0.0", 7012).bind(routes)
   
   bindingFuture.onComplete {
     case Success(binding) =>
