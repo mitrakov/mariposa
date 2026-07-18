@@ -14,26 +14,14 @@ import scala.util.{Failure, Success}
 import scala.concurrent.{ExecutionContext, Future}
 
 /*
-export HBASE_CONF_DIR=/etc/hbase/conf
-java -cp "mariposa-pekko-assembly-1.0.jar:$HBASE_CONF_DIR"
-     -Djava.security.auth.login.config=/path/to/hbase-jaas.conf \
-     -Djava.security.krb5.conf=/etc/krb5.conf \
-     -jar my-hbase-pekko-app-assembly-1.0.jar
-     
-export KEYTABS_DIR="/your/keytabs/path" # Match your initialization script path
-
-java -Djava.security.auth.login.config=/path/to/hbase-jaas.conf \
-     -Djava.security.krb5.conf=/etc/krb5.conf \
-     -jar my-hbase-pekko-app-assembly-1.0.jar
-
 // simple:
 hbase shell:
 create 'users', 'info'
-put 'users', 'your_test_row_key', 'info:email', 'tommy@mariposa.COM'
+put 'users', 'Tommy', 'info:email', 'tommy@mariposa.COM'
 
 export HBASE_CONF_DIR=/opt/hbase/conf
 java -cp "mariposa-pekko-assembly-1.0.jar:$HBASE_CONF_DIR" Main
-curl -v http://localhost:7012/user/your_test_row_key
+curl http://$MASTER_HOST:7012/user/Tommy
 
 // kerberos:
 export HBASE_CONF_DIR=/opt/hbase/conf
@@ -50,24 +38,11 @@ object Main extends App {
   println("Connecting to HBase...")
   val hbaseConfig = HBaseConfiguration.create()
 
-  // 1. Tell the client to use Kerberos
-  hbaseConfig.set("hbase.security.authentication", "kerberos")
-  hbaseConfig.set("hadoop.security.authentication", "kerberos")
-
-  // 2. Point to the Cluster's service principals (matching your script's pattern)
-  hbaseConfig.set("hbase.master.kerberos.principal", "hbase/_HOST@MARIPOSA.COM")
-  hbaseConfig.set("hbase.regionserver.kerberos.principal", "hbase/_HOST@MARIPOSA.COM")
-
-  // 3. Authenticate the JVM process using Tommy's keytab
+  // TODO: if (isKerberos) {
   UserGroupInformation.setConfiguration(hbaseConfig)
-  UserGroupInformation.loginUserFromKeytab(
-    "tommy@MARIPOSA.COM",
-    "/etc/security/keytabs/tommy.keytab" // should match $KEYTABS_DIR
-  )
+  UserGroupInformation.loginUserFromKeytab("hbase/namenode.host@MARIPOSA.COM", "/etc/security/keytabs/namenode.host.keytab")
 
   println(s"Authenticated successfully as: ${UserGroupInformation.getLoginUser}")
-
-  // 4. Create your thread-safe connection
 
   val hbaseConnection: Connection = ConnectionFactory.createConnection(hbaseConfig)
 
@@ -129,57 +104,14 @@ object Main extends App {
 }
 
 /*
+/opt/hbase/conf/hbase-jaas.conf:
 Client {
   com.sun.security.auth.module.Krb5LoginModule required
   useKeyTab=true
-  keyTab="/var/lib/hadoop/keytabs/tommy.keytab"
-  principal="tommy@MARIPOSA.COM"
+  keyTab="/etc/security/keytabs/namenode.host.keytab"
+  principal="hbase/namenode.host@MARIPOSA.COM"
   storeKey=true
   useTicketCache=false
   refreshKrb5Config=true;
 };
-
-kinit -kt /var/lib/hadoop/keytabs/your_master.keytab hbase/your_master_host@MARIPOSA.COM
-hbase shell
-grant 'tommy', 'RW', 'users'
-
-
-
-
-
-
-
-
-
-
-
-
-
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.hbase.HBaseConfiguration
-import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory}
-import org.apache.hadoop.security.UserGroupInformation
-
-val hbaseConfig: Configuration = HBaseConfiguration.create()
-
-// 1. Enable Kerberos
-hbaseConfig.set("hbase.security.authentication", "kerberos")
-hbaseConfig.set("hadoop.security.authentication", "kerberos")
-hbaseConfig.set("hbase.master.kerberos.principal", "hbase/_HOST@MARIPOSA.COM")
-hbaseConfig.set("hbase.regionserver.kerberos.principal", "hbase/_HOST@MARIPOSA.COM")
-
-// 2. Resolve paths using environment variables from your setup script
-val keytabsDir = sys.env.getOrElse("KEYTABS_DIR", "/var/lib/hadoop/keytabs")
-val tommyKeytabPath = s"$keytabsDir/tommy.keytab"
-
-UserGroupInformation.setConfiguration(hbaseConfig)
-UserGroupInformation.loginUserFromKeytab(
-  "tommy@MARIPOSA.COM",
-  tommyKeytabPath
-)
-
-println(s"Logged in as Tommy directly on Master: ${UserGroupInformation.getLoginUser}")
-val hbaseConnection: Connection = ConnectionFactory.createConnection(hbaseConfig)
-
-
  */
