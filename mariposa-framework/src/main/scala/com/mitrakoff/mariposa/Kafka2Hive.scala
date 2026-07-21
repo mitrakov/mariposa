@@ -42,6 +42,7 @@ case class Kafka2Hive  private (
     logger.info(s"Hive table schema: ${hiveSchema.treeString}")
 
     // configuration for secured Kafka
+    // TODO: last 4 params: if SASL then...
     val kafkaOptions = Map(
       "kafka.bootstrap.servers"  -> kafkaBootstrapServers,
       "subscribe"                -> kafkaTopic,

@@ -18,4 +18,4 @@ spark-submit \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.Kafka2Hive \
-  /home/hadoop/mariposa-assembly-1.0.0.jar &
+  /home/hadoop/mariposa-assembly-1.0.1.jar &
