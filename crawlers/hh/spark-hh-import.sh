@@ -6,10 +6,6 @@ source /etc/profile.d/mariposa.sh
 spark-submit \
   --name "Kafka2Hive-hh-import" \
   --deploy-mode cluster \
-  --driver-memory 1024m \
-  --executor-memory 900m \
-  --executor-cores 1 \
-  --num-executors 2 \
   --driver-java-options=" \
    -Dapp.hive.table=hh.t_import \
    -Dapp.kafka.topic=hh-import \

@@ -298,7 +298,7 @@ def main():
     producer = Producer(kafka_conf)
 
     for page in range(0, 1001):
-        print(f"\n--- Scraping Index Page {page} ---")
+        print(f"\n--- {datetime.now()} Scraping Index Page {page} ---")
         try:
             response = requests.get(f"https://loveplanet.ru/a-search/d-1/p-{page}", headers={"User-Agent": "Mozilla/5.0"})
             if response.status_code == 404:
