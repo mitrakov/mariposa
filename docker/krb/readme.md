@@ -45,10 +45,10 @@ ssl.truststore.password=marip0sa_jKs
 ```
 
 ```sh
-export KAFKA_OPTS="-Djava.security.auth.login.config=/home/tommy/kafka_jaas.conf"
 kinit -kt $KEYTABS_DIR/tommy.keytab $(whoami)@MARIPOSA.COM
-kafka-topics.sh --list --bootstrap-server $(hostname):9092 --command-config ~/kafka.properties
-kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic the-topic --command-config ~/kafka.properties
+kafka-topics.sh --list --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties
+kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic the-topic --command-config $KAFKA_HOME/config/sasl.properties
+kafka-console-consumer.sh --bootstrap-server $(hostname):9092 --topic the-topic --command-config $KAFKA_HOME/config/sasl.properties
 ```
 
 # Building HBase patch

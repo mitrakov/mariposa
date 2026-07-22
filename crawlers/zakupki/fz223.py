@@ -22,6 +22,8 @@ from datetime import datetime
 from argparse import ArgumentParser
 from configparser import ConfigParser
 from confluent_kafka import Producer
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)    # suppress "InsecureRequestWarning: Unverified HTTPS request"
 
 
 # html field to json-key mapping
@@ -82,19 +84,19 @@ def write_current_id(cur_id_file: str, cur_id: int):
 
 
 # makes an HTTP request to data source web-site; returns tuple {List[Json]; Error}
-def make_request(reg_number: int) -> tuple[list[dict[str, object]], bool]:
+def make_request(reg_number: int) -> tuple[dict[str, Any], bool]:
     url = f"https://zakupki.gov.ru/223/purchase/public/purchase/info/common-info.html?regNumber={reg_number}"
     try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, verify=False)   # Verify=False to skip shitty МинЦифры certs
         if resp.status_code == 404:
             print(f"Not found: {reg_number} (404).")
-            return [], False
+            return {}, False
         resp.raise_for_status()    # throw for 4xx,5xx errors
 
         return parse_html(resp.text), True
     except Exception as e:
         print(f"Failed to fetch {url}: {e}")
-        return [], False
+        return {}, False
 
 
 # parsing
@@ -102,7 +104,7 @@ def parse_html(html_content: str) -> Dict[str, Any]:
     soup = BeautifulSoup(html_content, 'lxml')
     data = {}
 
-    # ---- 1. Bloque de Huso Horario (Time Zone) ----
+    # timezone block
     tz_block = soup.find('div', class_='time-zone')
     if tz_block:
         tz_val = tz_block.find('div', class_='time-zone__value')
@@ -110,7 +112,7 @@ def parse_html(html_content: str) -> Dict[str, Any]:
             tz_text = extract_text(tz_val)
             data['timezone'] = tz_text
 
-    # ---- 2. Bloque de resumen principal (Top form) ----
+    # top form
     entry = soup.find('div', class_='registry-entry__form')
     if entry:
         status = entry.find('div', class_='registry-entry__header-mid__title')
@@ -122,10 +124,10 @@ def parse_html(html_content: str) -> Dict[str, Any]:
             if price_val: data['price'] = extract_price(extract_text(price_val))
 
         for t in entry.find_all('div', class_='data-block__title'):
-            # Get the value element. It's usually the next sibling, or inside the same parent.
+            # get the value element. It's usually the next sibling, or inside the same parent.
             v = t.find_next_sibling('div', class_='data-block__value')
             if not v:
-                # Fallback: try the parent's sibling or look for it in the same column
+                # fallback: try the parent's sibling or look for it in the same column
                 parent_col = t.parent
                 if parent_col:
                     v = parent_col.find('div', class_='data-block__value')
@@ -135,13 +137,13 @@ def parse_html(html_content: str) -> Dict[str, Any]:
                 value_text = extract_text(v)
                 
                 if title_text == 'Размещено':
-                    data['publish_date'] = value_text
+                    data['publish_date'] = parse_to_iso_date(value_text)
                 elif title_text == 'Обновлено':
-                    data['update_date'] = value_text
+                    data['update_date']  = parse_to_iso_date(value_text)
                 elif title_text == 'Окончание подачи заявок':
-                    data['finish_date'] = value_text
+                    data['finish_date']  = parse_to_iso_date(value_text)
 
-    # ---- 3. Bloques detallados iterativos ----
+    # details block
     raw_fields = {}
     for section in soup.find_all('section', class_='common-text'):
         for row in section.find_all('div', class_='row') or [section]:
@@ -155,7 +157,7 @@ def parse_html(html_content: str) -> Dict[str, Any]:
             val_el = gray_el.find_next_sibling('div', class_='common-text__value')
             if val_el: raw_fields[label_text] = extract_text(val_el)
 
-    # ---- 4. Mapear datos crudos a llaves finales ----
+    # final mapping
     for r_key, r_value in raw_fields.items():
         clean_key = r_key.rstrip(':').strip()
         if clean_key in FIELD_MAP:
@@ -171,11 +173,21 @@ def extract_price(text: str) -> Optional[float]:
     try: return float(cleaned)
     except ValueError: return None
 
+def parse_to_iso_date(date_text: str) -> Optional[str]:
+    if not date_text:
+        return None
+    try:
+        # Convert Russian "18.06.2026" format into clean "2026-06-18" ISO format
+        parsed_dt = datetime.strptime(date_text.strip(), "%d.%m.%Y")
+        return parsed_dt.strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
 
 # callback function for Kafka Producer
 def delivery_callback(err, msg, id: int, file_for_id: str):
     if err:
-        print(f"❌ Failed to send ID {id} to {msg.topic()}: {err}")
+        print(f"Failed to send ID {id} to {msg.topic()}: {err}")
     else:
         write_current_id(file_for_id, id + 1)            # write a new ID into a text file
         print(f"ID {id} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
