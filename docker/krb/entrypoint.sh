@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# entrypoint.sh for image: mitrakov/hadoop-krb:1.0.2
+# entrypoint.sh for image: mitrakov/hadoop-krb:1.0.3
 set -euo pipefail
 
 # helpers
@@ -434,6 +434,41 @@ cat <<EOF > $HADOOP_CONF_DIR/ssl-server.xml
   <property>
     <name>ssl.server.keystore.keypassword</name>
     <value>$JKS_PASSWORD</value>
+  </property>
+</configuration>
+EOF
+
+# opt: create 2 queues and split resources 50/50 (since: 1.0.3)
+cat <<EOF > $HADOOP_CONF_DIR/capacity-scheduler.xml
+<configuration>
+  <property>
+    <name>yarn.scheduler.capacity.root.queues</name>
+    <value>default,mariposa</value>
+    <description>comma-separated list of queues under the root</description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.default.capacity</name>
+    <value>50</value>
+    <description>capacity percentages (must equal 100% total)</description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.mariposa.capacity</name>
+    <value>50</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.default.maximum-capacity</name>
+    <value>100</value>
+    <description>maximum capacity limits for default queue</description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.mariposa.maximum-capacity</name>
+    <value>100</value>
+    <description>maximum capacity limits for mariposa queue</description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.mariposa.acl_submit_applications</name>
+    <value>*</value>
+    <description>open ACLs so all users can submit to mariposa queue</description>
   </property>
 </configuration>
 EOF

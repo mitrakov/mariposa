@@ -12,7 +12,7 @@ case class Kafka2HBase private (
     private val hbaseCatalog: String = "{}",
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
-    private val pollInterval: String = "5 seconds",
+    private val pollInterval: String = "10 seconds",
     private val infinite: Boolean = false,
     private val truststorePassword: String = "",
 ) {
