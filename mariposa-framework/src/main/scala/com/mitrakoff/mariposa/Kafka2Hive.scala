@@ -12,7 +12,7 @@ case class Kafka2Hive  private (
     private val hiveTable: String = "myTable",
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
-    private val pollInterval: String = "5 seconds",
+    private val pollInterval: String = "10 seconds",
     private val infinite: Boolean = false,
     private val truststorePassword: String = "",
 ) {
