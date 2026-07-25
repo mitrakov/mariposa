@@ -112,7 +112,7 @@ def main():
 
     kafka_conf = load_properties(args.kafka_config)
     kafka_conf = {str(k): str(v) for k, v in kafka_conf.items()}  # converts all keys & values to strings to avoid issues
-    print(f"Kafka config: {kafka_conf}")
+    print(f"{datetime.now()}    Kafka config: {kafka_conf}")
 
     producer = Producer(kafka_conf)
 
@@ -142,7 +142,7 @@ def main():
         time.sleep(3)                             # sleep N sec to respect the server
 
     producer.flush()                              # block until done
-    print("Done!")
+    print(f"{datetime.now()} Done!")
 
 
 # entry point

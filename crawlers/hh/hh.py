@@ -2,7 +2,7 @@
 """
 Simple hh.ru scraper that pushes related vacancies to Kafka.
 
-./hh.py --topic hh-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 28800
+./hh.py --topic hh-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 100000
 
 properties file example:
 bootstrap.servers=$(hostname):9092
@@ -21,6 +21,7 @@ from argparse import ArgumentParser
 from configparser import ConfigParser
 from confluent_kafka import Producer
 
+
 def parse_args():
     parser = ArgumentParser(description="Scrape hh.ru and push to Kafka")
     parser.add_argument("--topic", required=True, help="Kafka topic to publish to")
@@ -28,6 +29,7 @@ def parse_args():
     parser.add_argument("--current-id-file", required=True, help="File holding current vacancy ID")
     parser.add_argument("--batch-size", type=int, default=1, help="Number of IDs to process (default: 1)")
     return parser.parse_args()
+
 
 def load_properties(filepath: str) -> dict[str, str]:
     config = ConfigParser()
@@ -37,6 +39,7 @@ def load_properties(filepath: str) -> dict[str, str]:
     config.read_string(content)
     return dict(config.items("root"))
 
+
 def read_current_id(cur_id_file: str) -> int:
     if os.path.exists(cur_id_file):
         with open(cur_id_file, 'r') as f:
@@ -45,9 +48,11 @@ def read_current_id(cur_id_file: str) -> int:
                 return int(content)
     return -1
 
+
 def write_current_id(cur_id_file: str, cur_id: int):
     with open(cur_id_file, 'w') as f:
         f.write(str(cur_id))
+
 
 def make_request(vacancy_id: int) -> tuple[list[dict[str, object]], bool]:
     url = f"https://hh.ru/shards/vacancy/related_vacancies?vacancyId={vacancy_id}"
@@ -62,6 +67,7 @@ def make_request(vacancy_id: int) -> tuple[list[dict[str, object]], bool]:
     except Exception as e:
         print(f"Failed to fetch {url}: {e}")
         return [], False
+
 
 def extract_message(vacancy: dict) -> dict:
     company = vacancy.get("company", {})
@@ -115,12 +121,14 @@ def extract_message(vacancy: dict) -> dict:
         "snippet_skill":         snippet.get("skill"),
     }
 
+
 def delivery_callback(err, msg, vacancy_id: int, file_for_id: str):
     if err:
         print(f"❌ Failed to send vacancy {vacancy_id} to {msg.topic()}: {err}")
     else:
         write_current_id(file_for_id, vacancy_id + 1)
         print(f"ID={vacancy_id} delivered to {msg.topic()} [partition {msg.partition()}] at offset {msg.offset()}")
+
 
 def main():
     args = parse_args()
@@ -140,7 +148,7 @@ def main():
 
     kafka_conf = load_properties(args.kafka_config)
     kafka_conf = {str(k): str(v) for k, v in kafka_conf.items()}  # convert all k & v to strings
-    print(f"Kafka config: {kafka_conf}")
+    print(f"{datetime.now()}    Kafka config: {kafka_conf}")
 
     producer = Producer(kafka_conf)
 
@@ -171,7 +179,7 @@ def main():
             time.sleep(2)                         # sleep to respect the server
 
     producer.flush()                              # block until done
-    print("Done!")
+    print(f"{datetime.now()}    Done!")
 
 if __name__ == "__main__":
     main()

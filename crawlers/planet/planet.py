@@ -113,7 +113,6 @@ def clean_hive_key(prefix, raw_key):
         return f"{prefix}_{transliterate_to_ascii(normalized_key)}"
 
 
-
 def flatten_profile(raw_data: dict[str, object]) -> dict[str, object]:
     """Flattens the nested dictionary into a single-level structure with Hive-compatible keys."""
     flat_data = {
@@ -293,12 +292,12 @@ def main():
 
     kafka_conf = load_properties(args.kafka_config)
     kafka_conf = {str(k): str(v) for k, v in kafka_conf.items()}  # converts all keys & values to strings to avoid issues
-    print(f"Kafka config: {kafka_conf}")
+    print(f"{datetime.now()}    Kafka config: {kafka_conf}")
 
     producer = Producer(kafka_conf)
 
     for page in range(0, 1001):
-        print(f"\n--- {datetime.now()} Scraping Index Page {page} ---")
+        print(f"\n--- Scraping Index Page {page} ---")
         try:
             response = requests.get(f"https://loveplanet.ru/a-search/d-1/p-{page}", headers={"User-Agent": "Mozilla/5.0"})
             if response.status_code == 404:
@@ -333,7 +332,7 @@ def main():
         producer.flush()
 
     producer.flush()                              # block until done
-    print("Done!")
+    print(f"{datetime.now()}    Done!")
 
 
 # entry point
