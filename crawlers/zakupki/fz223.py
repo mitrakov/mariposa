@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Simple scraper for zakupki.gov for 223-FZ.
-./fz223.py --topic zakupki-fz223-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 28800
+./fz223.py --topic zakupki-fz223-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 100000
 
 properties file example:
 bootstrap.servers=$(hostname):9092
@@ -164,14 +164,17 @@ def parse_html(html_content: str) -> Dict[str, Any]:
             data[FIELD_MAP[clean_key]] = r_value
     return data
 
+
 def extract_text(el) -> Optional[str]:
     return el.get_text(strip=True) if el else None
+
 
 def extract_price(text: str) -> Optional[float]:
     if not text: return None
     cleaned = re.sub(r'[^\d,.]', '', text).replace(',', '.')
     try: return float(cleaned)
     except ValueError: return None
+
 
 def parse_to_iso_date(date_text: str) -> Optional[str]:
     if not date_text:
@@ -211,7 +214,7 @@ def main():
 
     kafka_conf = load_properties(args.kafka_config)
     kafka_conf = {str(k): str(v) for k, v in kafka_conf.items()}  # converts all keys & values to strings to avoid issues
-    print(f"Kafka config: {kafka_conf}")
+    print(f"{datetime.now()}    Kafka config: {kafka_conf}")
 
     producer = Producer(kafka_conf)
 
@@ -243,7 +246,7 @@ def main():
         time.sleep(3)                             # sleep 3 sec to respect the server
 
     producer.flush()                              # block until done
-    print("Done!")
+    print(f"{datetime.now()}    Done!")
 
 
 # entry point
