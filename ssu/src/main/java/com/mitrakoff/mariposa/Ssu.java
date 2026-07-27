@@ -8,24 +8,24 @@ import java.util.List;
 
 @SuppressWarnings("CallToPrintStackTrace")
 public class Ssu {
-    private static final int PORT = 9696;
     private static DatagramSocket daemonListenSocket;
 
     public static void main(String[] args) {
-        if (args.length == 0) printHelpAndQuit();
+        if (args.length != 2) printHelpAndQuit();
 
         try {
             // read config
-            final var config = new ObjectMapper().readValue(Files.readString(Paths.get(args[0])), TheConfig.class);
+            final var port = Integer.parseInt(args[0]);
+            final var config = new ObjectMapper().readValue(Files.readString(Paths.get(args[1])), TheConfig.class);
             System.out.printf("Hosts: %s\n", config.hosts());
             System.out.printf("WorkDir: %s\n", config.workDir());
             System.out.printf("Startup scripts:  %s\n", config.startup());
             System.out.printf("Shutdown scripts: %s\n", config.shutdown());
 
             // create ClusterSynchronizer
-            final var synchronizer = new ClusterSynchronizer(config.hosts(), PORT);
+            final var synchronizer = new ClusterSynchronizer(config.hosts(), port);
             final var myHost = synchronizer.resolveMyHostName();
-            System.out.printf("My host: %s\n", myHost);
+            System.out.printf("My host: %s:%d\n", myHost, port);
 
             // run startup scripts
             runScripts(config.startup(), config.workDir(), synchronizer, "STARTUP");
@@ -36,22 +36,22 @@ public class Ssu {
                     daemonListenSocket.close(); // Release PORT to avoid "java.net.BindException: Address already in use"
 
                 System.out.println("\n=== SIGTERM DETECTED! RUNNING GRACEFUL SHUTDOWN ===");
-                broadcastShutdown(config.hosts(), myHost);
+                broadcastShutdown(config.hosts(), myHost, port);
                 runScripts(config.shutdown(), config.workDir(), synchronizer, "SHUTDOWN");
                 Runtime.getRuntime().halt(0);    // never use System.exit() in shutdown hooks!
             }));
 
             // listen for shutdown message from other nodes
             System.out.println("\n=== SSU RUNNING... Press CTRL+C or use 'kill <PID>' to run distributed graceful shutdown ===");
-            listenForRemoteShutdown(myHost);
+            listenForRemoteShutdown(myHost, port);
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    private static void listenForRemoteShutdown(String myIdentity) {
+    private static void listenForRemoteShutdown(String myHost, int port) {
         try {
             daemonListenSocket = new DatagramSocket(null);
             daemonListenSocket.setReuseAddress(true);
-            daemonListenSocket.bind(new InetSocketAddress(PORT));
+            daemonListenSocket.bind(new InetSocketAddress(port));
 
             final var buffer = new byte[1024];
             while (!daemonListenSocket.isClosed()) {
@@ -63,7 +63,7 @@ public class Ssu {
                 final var msg = new String(packet.getData(), 0, packet.getLength());
                 if (msg.endsWith(":SHUTDOWN_TRIGGERED")) {
                     final var nodeName = msg.split(":")[0];
-                    if (!nodeName.equals(myIdentity)) {
+                    if (!nodeName.equals(myHost)) {
                         System.out.printf("=== RECEIVED SHUTDOWN HOOK FROM: %s ===\n", nodeName);
                         System.exit(0);    // call own shutdown hook
                     }
@@ -72,12 +72,12 @@ public class Ssu {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    private static void broadcastShutdown(List<String> hosts, String myHost) {
+    private static void broadcastShutdown(List<String> hosts, String myHost, int port) {
         try (DatagramSocket socket = new DatagramSocket()) {
             final var data = (myHost + ":SHUTDOWN_TRIGGERED").getBytes();
             for (final var host : hosts) {
                 if (!host.equals(myHost)) 
-                    socket.send(new DatagramPacket(data, data.length, java.net.InetAddress.getByName(host), PORT));
+                    socket.send(new DatagramPacket(data, data.length, InetAddress.getByName(host), port));
             }
         } catch (Exception e) { e.printStackTrace(); }
     }
@@ -111,8 +111,10 @@ public class Ssu {
     
     private static void printHelpAndQuit() {
         System.err.println("""
-        Usage: java -jar mariposa-ssu.jar autorun.conf
         Mariposa Simple Synchronization Utility.
+        
+        Usage:   java -jar mariposa-ssu.jar PORT CONFIG-FILE
+        Example: java -jar mariposa-ssu.jar 9696 autorun.conf
         
         Config example:
         {
