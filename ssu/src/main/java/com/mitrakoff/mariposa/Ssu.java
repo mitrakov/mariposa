@@ -113,8 +113,8 @@ public class Ssu {
         System.err.println("""
         Mariposa Simple Synchronization Utility.
         
-        Usage:   java -jar mariposa-ssu.jar PORT CONFIG-FILE
-        Example: java -jar mariposa-ssu.jar 9696 autorun.conf
+        Usage:   java -jar mariposa-ssu.jar PORT JSON_CONF_FILE
+        Example: java -jar mariposa-ssu.jar 9696 autorun.json
         
         Config example:
         {
