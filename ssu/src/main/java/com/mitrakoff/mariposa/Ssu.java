@@ -1,182 +1,134 @@
 package com.mitrakoff.mariposa;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.*;
+import java.net.*;
+import java.nio.file.*;
 import java.util.List;
 
-record TheConfig(
-    String workDir,
-    List<String> hosts, 
-    List<String> startup, 
-    List<String> shutdown
-) {}
-
+@SuppressWarnings("CallToPrintStackTrace")
 public class Ssu {
-    private static final int CLUSTER_PORT = 9696;
+    private static final int PORT = 9696;
     private static DatagramSocket daemonListenSocket;
-    private static ClusterSynchronizer synchronizer;
-    private static TheConfig config;
-    private static String myIdentity;
 
     public static void main(String[] args) {
-        if (args.length == 0) {
-            System.err.println("Error: Please provide the path to the JSON file.");
-            System.exit(1);
-        }
+        if (args.length == 0) printHelpAndQuit();
 
         try {
-            Path filePath = Paths.get(args[0]);
-            String jsonInput = Files.readString(filePath);
+            // read config
+            var config = new ObjectMapper().readValue(Files.readString(Paths.get(args[0])), TheConfig.class);
+            System.out.printf("Hosts: %s\n", config.hosts());
+            System.out.printf("WorkDir: %s\n", config.workDir());
+            System.out.printf("Startup scripts: %s\n", config.startup());
+            System.out.printf("Shutdown scripts: %s\n", config.shutdown());
 
-            ObjectMapper mapper = new ObjectMapper();
-            config = mapper.readValue(jsonInput, TheConfig.class);
+            // create ClusterSynchronizer
+            var synchronizer = new ClusterSynchronizer(config.hosts(), PORT);
+            var myHost = synchronizer.resolveMyHostName();
+            System.out.printf("My host: %s\n", myHost);
 
-            synchronizer = new ClusterSynchronizer(config.hosts(), CLUSTER_PORT);
-            myIdentity = synchronizer.resolveMyHostName();
+            // run startup scripts
+            runScripts(config.startup(), config.workDir(), synchronizer, "STARTUP");
 
-            System.out.println("--- Starting Synchronized Cluster Daemon ---");
-            System.out.println("Hosts: " + config.hosts());
-            System.out.println("My Identity: " + myIdentity);
-
-            // 1. BUCLE DE INICIO (STARTUP) - Si falla aquí, muere sin Hook de apagado
-            System.out.println("\n[Executing Startup Stage]");
-            for (String script : config.startup()) {
-                runLocalScript(script, config.workDir());
-                synchronizer.waitForAllNodes(script);
-            }
-
-            // 2. EL CLÚSTER ESTÁ LISTO -> AHORA SÍ REGISTRAMOS EL HOOK
-            System.out.println("\n[Status] All startup scripts completed. Cluster Services are ONLINE.");
-
+            // add shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                System.out.println("\n[Local Signal] SIGTERM/Ctrl+C detected! Notifying cluster...");
-                
-                if (daemonListenSocket != null && !daemonListenSocket.isClosed()) {
-                    daemonListenSocket.close();
-                }
+                if (daemonListenSocket != null && !daemonListenSocket.isClosed())
+                    daemonListenSocket.close(); // Release PORT to avoid "java.net.BindException: Address already in use"
 
-                // Enviar la señal de pánico a los demás nodos
-                broadcastClusterMessage(myIdentity + ":SHUTDOWN_TRIGGERED", config.hosts(), CLUSTER_PORT);
-
-                // Ejecutar la fase de apagado sincronizada en reversa
-                executeClusterShutdownStage();
-
-                System.out.println("[Process] Graceful cluster-wide shutdown complete. Forcing clean exit 0.");
-                Runtime.getRuntime().halt(0);
+                System.out.println("\n=== SIGTERM DETECTED! RUNNING GRACEFUL SHUTDOWN ===");
+                broadcastShutdown(config.hosts(), myHost);
+                runScripts(config.shutdown(), config.workDir(), synchronizer, "SHUTDOWN");
+                Runtime.getRuntime().halt(0);    // never use System.exit() in shutdown hooks!
             }));
 
-            // 3. BUCLE PRINCIPAL (Aprovechamos el puerto UDP aquí mismo en lugar de un hilo extra)
-            System.out.println("[Status] Daemon is idling. Listening for remote shutdown or local Ctrl+C...");
-            listenForRemoteShutdown(CLUSTER_PORT);
-
-        } catch (Exception e) {
-            System.err.println("Critical failure in orchestration engine.");
-            e.printStackTrace();
-        }
+            // listen for shutdown message from other nodes
+            System.out.println("\n=== SSU RUNNING... Press CTRL+C or use 'kill <PID>' to run distributed graceful shutdown ===");
+            listenForRemoteShutdown(myHost);
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
-    /**
-     * Bucle principal de espera activa. Reutiliza el puerto UDP para capturar
-     * si otra máquina inició el proceso de apagado.
-     */
-    private static void listenForRemoteShutdown(int port) {
+    private static void listenForRemoteShutdown(String myIdentity) {
         try {
-            // Inicializar la variable estática global
             daemonListenSocket = new DatagramSocket(null);
             daemonListenSocket.setReuseAddress(true);
-            daemonListenSocket.bind(new InetSocketAddress(port));
+            daemonListenSocket.bind(new InetSocketAddress(PORT));
 
-            byte[] buffer = new byte[1024];
-
-            // El bucle continuará de por vida hasta que salte una excepción de cierre
+            var buffer = new byte[1024];
             while (!daemonListenSocket.isClosed()) {
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                var packet = new DatagramPacket(buffer, buffer.length);
+                try {
+                    daemonListenSocket.receive(packet);
+                } catch (Exception ignored) {}
 
-                // Si el hook invoca a daemonListenSocket.close() mientras el hilo está bloqueado aquí,
-                // esta llamada arrojará un SocketException controlado de inmediato, liberando el hilo.
-                daemonListenSocket.receive(packet);
-
-                String msg = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
-                if (msg.contains(":SHUTDOWN_TRIGGERED")) {
-                    String senderNode = msg.split(":")[0];
-
-                    if (!senderNode.equals(myIdentity)) {
-                        System.out.println("\n[Network Alert] Received remote shutdown command from node: " + senderNode);
-                        System.exit(0);
+                var msg = new String(packet.getData(), 0, packet.getLength());
+                if (msg.endsWith(":SHUTDOWN_TRIGGERED")) {
+                    var nodeName = msg.split(":")[0];
+                    if (!nodeName.equals(myIdentity)) {
+                        System.out.printf("=== RECEIVED SHUTDOWN HOOK FROM NODE: %s ===\n", nodeName);
+                        System.exit(0);    // call own shutdown hook
                     }
                 }
             }
-        } catch (java.net.SocketException e) {
-            // Esta excepción saltará intencionalmente cuando el Hook cierre el socket. 
-            // Es un comportamiento limpio y completamente esperado para terminar el hilo de espera.
-            System.out.println("[Network] Standby listener socket released cleanly by shutdown hook.");
-        } catch (Exception e) {
-            System.err.println("Error in main execution loop.");
-            e.printStackTrace();
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
+    private static void broadcastShutdown(List<String> hosts, String myHost) {
+        try (DatagramSocket socket = new DatagramSocket()) {
+            var data = (myHost + ":SHUTDOWN_TRIGGERED").getBytes();
+            for (String host : hosts) {
+                if (!host.equals(myHost)) 
+                    socket.send(new DatagramPacket(data, data.length, java.net.InetAddress.getByName(host), PORT));
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
 
-    /**
-     * Corre la lista de apagado sincronizando paso a paso.
-     */
-    private static void executeClusterShutdownStage() {
-        System.out.println("\n[Executing Synchronized Shutdown Stage]");
-        List<String> shutdownScripts = config.shutdown();
-
-        if (shutdownScripts == null || shutdownScripts.isEmpty()) {
-            return;
-        }
-
-        for (String script : shutdownScripts) {
-            System.out.println("[Shutdown] Starting step: ./" + script);
-            runLocalScript(script, config.workDir());
-            // Sincronización distribuida: nadie avanza al siguiente servicio hasta que todos apaguen el actual
+    private static void runScripts(List<String> scripts, String workDir, ClusterSynchronizer synchronizer, String msg) {
+        System.out.printf("\n=== %s START ===\n", msg);
+        var workDirectory = new File(workDir);
+        for (String script : scripts) {
+            runScript(script, workDirectory);
             synchronizer.waitForAllNodes(script);
         }
+        System.out.printf("\n=== %s FINISH ===\n", msg);
     }
 
-    private static void broadcastClusterMessage(String message, List<String> hosts, int port) {
-        byte[] data = message.getBytes(StandardCharsets.UTF_8);
-        try (DatagramSocket socket = new DatagramSocket()) {
-            for (String host : hosts) {
-                if (host.equals(myIdentity)) continue;
-                try {
-                    socket.send(new DatagramPacket(data, data.length, java.net.InetAddress.getByName(host), port));
-                } catch (Exception e) {
-                    // Ignorar nodos caídos
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Failed to broadcast shutdown trigger.");
-        }
-    }
-
-    private static void runLocalScript(String script, String workDir) {
+    private static void runScript(String script, File workDir) {
         try {
-            ProcessBuilder pb = new ProcessBuilder("./" + script);
-            pb.directory(new File(workDir));
+            System.out.printf("\n=== EXECUTING: %s ===\n", script);
+            var pb = new ProcessBuilder("./" + script);    // TODO: check Windows
+            pb.directory(workDir);
             pb.redirectErrorStream(true);
-            Process process = pb.start();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            var process = pb.start();
+            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
-                while ((line = reader.readLine()) != null) {
-                    System.out.println("  [OUTPUT] " + line);
-                }
+                while ((line = reader.readLine()) != null)
+                    System.out.println(line);
             }
             process.waitFor();
-        } catch (Exception e) {
-            System.err.println("Failed local script execution: " + script);
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+    
+    private static void printHelpAndQuit() {
+        System.err.println("""
+        Usage: java -jar mariposa-ssu.jar autorun.conf
+        Mariposa Simple Synchronization Utility.
+        
+        Config example:
+        {
+          "hosts": ["node1.host", "node2.host", "node3.host"],
+          "workDir": "/home/hadoop/autorun",
+          "startup": [
+            "script1.sh",
+            "script2.sh",
+            "script3.sh"
+          ],
+          "shutdown": [
+            "graceful-shutdown.sh"
+          ]
         }
+        """);
+        System.exit(1);
     }
 }
+
+record TheConfig(List<String> hosts, String workDir, List<String> startup, List<String> shutdown) {}
