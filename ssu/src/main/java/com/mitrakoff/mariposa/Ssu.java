@@ -16,15 +16,15 @@ public class Ssu {
 
         try {
             // read config
-            var config = new ObjectMapper().readValue(Files.readString(Paths.get(args[0])), TheConfig.class);
+            final var config = new ObjectMapper().readValue(Files.readString(Paths.get(args[0])), TheConfig.class);
             System.out.printf("Hosts: %s\n", config.hosts());
             System.out.printf("WorkDir: %s\n", config.workDir());
-            System.out.printf("Startup scripts: %s\n", config.startup());
+            System.out.printf("Startup scripts:  %s\n", config.startup());
             System.out.printf("Shutdown scripts: %s\n", config.shutdown());
 
             // create ClusterSynchronizer
-            var synchronizer = new ClusterSynchronizer(config.hosts(), PORT);
-            var myHost = synchronizer.resolveMyHostName();
+            final var synchronizer = new ClusterSynchronizer(config.hosts(), PORT);
+            final var myHost = synchronizer.resolveMyHostName();
             System.out.printf("My host: %s\n", myHost);
 
             // run startup scripts
@@ -53,18 +53,18 @@ public class Ssu {
             daemonListenSocket.setReuseAddress(true);
             daemonListenSocket.bind(new InetSocketAddress(PORT));
 
-            var buffer = new byte[1024];
+            final var buffer = new byte[1024];
             while (!daemonListenSocket.isClosed()) {
-                var packet = new DatagramPacket(buffer, buffer.length);
+                final var packet = new DatagramPacket(buffer, buffer.length);
                 try {
                     daemonListenSocket.receive(packet);
                 } catch (Exception ignored) {}
 
-                var msg = new String(packet.getData(), 0, packet.getLength());
+                final var msg = new String(packet.getData(), 0, packet.getLength());
                 if (msg.endsWith(":SHUTDOWN_TRIGGERED")) {
-                    var nodeName = msg.split(":")[0];
+                    final var nodeName = msg.split(":")[0];
                     if (!nodeName.equals(myIdentity)) {
-                        System.out.printf("=== RECEIVED SHUTDOWN HOOK FROM NODE: %s ===\n", nodeName);
+                        System.out.printf("=== RECEIVED SHUTDOWN HOOK FROM: %s ===\n", nodeName);
                         System.exit(0);    // call own shutdown hook
                     }
                 }
@@ -74,8 +74,8 @@ public class Ssu {
 
     private static void broadcastShutdown(List<String> hosts, String myHost) {
         try (DatagramSocket socket = new DatagramSocket()) {
-            var data = (myHost + ":SHUTDOWN_TRIGGERED").getBytes();
-            for (String host : hosts) {
+            final var data = (myHost + ":SHUTDOWN_TRIGGERED").getBytes();
+            for (final var host : hosts) {
                 if (!host.equals(myHost)) 
                     socket.send(new DatagramPacket(data, data.length, java.net.InetAddress.getByName(host), PORT));
             }
@@ -84,8 +84,8 @@ public class Ssu {
 
     private static void runScripts(List<String> scripts, String workDir, ClusterSynchronizer synchronizer, String msg) {
         System.out.printf("\n=== %s START ===\n", msg);
-        var workDirectory = new File(workDir);
-        for (String script : scripts) {
+        final var workDirectory = new File(workDir);
+        for (final var script : scripts) {
             runScript(script, workDirectory);
             synchronizer.waitForAllNodes(script);
         }
@@ -95,11 +95,12 @@ public class Ssu {
     private static void runScript(String script, File workDir) {
         try {
             System.out.printf("\n=== EXECUTING: %s ===\n", script);
-            var pb = new ProcessBuilder("./" + script);    // TODO: check Windows
+            final var pb = new ProcessBuilder("./" + script);    // TODO: check Windows
             pb.directory(workDir);
             pb.redirectErrorStream(true);
-            var process = pb.start();
-            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            
+            final var process = pb.start();
+            try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
                 while ((line = reader.readLine()) != null)
                     System.out.println(line);
