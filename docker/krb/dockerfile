@@ -33,10 +33,10 @@ RUN mkdir $KEYTABS_DIR && chown hadoop:hadoop $KEYTABS_DIR
 RUN useradd --create-home --shell /bin/bash tommy
 
 # add autorun files
-COPY autorun/ /home/hadoop/autorun/
-COPY entrypoint.sh /
-RUN chown --recursive hadoop:hadoop /home/hadoop/autorun
+WORKDIR /home/hadoop/autorun
+COPY autorun/ .
+RUN chown --recursive hadoop:hadoop .
 
 USER hadoop
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["java", "-jar", "ssu.jar", "ssu.json"]
