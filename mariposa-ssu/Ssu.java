@@ -7,8 +7,8 @@ import java.util.*;
  * Simple utility to synchronize multinode cluster startup and shutdown scripts. Made specially for Hadoop clusters.
  * <pre>{@code
  * javac Ssu.java ClusterSynchronizer.java VanillaJsonParser.java
- * echo "Main-Class: Ssu" > ssu.mf    # make sure to add blank line at the end
- * jar cvmf mariposa-ssu.jar ssu.mf *.class
+ * echo "Main-Class: Ssu" > ssu.mf
+ * jar cvfm mariposa-ssu.jar ssu.mf *.class
  * }</pre>
  */
 @SuppressWarnings({"CallToPrintStackTrace", "unchecked"})
@@ -125,8 +125,8 @@ public class Ssu {
         System.err.println("""
         Mariposa Simple Synchronization Utility.
         
-        Usage:   java -jar mariposa-ssu.jar PORT JSON_CONF_FILE
-        Example: java -jar mariposa-ssu.jar 9696 autorun.json
+        Usage:   java -jar mariposa-ssu.jar JSON_CONF_FILE
+        Example: java -jar mariposa-ssu.jar autorun.json
         
         Config example:
         {
