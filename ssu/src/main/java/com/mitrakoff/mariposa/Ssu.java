@@ -1,34 +1,38 @@
 package com.mitrakoff.mariposa;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
-import java.util.List;
+import java.util.*;
 
-@SuppressWarnings("CallToPrintStackTrace")
+@SuppressWarnings({"CallToPrintStackTrace", "unchecked"})
 public class Ssu {
     private static DatagramSocket daemonListenSocket;
 
     public static void main(String[] args) {
-        if (args.length != 2) printHelpAndQuit();
+        if (args.length == 0) printHelpAndQuit();
 
         try {
             // read config
-            final var port = Integer.parseInt(args[0]);
-            final var config = new ObjectMapper().readValue(Files.readString(Paths.get(args[1])), TheConfig.class);
-            System.out.printf("Hosts: %s\n", config.hosts());
-            System.out.printf("WorkDir: %s\n", config.workDir());
-            System.out.printf("Startup scripts:  %s\n", config.startup());
-            System.out.printf("Shutdown scripts: %s\n", config.shutdown());
+            final var config = (Map<String, Object>) VanillaJsonParser.parse(Files.readString(Paths.get(args[0])));
+            final var port = ((Number) config.get("port")).intValue();
+            final var hosts = (List<String>) config.get("hosts");
+            final var workDir = (String) config.get("workDir");
+            final var startup = (List<String>) config.get("startup");
+            final var shutdown = (List<String>) config.get("shutdown");
+            System.out.printf("Port: %d\n", port);
+            System.out.printf("Hosts: %s\n", hosts);
+            System.out.printf("WorkDir: %s\n", workDir);
+            System.out.printf("Startup scripts:  %s\n", startup);
+            System.out.printf("Shutdown scripts: %s\n", shutdown);
 
             // create ClusterSynchronizer
-            final var synchronizer = new ClusterSynchronizer(config.hosts(), port);
+            final var synchronizer = new ClusterSynchronizer(hosts, port);
             final var myHost = synchronizer.resolveMyHostName();
             System.out.printf("My host: %s:%d\n", myHost, port);
 
             // run startup scripts
-            runScripts(config.startup(), config.workDir(), synchronizer, "STARTUP");
+            runScripts(startup, workDir, synchronizer, "STARTUP");
 
             // add shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -36,8 +40,8 @@ public class Ssu {
                     daemonListenSocket.close(); // Release PORT to avoid "java.net.BindException: Address already in use"
 
                 System.out.println("\n=== SIGTERM DETECTED! RUNNING GRACEFUL SHUTDOWN ===");
-                broadcastShutdown(config.hosts(), myHost, port);
-                runScripts(config.shutdown(), config.workDir(), synchronizer, "SHUTDOWN");
+                broadcastShutdown(hosts, myHost, port);
+                runScripts(shutdown, workDir, synchronizer, "SHUTDOWN");
                 Runtime.getRuntime().halt(0);    // never use System.exit() in shutdown hooks!
             }));
 
@@ -118,6 +122,7 @@ public class Ssu {
         
         Config example:
         {
+          "port": 1030,
           "hosts": ["node1.host", "node2.host", "node3.host"],
           "workDir": "/home/hadoop/autorun",
           "startup": [
@@ -133,5 +138,3 @@ public class Ssu {
         System.exit(1);
     }
 }
-
-record TheConfig(List<String> hosts, String workDir, List<String> startup, List<String> shutdown) {}

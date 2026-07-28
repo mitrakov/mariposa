@@ -3,7 +3,7 @@ package com.mitrakoff.mariposa;
 import java.util.*;
 
 /** Simple single-file no-dependency no-AST no-Reflection JSON parser */
-public class VanillaJsonParser {
+public final class VanillaJsonParser {
     private final String src;
     private int idx = 0;
 
@@ -11,6 +11,15 @@ public class VanillaJsonParser {
         this.src = json != null ? json.trim() : "";
     }
 
+    /**
+     * Parses JSON into a java Object. You should then manually cast to your expected type
+     * <pre>{@code
+     * final var config = (Map<String, Object>) VanillaJsonParser.parse(s);
+     * final var port = (Number) config.get("port");
+     * }</pre>
+     * @param json input JSON string
+     * @return Map&lt;String,Object> for objects, List&lt;Object> for arrays, Number for numbers, String for strings, Boolean for bools 
+     */
     public static Object parse(String json) {
         return new VanillaJsonParser(json).parseValue();
     }
@@ -55,6 +64,8 @@ public class VanillaJsonParser {
             map.put(key, parseValue());
 
             skipWhitespace();
+            if (idx >= src.length())
+                throw new IllegalArgumentException("Unexpected end of JSON input at index " + idx);
             final var next = src.charAt(idx);
             if (next == '}') {
                 idx++;
@@ -80,6 +91,8 @@ public class VanillaJsonParser {
             list.add(parseValue());
             skipWhitespace();
 
+            if (idx >= src.length())
+                throw new IllegalArgumentException("Unexpected end of JSON array at index " + idx);
             final var next = src.charAt(idx);
             if (next == ']') {
                 idx++;
@@ -98,6 +111,8 @@ public class VanillaJsonParser {
             final var c = src.charAt(idx);
             if (c == '\\') { // Skip escape character (e.g. \")
                 idx += 2;
+                if (idx >= src.length())
+                    throw new IllegalArgumentException("Unterminated escape sequence at index " + (idx - 2));
                 continue;
             }
             if (c == '"') {
