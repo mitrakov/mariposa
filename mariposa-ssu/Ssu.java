@@ -2,9 +2,11 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.regex.*;
 
 /**
  * Simple utility to synchronize multinode cluster startup and shutdown scripts. Made specially for Hadoop clusters.
+ * JSON may contain ${ENV} variables. Hosts list may contain comma-separated hosts, e.g. "host1,host2,host3".
  * <pre>{@code
  * javac Ssu.java Synchronizer.java VanillaJsonParser.java && echo "Main-Class: Ssu" > ssu.mf && jar cvfm ssu.jar ssu.mf *.class
  * }</pre>
@@ -17,15 +19,27 @@ public class Ssu {
         if (args.length == 0) printHelpAndQuit();
 
         try {
-            // read config
-            final var config = (Map<String, Object>) VanillaJsonParser.parse(Files.readString(Paths.get(args[0])));
+            // read file
+            final var input = Files.readString(Paths.get(args[0]));
+
+            // replace ${ENV}
+            final var json = Pattern.compile("\\$\\{(\\w+)}").matcher(input).replaceAll(match -> {
+                final var env = System.getenv(match.group(1));
+                return Matcher.quoteReplacement(env != null ? env : match.group(0));
+            });
+
+            // parse json
+            final var config = (Map<String, Object>) VanillaJsonParser.parse(json);
             final var port = ((Number) config.get("port")).intValue();
-            final var hosts = (List<String>) config.get("hosts");
             final var workDir = (String) config.get("workDir");
             final var startup = (List<String>) config.get("startup");
             final var shutdown = (List<String>) config.get("shutdown");
+            final var rawHosts = (List<String>) config.get("hosts");
+            final var hosts = rawHosts.stream().flatMap(host -> Arrays.stream(host.split(","))).map(String::trim)
+                    .filter(host -> !host.isEmpty()).toList(); // flatten comma-separated hosts, e.g. "host1,host2,host3"
+
             System.out.printf("Port: %d\n", port);
-            System.out.printf("Hosts: %s\n", hosts);
+            System.out.printf("Hosts: %s (total: %d)\n", hosts, hosts.size());
             System.out.printf("WorkDir: %s\n", workDir);
             System.out.printf("Startup scripts:  %s\n", startup);
             System.out.printf("Shutdown scripts: %s\n", shutdown);
@@ -110,9 +124,9 @@ public class Ssu {
             final var status = pb.start().waitFor();
             if (status != 0)
                 System.exit(status);
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) { e.printStackTrace(); System.exit(1); }
     }
-    
+
     private static void printHelpAndQuit() {
         System.err.println("""
         Mariposa Simple Synchronization Utility.
@@ -123,7 +137,7 @@ public class Ssu {
         Config example:
         {
           "port": 1030,
-          "hosts": ["node1.host", "node2.host", "node3.host"],
+          "hosts": ["node1.host", "192.168.1.11", "${ENV_COMMA_SEP_HOSTS}"],
           "workDir": "/home/hadoop/autorun",
           "startup": [
             "script1.sh",
@@ -137,7 +151,7 @@ public class Ssu {
         """);
         System.exit(1);
     }
-    
+
     private static boolean isWindows() {
         return System.getProperty("os.name").toLowerCase().contains("win");
     }

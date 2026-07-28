@@ -1,6 +1,6 @@
 {
   "port": 1025,
-  "hosts": [__ALL_HOSTS__],
+  "hosts": ["${MASTER_HOST}", "${WORKER_HOSTS}"],
   "workDir": "/home/hadoop/autorun",
   "startup": [
     "01-vault.sh",
