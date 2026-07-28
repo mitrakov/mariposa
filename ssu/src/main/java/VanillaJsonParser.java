@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa;
-
 import java.util.*;
 
 /** Simple single-file no-dependency no-AST no-Reflection JSON parser */

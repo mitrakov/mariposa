@@ -1,10 +1,9 @@
-package com.mitrakoff.mariposa;
-
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
 import java.util.*;
 
+/** Simple utility to synchronize multi-node cluster startup and shutdown scripts. Made specially for Hadoop clusters */
 @SuppressWarnings({"CallToPrintStackTrace", "unchecked"})
 public class Ssu {
     private static DatagramSocket daemonListenSocket;

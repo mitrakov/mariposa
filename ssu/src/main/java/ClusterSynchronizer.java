@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa;
-
 import java.net.*;
 import java.util.*;
 
