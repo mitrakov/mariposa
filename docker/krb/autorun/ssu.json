@@ -1,0 +1,25 @@
+{
+  "port": 1025,
+  "hosts": [__ALL_HOSTS__],
+  "workDir": "/home/hadoop/autorun",
+  "startup": [
+    "01-vault.sh",
+    "02-vault-token.sh",
+    "03-certs.sh",
+    "04-postgres.sh",
+    "05-kerberos.sh",
+    "06-hadoop.sh",
+    "07-zookeeper.sh",
+    "08-kafka.sh",
+    "09-hbase.sh",
+    "10-spark.sh",
+    "11-hive.sh",
+    "12-hue.sh",
+    "13-airflow.sh",
+    "99-complete.sh"
+  ],
+  "shutdown": [
+    "shutdown-1.sh",
+    "shutdown-2.sh"
+  ]
+}

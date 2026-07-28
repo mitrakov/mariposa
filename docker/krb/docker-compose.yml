@@ -1,13 +1,12 @@
 services:
   namenode:
-    image: mitrakov/hadoop-krb:1.0.2
+    image: mitrakov/hadoop-krb:1.0.3
     hostname: namenode.host
     environment:
       - IS_MASTER=true
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=1
-      - MARIPOSA_BOOT_DELAY_SEC=15
       - SKIP_AIRFLOW=false
       - SKIP_HUE=false
     volumes:
@@ -33,14 +32,13 @@ services:
       - "16010:16010" # HBase
 
   datanode1:
-    image: mitrakov/hadoop-krb:1.0.2
+    image: mitrakov/hadoop-krb:1.0.3
     hostname: datanode1.host
     environment:
       - IS_MASTER=false
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=2
-      - MARIPOSA_BOOT_DELAY_SEC=15
     volumes:
       - ~/hadoop/hdfs2_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk2_data:/opt/zookeeper/data
@@ -52,14 +50,13 @@ services:
       - "8042:8042"   # NodeManager
 
   datanode2:
-    image: mitrakov/hadoop-krb:1.0.2
+    image: mitrakov/hadoop-krb:1.0.3
     hostname: datanode2.host
     environment:
       - IS_MASTER=false
       - MASTER_HOST=namenode.host
       - WORKER_HOSTS=datanode1.host,datanode2.host
       - ZK_ID=3
-      - MARIPOSA_BOOT_DELAY_SEC=15
     volumes:
       - ~/hadoop/hdfs3_data:/opt/hadoop/dfs/data
       - ~/hadoop/zk3_data:/opt/zookeeper/data
