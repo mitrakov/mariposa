@@ -20,9 +20,10 @@ public class ClusterSynchronizer {
             for (final var iface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
                 if (iface.isLoopback() || !iface.isUp()) continue;    // skip 127.0.0.1 and disabled interfaces
                 for (final var address : Collections.list(iface.getInetAddresses())) {
-                    for (final var host : allHosts)
+                    for (final var host : allHosts) try {
                         if (address.equals(InetAddress.getByName(host)))
-                            return host;
+                            return host;    
+                    } catch (Exception ignored) {}
                 }
             }
         } catch (Exception e) { e.printStackTrace();}
