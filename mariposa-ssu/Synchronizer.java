@@ -2,12 +2,12 @@ import java.net.*;
 import java.util.*;
 
 @SuppressWarnings("CallToPrintStackTrace")
-public class ClusterSynchronizer {
+public class Synchronizer {
     private final List<String> allHosts;
     private final int port;
     private final String myHostName;
 
-    public ClusterSynchronizer(List<String> allHosts, int port) {
+    public Synchronizer(List<String> allHosts, int port) {
         this.allHosts = allHosts;
         this.port = port;
         this.myHostName = resolveMyHostName();
@@ -33,7 +33,7 @@ public class ClusterSynchronizer {
         pendingHosts.remove(myHostName);    // remove myself from the set
         if (pendingHosts.isEmpty()) return; // edge case for N=1
 
-        System.out.println("[SYNC] Waiting for peers to finish " + scriptName + ". Pending: " + pendingHosts);
+        System.out.printf("\n[SYNC] Success: '%s'. Waiting for %s\n", scriptName, pendingHosts);
         try (final var socket = new DatagramSocket(port)) {
             final var buffer = new byte[1024];
             final var bytes = (myHostName + ":" + scriptName).getBytes();
@@ -49,14 +49,12 @@ public class ClusterSynchronizer {
 
                 if (senderScript.equals(scriptName) && pendingHosts.contains(senderHost)) {
                     pendingHosts.remove(senderHost);
-                    System.out.println(
-                        "[SYNC] Node " + senderHost + " synchronized for " + scriptName + ". Remaining: " + pendingHosts
-                    );
+                    System.out.printf("\n[SYNC] Node %s completed '%s'. Remaining: %s\n", senderHost, scriptName, pendingHosts);
                 }
             } catch (Exception e) { e.printStackTrace(); }
             
             broadcastMessage(socket, allHosts, bytes);
-            System.out.println("[SYNC] Full synchronization done for " + scriptName);
+            System.out.printf("\n[SYNC] ALL NODES DONE: '%s'\n", scriptName);
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -64,7 +62,7 @@ public class ClusterSynchronizer {
         for (final var host : hosts) {
             if (!host.equals(myHostName)) try {
                 socket.send(new DatagramPacket(message, message.length, InetAddress.getByName(host), port));
-            } catch (Exception e) { e.printStackTrace(); }
+            } catch (Exception ignored) {}
         }
     }
 }

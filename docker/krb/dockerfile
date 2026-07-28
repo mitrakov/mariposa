@@ -1,9 +1,10 @@
-# docker build --tag mitrakov/hadoop-krb:1.0.2 .
+# docker build --tag mitrakov/hadoop-krb:1.0.3 .
 # 1.0.0 (2026-06-05): mvp
 # 1.0.1 (2026-06-13): install vault w/o VPN
 # 1.0.2 (2026-06-15): run on real Ubuntu
+# 1.0.3 (2026-07-28): add SSU
 
-FROM mitrakov/hadoop:1.0.0
+FROM mitrakov/hadoop:1.0.1
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
 
@@ -12,9 +13,9 @@ ENV VAULT_HOME=/opt/vault
 ENV CERTS_DIR=$VAULT_HOME/certs
 RUN wget http://mitrakoff.com/cache/vault_2.0.2_linux_$(uname -m).zip && \
     unzip vault_2.0.2_linux_$(uname -m).zip -d $VAULT_HOME/ && \
-    rm -f vault_2.0.2_linux_$(uname -m).zip && \
+    rm --verbose --force vault_2.0.2_linux_$(uname -m).zip && \
     mkdir $CERTS_DIR && \
-    chown -R hadoop:hadoop $VAULT_HOME
+    chown --recursive hadoop:hadoop $VAULT_HOME
 ENV PATH=$PATH:$VAULT_HOME
 
 # krb5     kerberos
@@ -31,8 +32,11 @@ RUN mkdir $KEYTABS_DIR && chown hadoop:hadoop $KEYTABS_DIR
 # add extra user
 RUN useradd --create-home --shell /bin/bash tommy
 
+# add autorun files
+COPY autorun/ /home/hadoop/autorun/
+COPY entrypoint.sh /
+RUN chown --recursive hadoop:hadoop /home/hadoop/autorun
 
 USER hadoop
 
-COPY entrypoint.sh /entrypoint.sh
-ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]

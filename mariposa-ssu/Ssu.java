@@ -6,9 +6,7 @@ import java.util.*;
 /**
  * Simple utility to synchronize multinode cluster startup and shutdown scripts. Made specially for Hadoop clusters.
  * <pre>{@code
- * javac Ssu.java ClusterSynchronizer.java VanillaJsonParser.java
- * echo "Main-Class: Ssu" > ssu.mf
- * jar cvfm mariposa-ssu.jar ssu.mf *.class
+ * javac Ssu.java Synchronizer.java VanillaJsonParser.java && echo "Main-Class: Ssu" > ssu.mf && jar cvfm ssu.jar ssu.mf *.class
  * }</pre>
  */
 @SuppressWarnings({"CallToPrintStackTrace", "unchecked"})
@@ -32,27 +30,27 @@ public class Ssu {
             System.out.printf("Startup scripts:  %s\n", startup);
             System.out.printf("Shutdown scripts: %s\n", shutdown);
 
-            // create ClusterSynchronizer
-            final var synchronizer = new ClusterSynchronizer(hosts, port);
+            // create Synchronizer
+            final var synchronizer = new Synchronizer(hosts, port);
             final var myHost = synchronizer.resolveMyHostName();
-            System.out.printf("My host: %s:%d\n", myHost, port);
+            System.out.printf("My host: %s\n", myHost);
 
             // run startup scripts
-            runScripts(startup, workDir, synchronizer, "STARTUP");
+            runScripts(startup, workDir, synchronizer);
 
             // add shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 if (daemonListenSocket != null && !daemonListenSocket.isClosed())
                     daemonListenSocket.close(); // Release PORT to avoid "java.net.BindException: Address already in use"
 
-                System.out.println("\n=== SIGTERM DETECTED! RUNNING GRACEFUL SHUTDOWN ===");
+                System.out.println("\n[SYNC] SIGTERM DETECTED! Running graceful shutdown");
                 broadcastShutdown(hosts, myHost, port);
-                runScripts(shutdown, workDir, synchronizer, "SHUTDOWN");
+                runScripts(shutdown, workDir, synchronizer);
                 Runtime.getRuntime().halt(0);    // never use System.exit() in shutdown hooks!
             }));
 
             // listen for shutdown message from other nodes
-            System.out.println("\n=== SSU RUNNING... Press CTRL+C or use 'kill <PID>' to run distributed graceful shutdown ===");
+            System.out.println("\n[SYNC] Init done... Press CTRL+C or use 'kill <PID>' to run distributed graceful shutdown");
             listenForRemoteShutdown(myHost, port);
         } catch (Exception e) { e.printStackTrace(); }
     }
@@ -74,7 +72,7 @@ public class Ssu {
                 if (msg.endsWith(":SHUTDOWN_TRIGGERED")) {
                     final var nodeName = msg.split(":")[0];
                     if (!nodeName.equals(myHost)) {
-                        System.out.printf("=== RECEIVED SHUTDOWN HOOK FROM: %s ===\n", nodeName);
+                        System.out.printf("[SYNC] RECEIVED SHUTDOWN HOOK FROM: %s\n", nodeName);
                         System.exit(0);    // call own shutdown hook
                     }
                 }
@@ -92,32 +90,26 @@ public class Ssu {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    private static void runScripts(List<String> scripts, String workDir, ClusterSynchronizer synchronizer, String msg) {
-        System.out.printf("\n=== %s START ===\n", msg);
+    private static void runScripts(List<String> scripts, String workDir, Synchronizer synchronizer) {
         final var workDirectory = new File(workDir);
         for (final var script : scripts) {
             runScript(script, workDirectory);
             synchronizer.waitForAllNodes(script);
         }
-        System.out.printf("\n=== %s FINISH ===\n", msg);
     }
 
     private static void runScript(String script, File workDir) {
         try {
-            System.out.printf("\n=== EXECUTING: %s ===\n", script);
+            System.out.printf("\n[SYNC] RUN: '%s'\n", script);
             final var pb = isWindows()
                     ? new ProcessBuilder("cmd.exe", "/c", script)
                     : new ProcessBuilder("./" + script);
             pb.directory(workDir);
-            pb.redirectErrorStream(true);
+            pb.inheritIO();     // use the same stdin, stdout and stderr
             
-            final var process = pb.start();
-            try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null)
-                    System.out.println(line);
-            }
-            process.waitFor();
+            final var status = pb.start().waitFor();
+            if (status != 0)
+                System.exit(status);
         } catch (Exception e) { e.printStackTrace(); }
     }
     

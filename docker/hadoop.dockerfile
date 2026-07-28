@@ -1,4 +1,5 @@
-# docker build --file hadoop.dockerfile --tag mitrakov/hadoop:1.0.0 .; say hola
+# docker build --file hadoop.dockerfile --tag mitrakov/hadoop:1.0.1 .
+# 1.0.1 (2026-07-28): move "ssh-keygen" to base image
 # java 17 is min for Spark 4.1.1
 FROM eclipse-temurin:17
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
@@ -108,14 +109,14 @@ COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/lib/python3.9 /usr/lib/python3.9
 COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
 
 
-# create user 'hadoop' and add it to sudoers (keep 2 sep. commands to avoid errors "useradd: user 'hadoop' already exists")
+# create user 'hadoop', add it to sudoers and let it SSH to other nodes
 RUN useradd --create-home --shell /bin/bash hadoop
 RUN echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN su --login hadoop --command "ssh-keygen -t rsa -N '' -f ~/.ssh/id_rsa && cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys"
 
 
 # switch ownership to 'hadoop'
-RUN mkdir -p $HADOOP_HOME/dfs $HADOOP_HOME/logs $ZOOKEEPER_HOME/data $KAFKA_HOME/data $HIVE_HOME/logs $AIRFLOW_HOME/dags $AIRFLOW_HOME/logs /var/log/hue /var/run/hue && \
-    chown -R hadoop:hadoop $HADOOP_HOME $SPARK_HOME $ZOOKEEPER_HOME $KAFKA_HOME $HIVE_HOME $HBASE_HOME $TEZ_HOME $AIRFLOW_HOME $HUE_HOME /var/log/hue /var/run/hue
-
+RUN mkdir --parents $HADOOP_HOME/dfs $HADOOP_HOME/logs $ZOOKEEPER_HOME/data $KAFKA_HOME/data $HIVE_HOME/logs $AIRFLOW_HOME/dags $AIRFLOW_HOME/logs /var/log/hue /var/run/hue && \
+    chown --recursive hadoop:hadoop $HADOOP_HOME $SPARK_HOME $ZOOKEEPER_HOME $KAFKA_HOME $HIVE_HOME $HBASE_HOME $TEZ_HOME $AIRFLOW_HOME $HUE_HOME /var/log/hue /var/run/hue
 
 # in your image, add "USER hadoop"
