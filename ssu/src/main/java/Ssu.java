@@ -3,7 +3,14 @@ import java.net.*;
 import java.nio.file.*;
 import java.util.*;
 
-/** Simple utility to synchronize multi-node cluster startup and shutdown scripts. Made specially for Hadoop clusters */
+/**
+ * Simple utility to synchronize multinode cluster startup and shutdown scripts. Made specially for Hadoop clusters.
+ * <pre>{@code
+ * javac Ssu.java ClusterSynchronizer.java VanillaJsonParser.java
+ * echo "Main-Class: Ssu" > ssu.mf    # make sure to add blank line at the end
+ * jar cvmf mariposa-ssu.jar ssu.mf *.class
+ * }</pre>
+ */
 @SuppressWarnings({"CallToPrintStackTrace", "unchecked"})
 public class Ssu {
     private static DatagramSocket daemonListenSocket;
@@ -98,7 +105,9 @@ public class Ssu {
     private static void runScript(String script, File workDir) {
         try {
             System.out.printf("\n=== EXECUTING: %s ===\n", script);
-            final var pb = new ProcessBuilder("./" + script);    // TODO: check Windows
+            final var pb = isWindows()
+                    ? new ProcessBuilder("cmd.exe", "/c", script)
+                    : new ProcessBuilder("./" + script);
             pb.directory(workDir);
             pb.redirectErrorStream(true);
             
@@ -135,5 +144,9 @@ public class Ssu {
         }
         """);
         System.exit(1);
+    }
+    
+    private static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().contains("win");
     }
 }
