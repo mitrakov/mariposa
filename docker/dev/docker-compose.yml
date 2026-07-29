@@ -1,6 +1,6 @@
 services:
   namenode:
-    image: mitrakov/hadoop-dev:1.0.1
+    image: mitrakov/hadoop-dev:1.0.2
     hostname: namenode.host
     environment:
       - IS_MASTER=true
@@ -13,7 +13,7 @@ services:
       - HUE_DB_PASSWORD=111444
       - HUE_PASSWORD=hue_secret
       - SKIP_HUE=false
-      - SKIP_AIRFLOW=false
+      - SKIP_AIRFLOW=true
     volumes:
       - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
       - ~/hadoop/zk1_data:/opt/zookeeper/data
@@ -31,7 +31,7 @@ services:
       - "16010:16010" # HBase
 
   datanode1:
-    image: mitrakov/hadoop-dev:1.0.1
+    image: mitrakov/hadoop-dev:1.0.2
     hostname: datanode1.host
     environment:
       - IS_MASTER=false
@@ -47,7 +47,7 @@ services:
       - "8042:8042"   # NodeManager
 
   datanode2:
-    image: mitrakov/hadoop-dev:1.0.1
+    image: mitrakov/hadoop-dev:1.0.2
     hostname: datanode2.host
     environment:
       - IS_MASTER=false

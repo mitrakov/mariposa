@@ -9,6 +9,7 @@ object Mariposa extends App {
   lazy val kafka2HBase = Kafka2HBase
   lazy val kafka2Hive = Kafka2Hive
   lazy val hive2Kafka = Hive2Kafka
+  lazy val hive2HBase = Hive2HBase
   lazy val hbase2Kafka = HBase2Kafka
 
   if (args.isEmpty) {
@@ -21,6 +22,7 @@ object Mariposa extends App {
       |com.mitrakoff.mariposa.Kafka2Hive
       |com.mitrakoff.mariposa.Kafka2HBase
       |com.mitrakoff.mariposa.Hive2Kafka
+      |com.mitrakoff.mariposa.Hive2HBase
       |com.mitrakoff.mariposa.HBase2Kafka
       |""".stripMargin)
     System.exit(1)
