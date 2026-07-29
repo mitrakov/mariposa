@@ -1,4 +1,4 @@
-# docker build --tag mitrakov/hadoop-dev:1.0.1 .
+# docker build --tag mitrakov/hadoop-dev:1.0.2 .
 FROM mitrakov/hadoop:1.0.1
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 USER hadoop

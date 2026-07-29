@@ -25,16 +25,16 @@ check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 # spark.kerberos.*                               Kerberos setup
 # spark.history.kerberos.*                       Kerberos setup
 # spark.*.extraClassPath                         HBASE support
-HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-common-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-protocol-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-protocol-shaded-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-server-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-mapreduce-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-shaded-miscellaneous-4.1.12.jar:\
-$HBASE_HOME/lib/hbase-shaded-protobuf-4.1.12.jar:\
-$HBASE_HOME/lib/hbase-shaded-netty-4.1.12.jar:\
-$HBASE_HOME/lib/hbase-unsafe-4.1.12.jar:\
+HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-common-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-protocol-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-protocol-shaded-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-server-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-mapreduce-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-shaded-miscellaneous-4.1.13.jar:\
+$HBASE_HOME/lib/hbase-shaded-protobuf-4.1.13.jar:\
+$HBASE_HOME/lib/hbase-shaded-netty-4.1.13.jar:\
+$HBASE_HOME/lib/hbase-unsafe-4.1.13.jar:\
 $HBASE_HOME/lib/protobuf-java-2.5.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-api-1.49.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-context-1.49.0.jar:\

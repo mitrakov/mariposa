@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# entrypoint.sh for image: mitrakov/hadoop-dev:1.0.0
+# entrypoint.sh for image: mitrakov/hadoop-dev
 set -euo pipefail
 
 # helpers
@@ -197,16 +197,16 @@ EOF
 # spark.sql.hive.metastore.version specify Metastore version for Hive
 # spark.sql.hive.metastore.jars    tell Hive to take JARs from this folder
 # spark.*.extraClassPath           HBASE support
-export HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-common-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-protocol-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-protocol-shaded-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-server-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-mapreduce-2.5.13.jar:\
-$HBASE_HOME/lib/hbase-shaded-miscellaneous-4.1.12.jar:\
-$HBASE_HOME/lib/hbase-shaded-protobuf-4.1.12.jar:\
-$HBASE_HOME/lib/hbase-shaded-netty-4.1.12.jar:\
-$HBASE_HOME/lib/hbase-unsafe-4.1.12.jar:\
+HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-common-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-protocol-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-protocol-shaded-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-server-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-mapreduce-2.5.14.jar:\
+$HBASE_HOME/lib/hbase-shaded-miscellaneous-4.1.13.jar:\
+$HBASE_HOME/lib/hbase-shaded-protobuf-4.1.13.jar:\
+$HBASE_HOME/lib/hbase-shaded-netty-4.1.13.jar:\
+$HBASE_HOME/lib/hbase-unsafe-4.1.13.jar:\
 $HBASE_HOME/lib/protobuf-java-2.5.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-api-1.49.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-context-1.49.0.jar:\
