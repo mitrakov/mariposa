@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mariposa/barchart.dart';
 import 'package:mariposa/chartdata.dart';
+import 'package:mariposa/mariposapage2.dart';
 import 'package:mariposa/piechart.dart';
 
 void main() {
@@ -15,7 +16,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: const ChartScreen(),
+      home: const MariposaScrollableChart(),
     );
   }
 }
@@ -29,9 +30,10 @@ class ChartScreen extends StatelessWidget {
 
     const jsonString = '''
     [
-      {"label": "Apples", "value": 45, "color": "0xFF4CAF50"},
-      {"label": "Bananas", "value": 30, "color": "0xFFFFEB3B"},
-      {"label": "Oranges", "value": 25, "color": "0xFFFF9800"}
+      {"rowkey":"Moscow",         "Men": 60, "Women": 40},
+      {"rowkey":"St. Petersburg", "Men": 58, "Women": 42},
+      {"rowkey":"Novgorod",       "Men": 55, "Women": 45},
+      {"rowkey":"Samara",         "Men": 50, "Women": 50}
     ]
     ''';
 
@@ -60,11 +62,7 @@ class ChartScreen extends StatelessWidget {
               children: [
                 const Text('Pie Chart representation:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
-                BeautifulPieChart(dataList: data),
-                const SizedBox(height: 40),
-                const Text('Bar Chart representation:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                BeautifulBarChart(dataList: data),
+                //BarChart(dataList: data),   // from fl_chart.dart
               ],
             ),
           );

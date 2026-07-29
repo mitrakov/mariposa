@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   fl_chart: 1.2.0        # charts
+  syncfusion_flutter_charts: 34.1.33
   http: 1.6.0            # http
 
 flutter:
