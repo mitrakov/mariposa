@@ -24,3 +24,5 @@ assembly / assemblyMergeStrategy := {
     }
   case _ => MergeStrategy.first
 }
+
+assembly / packageOptions += Package.ManifestAttributes("Add-Opens" -> "java.base/java.nio") // shitty Java-17

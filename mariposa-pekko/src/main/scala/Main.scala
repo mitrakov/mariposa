@@ -14,16 +14,15 @@ import java.util.concurrent.Executors
 import scala.util.{Failure, Success}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters._
-
 import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import spray.json.DefaultJsonProtocol
+import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 
 // 💡 Caso de uso para representar un registro estructurado de HBase
 case class UserRecord(rowkey: String, email: String)
 
 // 💡 Protocolo nativo de Spray JSON para habilitar el formateo automático
 object UserJsonProtocol extends DefaultJsonProtocol with SprayJsonSupport {
-  implicit val userRecordFormat = jsonFormat2(UserRecord)
+  implicit val userRecordFormat: RootJsonFormat[UserRecord] = jsonFormat2(UserRecord)
 }
 
 import UserJsonProtocol._
