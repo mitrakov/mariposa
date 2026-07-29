@@ -5,113 +5,135 @@ import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.TableName
-import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory, Get}
+import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory, Get, Scan}
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.security.UserGroupInformation
+import org.slf4j.LoggerFactory
 
 import java.util.concurrent.Executors
 import scala.util.{Failure, Success}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.jdk.CollectionConverters._
 
-/*
-// simple:
-hbase shell:
-create 'users', 'info'
-put 'users', 'Tommy', 'info:email', 'tommy@mariposa.COM'
+import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import spray.json.DefaultJsonProtocol
 
-export HBASE_CONF_DIR=/opt/hbase/conf
-java -cp "mariposa-pekko-assembly-1.0.jar:$HBASE_CONF_DIR" Main
-curl http://$MASTER_HOST:7012/user/Tommy
+// 💡 Caso de uso para representar un registro estructurado de HBase
+case class UserRecord(rowkey: String, email: String)
 
-// kerberos:
-export HBASE_CONF_DIR=/opt/hbase/conf
-java \
-  -Djava.security.auth.login.config=$HBASE_CONF_DIR/hbase-jaas.conf \
-  -Djava.security.krb5.conf=/etc/krb5.conf \
-  --add-exports=java.security.jgss/sun.security.krb5=ALL-UNNAMED \
-  --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED \
-  -cp "mariposa-pekko-assembly-1.0.jar:$HBASE_CONF_DIR" \
-  Main
- */
-object Main extends App {
-  
-  println("Connecting to HBase...")
-  val hbaseConfig = HBaseConfiguration.create()
-
-  // TODO: if (isKerberos) {
-  UserGroupInformation.setConfiguration(hbaseConfig)
-  UserGroupInformation.loginUserFromKeytab("hbase/namenode.host@MARIPOSA.COM", "/etc/security/keytabs/namenode.host.keytab")
-
-  println(s"Authenticated successfully as: ${UserGroupInformation.getLoginUser}")
-
-  val hbaseConnection: Connection = ConnectionFactory.createConnection(hbaseConfig)
-
-  // 2. Initialize Pekko Typed Actor System
-  implicit val system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "Mariposa")
-  //implicit val ec: ExecutionContext = system.executionContext
-  implicit val hbaseEC: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(20))
-
-  // 3. Define HTTP Routes
-  val routes =
-    path("user" / Segment) { userId =>
-      get {
-        // Offload the blocking operation to our dedicated thread pool
-        val resultFuture: Future[Option[String]] = Future {
-          val table = hbaseConnection.getTable(TableName.valueOf("users"))
-          try {
-            val getReq = new Get(Bytes.toBytes(userId))
-            val result = table.get(getReq)
-            if (!result.isEmpty) {
-              val emailBytes = result.getValue(Bytes.toBytes("info"), Bytes.toBytes("email"))
-              Option(emailBytes).map(Bytes.toString)
-            } else None
-          } finally {
-            table.close() // Close table reference, pool remains open
-          }
-        }(hbaseEC) // Use the custom execution context
-
-        // Complete the request asynchronously once the Future finishes
-        onComplete(resultFuture) {
-          case scala.util.Success(Some(email)) =>
-            complete(s"User: $userId, Email: $email")
-          case scala.util.Success(None) =>
-            complete(StatusCodes.NotFound, s"User $userId or email column not found.")
-          case scala.util.Failure(ex) =>
-            complete(StatusCodes.InternalServerError, s"HBase fetch failed: ${ex.getMessage}")
-        }
-      }
-    }
-
-
-  // 4. Start HTTP Server
-  val bindingFuture = Http().newServerAt("0.0.0.0", 7012).bind(routes)
-  
-  bindingFuture.onComplete {
-    case Success(binding) =>
-      println(s"Server online at http://${binding.localAddress.getHostName}:${binding.localAddress.getPort}/")
-    case Failure(e) =>
-      println(s"Server failed to start: ${e.getMessage}")
-      hbaseConnection.close()
-      system.terminate()
-  }
-
-  // Clean up connections on JVM shutdown
-  sys.addShutdownHook {
-    println("Shutting down...")
-    hbaseConnection.close()
-    system.terminate()
-  }
+// 💡 Protocolo nativo de Spray JSON para habilitar el formateo automático
+object UserJsonProtocol extends DefaultJsonProtocol with SprayJsonSupport {
+  implicit val userRecordFormat = jsonFormat2(UserRecord)
 }
 
-/*
-/opt/hbase/conf/hbase-jaas.conf:
-Client {
-  com.sun.security.auth.module.Krb5LoginModule required
-  useKeyTab=true
-  keyTab="/etc/security/keytabs/namenode.host.keytab"
-  principal="hbase/namenode.host@MARIPOSA.COM"
-  storeKey=true
-  useTicketCache=false
-  refreshKrb5Config=true;
-};
- */
+import UserJsonProtocol._
+
+object Main extends App {
+  val loginToKerberos = true
+  private val logger = LoggerFactory.getLogger(Main.getClass)
+
+  logger.info("Initializing Mariposa-Pekko JSON Endpoint Server...")
+  val hbaseConfig = HBaseConfiguration.create()
+
+  // Parametrización dinámica vía System Properties
+  val serverPort   = sys.props.getOrElse("app.server.port", "7012")
+  val targetTable  = sys.props.getOrElse("app.hbase.table", "users")
+  val columnFamily = sys.props.getOrElse("app.hbase.cf", "info")
+  val qualifier    = sys.props.getOrElse("app.hbase.qualifier", "email")
+
+  // Manejo automatizado de Kerberos / Simple Auth
+  if (loginToKerberos) {
+    logger.info("Kerberos authentication active. Negotiating TGT...")
+    val principal = sys.props.getOrElse("app.security.principal", "hbase/namenode.host@MARIPOSA.COM")
+    val keytab    = sys.props.getOrElse("app.security.keytab", "/etc/security/keytabs/namenode.host.keytab")
+    UserGroupInformation.setConfiguration(hbaseConfig)
+    UserGroupInformation.loginUserFromKeytab(principal, keytab)
+  }
+
+  // 1. Inicializar conexiones globales
+  val hbaseConnection: Connection = ConnectionFactory.createConnection(hbaseConfig)
+  implicit val system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "Mariposa")
+  implicit val hbaseEC: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(20))
+
+  // 2. Definición de Rutas HTTP Reactivas
+  val routes =
+    concat(
+      // 💡 NUEVO ENDPOINT: Descargar toda la tabla como un arreglo JSON
+      path("users") {
+        get {
+          val scanFuture: Future[Seq[UserRecord]] = Future {
+            val table = hbaseConnection.getTable(TableName.valueOf(targetTable))
+            val scan = new Scan()
+            // Optimización de rendimiento para escaneos masivos en HBase
+            scan.addFamily(Bytes.toBytes(columnFamily))
+            scan.setCaching(500)
+
+            val scanner = table.getScanner(scan)
+            try {
+              // Convertir el Iterador de HBase a una colección nativa de Scala
+              scanner.asScala.flatMap { result =>
+                val rowkeyStr = Bytes.toString(result.getRow)
+                val emailBytes = result.getValue(Bytes.toBytes(columnFamily), Bytes.toBytes(qualifier))
+                Option(emailBytes).map(Bytes.toString).map(emailStr => UserRecord(rowkeyStr, emailStr))
+              }.toSeq
+            } finally {
+              scanner.close()
+              table.close()
+            }
+          }(hbaseEC)
+
+          onComplete(scanFuture) {
+            case Success(records) =>
+              // Spray JSON serializa la Seq[UserRecord] a un arreglo JSON automáticamente
+              complete(records)
+            case Failure(ex) =>
+              logger.error("HBase massive scan failed", ex)
+              complete(StatusCodes.InternalServerError, s"HBase SCAN error: ${ex.getMessage}")
+          }
+        }
+      },
+
+      // ENDPOINT ORIGINAL: Buscar un usuario específico por segmento
+      path("user" / Segment) { userId =>
+        get {
+          val resultFuture: Future[Option[UserRecord]] = Future {
+            val table = hbaseConnection.getTable(TableName.valueOf(targetTable))
+            try {
+              val getReq = new Get(Bytes.toBytes(userId))
+              val result = table.get(getReq)
+              if (!result.isEmpty) {
+                val emailBytes = result.getValue(Bytes.toBytes(columnFamily), Bytes.toBytes(qualifier))
+                Option(emailBytes).map(Bytes.toString).map(email => UserRecord(userId, email))
+              } else None
+            } finally {
+              table.close()
+            }
+          }(hbaseEC)
+
+          onComplete(resultFuture) {
+            case Success(Some(record)) => complete(record) // Ahora también responde en JSON limpio
+            case Success(None)         => complete(StatusCodes.NotFound, s"User $userId not found.")
+            case Failure(ex)           => complete(StatusCodes.InternalServerError, ex.getMessage)
+          }
+        }
+      }
+    )
+
+  // 3. Encender el servidor HTTP de Pekko
+  val bindingFuture = Http().newServerAt("0.0.0.0", serverPort.toInt).bind(routes)
+  bindingFuture.onComplete {
+    case Success(binding) =>
+      logger.info(s"Mariposa REST JSON service is ONLINE at http://localhost:${binding.localAddress.getPort}/")
+    case Failure(e) =>
+      logger.error(s"Failed to start server", e)
+      cleanUp()
+  }
+
+  sys.addShutdownHook { cleanUp() }
+
+  private def cleanUp(): Unit = {
+    try { hbaseConnection.close() } catch { case _: Exception => }
+    system.terminate()
+    logger.info("Resources released successfully.")
+  }
+}
