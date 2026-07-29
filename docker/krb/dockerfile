@@ -1,9 +1,4 @@
-# docker build --tag mitrakov/hadoop-krb:1.0.3 .
-# 1.0.0 (2026-06-05): mvp
-# 1.0.1 (2026-06-13): install vault w/o VPN
-# 1.0.2 (2026-06-15): run on real Ubuntu
-# 1.0.3 (2026-07-28): add SSU
-
+# docker build --tag mitrakov/hadoop-krb:1.0.4 .
 FROM mitrakov/hadoop:1.0.1
 LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
 
@@ -40,3 +35,10 @@ RUN chown --recursive hadoop:hadoop .
 USER hadoop
 
 ENTRYPOINT ["java", "-jar", "ssu.jar", "ssu.json"]
+
+# history:
+# 1.0.0 (2026-06-05): mvp
+# 1.0.1 (2026-06-13): install vault w/o VPN
+# 1.0.2 (2026-06-15): run on real Ubuntu
+# 1.0.3 (2026-07-28): add SSU
+# 1.0.4 (2026-07-29): fix HBase libs for Spark
