@@ -1,15 +1,15 @@
 class ChartData {
-  final String label;
-  final double value;
-  final int colorHex;
+  final String rowKey;
+  final double men;
+  final double women;
 
-  ChartData({required this.label, required this.value, required this.colorHex});
+  ChartData({required this.rowKey, required this.men, required this.women});
 
   factory ChartData.fromJson(Map<String, dynamic> json) {
     return ChartData(
-      label: json['label'],
-      value: (json['value'] as num).toDouble(),
-      colorHex: int.parse(json['color']),
+      rowKey: json['rowKey'],
+      men: (json['men'] as num).toDouble(),
+      women: (json['women'] as num).toDouble(),
     );
   }
 }
