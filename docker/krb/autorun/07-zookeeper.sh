@@ -5,11 +5,12 @@ set -euo pipefail
 . .env
 
 check_env "KEYTABS_DIR"
+check_env "MY_HOSTNAME"
 check_env "ZK_ID"
 check_env "ZOOKEEPER_HOME"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
-check_file "$KEYTABS_DIR/$(hostname).keytab"
+check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 
 
 # ZK_ID must be a unique number for every node, e.g. 1,2,3
@@ -45,8 +46,8 @@ Server {
     com.sun.security.auth.module.Krb5LoginModule required
     useKeyTab=true
     useTicketCache=false
-    keyTab="$KEYTABS_DIR/$(hostname).keytab"
-    principal="zookeeper/$(hostname)@MARIPOSA.COM"
+    keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
+    principal="zookeeper/$MY_HOSTNAME@MARIPOSA.COM"
     storeKey=true;
 };
 
@@ -54,8 +55,8 @@ Client {
     com.sun.security.auth.module.Krb5LoginModule required
     useKeyTab=true
     useTicketCache=false
-    keyTab="$KEYTABS_DIR/$(hostname).keytab"
-    principal="zookeeper/$(hostname)@MARIPOSA.COM"
+    keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
+    principal="zookeeper/$MY_HOSTNAME@MARIPOSA.COM"
     storeKey=true;
 };
 EOF

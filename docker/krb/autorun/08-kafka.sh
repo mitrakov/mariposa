@@ -7,6 +7,7 @@ set -euo pipefail
 check_env "MY_KEYSTORE"
 check_env "TRUSTSTORE"
 check_env "KEYTABS_DIR"
+check_env "MY_HOSTNAME"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "KAFKA_HOME"
@@ -14,7 +15,7 @@ check_env "ZK_ID"
 check_env "JKS_PASSWORD"
 check_file "$MY_KEYSTORE"
 check_file "$TRUSTSTORE"
-check_file "$KEYTABS_DIR/$(hostname).keytab"
+check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 
 
 # format: id1@host1:9093,id2@host2:9093,id3@host3:9093 (hardcoding the master as ID 1 and workers starting from 2)
@@ -36,7 +37,7 @@ controller.quorum.voters=$VOTERS
 # Network settings
 listeners=SASL_SSL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
 inter.broker.listener.name=SASL_SSL
-advertised.listeners=SASL_SSL://$(hostname):9092
+advertised.listeners=SASL_SSL://$MY_HOSTNAME:9092
 controller.listener.names=CONTROLLER
 listener.security.protocol.map=CONTROLLER:SASL_SSL,SASL_SSL:SASL_SSL
 
@@ -56,8 +57,8 @@ ssl.endpoint.identification.algorithm=HTTPS
 
 # Log & Data
 log.dirs=$KAFKA_HOME/data
-num.partitions=3
-offsets.topic.replication.factor=3
+num.partitions=2
+offsets.topic.replication.factor=2
 EOF
 
 cat <<EOF > $KAFKA_HOME/config/kafka_jaas.conf
@@ -65,16 +66,16 @@ KafkaServer {
     com.sun.security.auth.module.Krb5LoginModule required
     useKeyTab=true
     storeKey=true
-    keyTab="$KEYTABS_DIR/$(hostname).keytab"
-    principal="kafka/$(hostname)@MARIPOSA.COM";
+    keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
+    principal="kafka/$MY_HOSTNAME@MARIPOSA.COM";
 };
 
 KafkaClient {
     com.sun.security.auth.module.Krb5LoginModule required
     useKeyTab=true
     storeKey=true
-    keyTab="$KEYTABS_DIR/$(hostname).keytab"
-    principal="kafka/$(hostname)@MARIPOSA.COM";
+    keyTab="$KEYTABS_DIR/$MY_HOSTNAME.keytab"
+    principal="kafka/$MY_HOSTNAME@MARIPOSA.COM";
 };
 EOF
 

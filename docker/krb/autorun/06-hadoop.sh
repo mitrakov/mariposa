@@ -6,13 +6,14 @@ set -euo pipefail
 
 check_env "MY_KEYSTORE"
 check_env "KEYTABS_DIR"
+check_env "MY_HOSTNAME"
 check_env "HADOOP_CONF_DIR"
 check_env "MASTER_HOST"
 check_env "HADOOP_HOME"
 check_env "IS_MASTER"
 check_env "JKS_PASSWORD"
 check_file "$MY_KEYSTORE"
-check_file "$KEYTABS_DIR/$(hostname).keytab"
+check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 
 # HDFS
 cat <<EOF > $HADOOP_CONF_DIR/core-site.xml
@@ -83,11 +84,11 @@ cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
     </property>
     <property>
         <name>dfs.datanode.kerberos.principal</name>
-        <value>hadoop/$(hostname)@MARIPOSA.COM</value>
+        <value>hadoop/$MY_HOSTNAME@MARIPOSA.COM</value>
     </property>
     <property>
         <name>dfs.datanode.keytab.file</name>
-        <value>$KEYTABS_DIR/$(hostname).keytab</value>
+        <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
     </property>
     <property>
         <name>dfs.data.transfer.protection</name>
@@ -132,11 +133,11 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
     </property>
     <property>
         <name>yarn.nodemanager.principal</name>
-        <value>hadoop/$(hostname)@MARIPOSA.COM</value>
+        <value>hadoop/$MY_HOSTNAME@MARIPOSA.COM</value>
     </property>
     <property>
         <name>yarn.nodemanager.keytab</name>
-        <value>$KEYTABS_DIR/$(hostname).keytab</value>
+        <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
     </property>
 </configuration>
 EOF
