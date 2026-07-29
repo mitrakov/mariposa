@@ -5,11 +5,12 @@ set -euo pipefail
 . .env
 
 check_env "KEYTABS_DIR"
+check_env "MY_HOSTNAME"
 check_env "SPARK_HOME"
 check_env "HBASE_HOME"
 check_env "HIVE_HOME"
 check_env "MASTER_HOST"
-check_file "$KEYTABS_DIR/$(hostname).keytab"
+check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 
 
 # spark.master                                   YARN is a master
@@ -50,11 +51,11 @@ spark.hadoop.hive.metastore.sasl.enabled         true
 spark.hadoop.hive.metastore.kerberos.principal   hive/$MASTER_HOST@MARIPOSA.COM
 spark.sql.hive.metastore.version                 4.1.0
 spark.sql.hive.metastore.jars                    $HIVE_HOME/lib/*
-spark.kerberos.principal                         hadoop/$(hostname)@MARIPOSA.COM
-spark.kerberos.keytab                            $KEYTABS_DIR/$(hostname).keytab
+spark.kerberos.principal                         hadoop/$MY_HOSTNAME@MARIPOSA.COM
+spark.kerberos.keytab                            $KEYTABS_DIR/$MY_HOSTNAME.keytab
 spark.history.kerberos.enabled                   true
-spark.history.kerberos.principal                 hadoop/$(hostname)@MARIPOSA.COM
-spark.history.kerberos.keytab                    $KEYTABS_DIR/$(hostname).keytab
+spark.history.kerberos.principal                 hadoop/$MY_HOSTNAME@MARIPOSA.COM
+spark.history.kerberos.keytab                    $KEYTABS_DIR/$MY_HOSTNAME.keytab
 spark.driver.extraClassPath                      $HBASE_HOME/conf:$HBASE_LIBS
 spark.executor.extraClassPath                    $HBASE_HOME/conf:$HBASE_LIBS
 EOF

@@ -5,6 +5,7 @@ set -euo pipefail
 
 check_env "MASTER_HOST"
 check_env "IS_MASTER"
+echo "export MY_HOSTNAME=$(hostname)" >> .env
 echo "export VAULT_ADDR=http://$MASTER_HOST:8200" >> .env
 . .env
 

@@ -5,13 +5,14 @@ set -euo pipefail
 . .env
 
 check_env "KEYTABS_DIR"
+check_env "MY_HOSTNAME"
 check_env "HBASE_HOME"
 check_env "HADOOP_HOME"
 check_env "HADOOP_CONF_DIR"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
 check_env "IS_MASTER"
-check_file "$KEYTABS_DIR/$(hostname).keytab"
+check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 
 
 # Fix SASL issue (secured HBase only): https://issues.apache.org/jira/browse/HDFS-16644
@@ -72,11 +73,11 @@ cat <<EOF > $HBASE_HOME/conf/hbase-site.xml
     </property>
     <property>
         <name>hbase.regionserver.kerberos.principal</name>
-        <value>hbase/$(hostname)@MARIPOSA.COM</value>
+        <value>hbase/$MY_HOSTNAME@MARIPOSA.COM</value>
     </property>
     <property>
         <name>hbase.regionserver.keytab.file</name>
-        <value>$KEYTABS_DIR/$(hostname).keytab</value>
+        <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
     </property>
 </configuration>
 EOF
