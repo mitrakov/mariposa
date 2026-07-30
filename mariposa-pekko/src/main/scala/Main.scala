@@ -9,21 +9,17 @@ import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.slf4j.LoggerFactory
-import spray.json.{DefaultJsonProtocol, RootJsonFormat}
+import spray.json.DefaultJsonProtocol
+import DefaultJsonProtocol._
+import SprayJsonSupport._
 
 import java.util.concurrent.Executors
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}
-
-case class HBaseDF(columns: Seq[String], data: Seq[Map[String, String]])
-
-object HBaseDFProtocol extends DefaultJsonProtocol with SprayJsonSupport {
-  implicit val dataFrameResponseFormat: RootJsonFormat[HBaseDF] = jsonFormat2(HBaseDF)
-}
-
-import HBaseDFProtocol._
 
 object Main extends App {
   private val loginToKerberos = true
@@ -47,38 +43,27 @@ object Main extends App {
   private val routes =
     path("v1" / "hbase" / Segment / Segment) { (namespace, tableName) =>
       get {
-        val fullTableName = s"$namespace:$tableName"
-
-        val scanFuture: Future[HBaseDF] = Future {
-          val table = hbaseConnection.getTable(TableName.valueOf(fullTableName))
-          val scan = new Scan()
-
-          val scanner = table.getScanner(scan)
+        val scanFuture: Future[Seq[Map[String, String]]] = Future {
+          logger.info(s"HBase GET: $namespace:$tableName")
+          val table = hbaseConnection.getTable(TableName.valueOf(s"$namespace:$tableName"))
+          val scanner = table.getScanner(new Scan())
           try {
-            val rowsBuffer = scala.collection.mutable.ListBuffer[Map[String, String]]()
-            val detectedColumns = scala.collection.mutable.Set[String]()
-
-            // Añadir por defecto la columna del RowKey primario
-            detectedColumns.add("rowkey")
+            val rowsBuffer = ListBuffer[Map[String, String]]()
 
             for (result <- scanner.asScala) {
               val rowkeyStr = Bytes.toString(result.getRow)
-              val rowMap = scala.collection.mutable.Map[String, String]("rowkey" -> rowkeyStr)
+              val rowMap = mutable.Map[String, String]("rowkey" -> rowkeyStr)
 
-              // 💡 Extraer dinámicamente las celdas sin conocer las columnas de antemano
               result.listCells().asScala.foreach { cell =>
                 val qualifierStr = Bytes.toString(cell.getQualifierArray, cell.getQualifierOffset, cell.getQualifierLength)
                 val valueStr     = Bytes.toString(cell.getValueArray, cell.getValueOffset, cell.getValueLength)
 
                 rowMap.put(qualifierStr, valueStr)
-                detectedColumns.add(qualifierStr)
               }
               rowsBuffer.append(rowMap.toMap)
             }
 
-            // Ordenar las columnas para asegurar un esquema JSON limpio y predecible
-            val sortedColumns = detectedColumns.toSeq.sorted
-            HBaseDF(columns = sortedColumns, data = rowsBuffer.toSeq)
+            rowsBuffer.toSeq
           } finally {
             scanner.close()
             table.close()
@@ -86,11 +71,12 @@ object Main extends App {
         }
 
         onComplete(scanFuture) {
-          case Success(dfResponse) =>
-            complete(dfResponse) // Responde el DataFrame completo serializado automáticamente
+          case Success(list) =>
+            logger.info(s"Result: ${list.headOption}... (${list.size} rows)")
+            complete(list)
           case Failure(ex) =>
-            logger.error(s"Failed to extract dynamic DataFrame for $fullTableName", ex)
-            complete(StatusCodes.InternalServerError, s"HBase SCAN error: ${ex.getMessage}")
+            logger.error(s"HBase query failed for $namespace:$tableName", ex)
+            complete(StatusCodes.InternalServerError, Map("error" -> ex.getMessage))
         }
       }
     }
@@ -109,12 +95,13 @@ object Main extends App {
 
   private def cleanUp(): Unit = {
     logger.info("Graceful shutdown...")
+    Try(hbaseConnection.close())
     val future = for {
       srv <- server
-      _ <- srv.terminate(2.seconds) 
+      _ <- srv.unbind().recover {case _ => }
+      _ <- srv.terminate(1.second) 
     } yield {
       system.terminate()
-      Try(hbaseConnection.close())
       executor.shutdown()
       logger.info("Good bye! \uD83E\uDD8B")
     }
