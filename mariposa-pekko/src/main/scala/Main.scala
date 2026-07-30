@@ -5,36 +5,32 @@ import org.apache.hadoop.security.UserGroupInformation
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
-import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.slf4j.LoggerFactory
-import spray.json.DefaultJsonProtocol
-import DefaultJsonProtocol._
-import SprayJsonSupport._
-
+import spray.json.DefaultJsonProtocol._
 import java.util.concurrent.Executors
-import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}
 
+/** Simple HTTP server to read HBase tables. Supports Kerberos GSSAPI */
 object Main extends App {
-  private val loginToKerberos = true
   private val logger = LoggerFactory.getLogger(Main.getClass)
+  private val loginToKerberos = sys.props.getOrElse("app.kerberos.enabled", "false").toBoolean
+  private val serverPort = sys.props.getOrElse("app.server.port", "7012").toInt
   private val hbaseConfig = HBaseConfiguration.create()
-  private val serverPort = sys.props.getOrElse("app.server.port", "7012")
   private val hbaseConnection: Connection = ConnectionFactory.createConnection(hbaseConfig)
-  private val executor = Executors.newFixedThreadPool(20)
+  private val executor = Executors.newFixedThreadPool(16)
   implicit val system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "Mariposa")
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
   if (loginToKerberos) {
-    logger.info("Kerberos authentication active. Negotiating TGT...")
-    val principal = sys.props.getOrElse("app.security.principal", "hbase/namenode.host@MARIPOSA.COM")
-    val keytab    = sys.props.getOrElse("app.security.keytab", "/etc/security/keytabs/namenode.host.keytab")
+    logger.info("Kerberos is active. Negotiating TGT...")
+    val principal = sys.props.getOrElse("app.kerberos.principal", throw new Exception("Set -Dapp.kerberos.principal"))
+    val keytab    = sys.props.getOrElse("app.kerberos.keytab", throw new Exception("Set -Dapp.kerberos.keytab"))
     UserGroupInformation.setConfiguration(hbaseConfig)
     UserGroupInformation.loginUserFromKeytab(principal, keytab)
   }
@@ -43,27 +39,20 @@ object Main extends App {
   private val routes =
     path("v1" / "hbase" / Segment / Segment) { (namespace, tableName) =>
       get {
-        val scanFuture: Future[Seq[Map[String, String]]] = Future {
+        val scanFuture = Future {
           logger.info(s"HBase GET: $namespace:$tableName")
           val table = hbaseConnection.getTable(TableName.valueOf(s"$namespace:$tableName"))
           val scanner = table.getScanner(new Scan())
           try {
-            val rowsBuffer = ListBuffer[Map[String, String]]()
-
-            for (result <- scanner.asScala) {
-              val rowkeyStr = Bytes.toString(result.getRow)
-              val rowMap = mutable.Map[String, String]("rowkey" -> rowkeyStr)
-
-              result.listCells().asScala.foreach { cell =>
+            scanner.asScala.map { result =>
+              val cellsMap = Option(result.listCells()).map(_.asScala).getOrElse(Nil).map { cell =>
                 val qualifierStr = Bytes.toString(cell.getQualifierArray, cell.getQualifierOffset, cell.getQualifierLength)
-                val valueStr     = Bytes.toString(cell.getValueArray, cell.getValueOffset, cell.getValueLength)
+                val valueStr     = Bytes.toString(cell.getValueArray,     cell.getValueOffset,     cell.getValueLength)
+                qualifierStr -> valueStr
+              }.toMap
 
-                rowMap.put(qualifierStr, valueStr)
-              }
-              rowsBuffer.append(rowMap.toMap)
-            }
-
-            rowsBuffer.toSeq
+              cellsMap + ("key" -> Bytes.toString(result.getRow))
+            }.toList
           } finally {
             scanner.close()
             table.close()
@@ -82,7 +71,7 @@ object Main extends App {
     }
 
   // Start HTTP server
-  private val server = Http().newServerAt("0.0.0.0", serverPort.toInt).bind(routes) 
+  private val server = Http().newServerAt("0.0.0.0", serverPort).bind(routes) 
   server.onComplete {
     case Success(binding) =>
       logger.info(s"Mariposa Web is ONLINE at http://localhost:${binding.localAddress.getPort}/")
@@ -91,8 +80,10 @@ object Main extends App {
       cleanUp()
   }
 
+  // add graceful shutdown hook
   sys.addShutdownHook { cleanUp() }
 
+  /** Graceful shutdown */
   private def cleanUp(): Unit = {
     logger.info("Graceful shutdown...")
     Try(hbaseConnection.close())
