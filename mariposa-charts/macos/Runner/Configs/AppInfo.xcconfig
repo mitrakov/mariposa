@@ -8,7 +8,7 @@
 PRODUCT_NAME = mariposa
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.mitrakoff.mariposa.mariposa
+PRODUCT_BUNDLE_IDENTIFIER = com.mitrakoff.mariposa.client
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.mitrakoff.mariposa. All rights reserved.

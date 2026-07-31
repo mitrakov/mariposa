@@ -45,28 +45,40 @@ class ConnectionInputPage extends StatefulWidget {
 }
 
 class _ConnectionInputPageState extends State<ConnectionInputPage> {
-  // Controladores de texto para capturar los parámetros de HBase
   final TextEditingController _schemaController = TextEditingController(text: 'default');
   final TextEditingController _tableController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  // Instancia de tu cliente de red apuntando a tus Mini-PCs reales
-  final MariposaApiClient _apiClient = MariposaApiClient();
+  // 💡 Nuevo: Estado para el tipo de orden
+  ChartSortType _selectedSort = ChartSortType.city;
 
+  final MariposaApiClient _apiClient = MariposaApiClient();
   bool _isLoading = false;
 
-  /// Lanza la petición HTTP asíncrona hacia el backend de Pekko
   void _fetchAndShowChart() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-
     final schema = _schemaController.text.trim();
     final table = _tableController.text.trim();
 
     try {
-      // Interrogar a HBase de forma dinámica
       List<CityDemographics> data = await _apiClient.fetchDemographics(schema, table);
+
+      // 💡 LOGICA DE ORDENAMIENTO EN FLUTTER
+      // Nota: Usamos compareTo. Para números, restamos o usamos compareTo directamente.
+      switch (_selectedSort) {
+        case ChartSortType.city:
+          data.sort((a, b) => a.city.compareTo(b.city));
+          break;
+        case ChartSortType.men:
+        // De mayor a menor (Descendente) para ver los líderes arriba
+          data.sort((a, b) => b.men.compareTo(a.men));
+          break;
+        case ChartSortType.women:
+          data.sort((a, b) => b.women.compareTo(a.women));
+          break;
+      }
 
       setState(() => _isLoading = false);
 
@@ -75,7 +87,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
         return;
       }
 
-      // 💡 Transición limpia hacia el componente visual de Syncfusion pasando los datos reales
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -84,19 +95,8 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
       );
     } catch (e) {
       setState(() => _isLoading = false);
-      _showSnackBar('Fallo de conexión contra el cluster: ${e.toString()}');
+      _showSnackBar('Fallo de conexión: ${e.toString()}');
     }
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFFE91E63), // Color Fucsia de alerta
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
   }
 
   @override
@@ -126,7 +126,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                 ),
                 const SizedBox(height: 32),
 
-                // 1. Campo para el Schema (Namespace)
                 TextFormField(
                   controller: _schemaController,
                   decoration: const InputDecoration(
@@ -137,37 +136,46 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // 2. Campo para la Tabla
                 TextFormField(
                   controller: _tableController,
                   decoration: const InputDecoration(
                     labelText: 'HBase Table Name',
                     prefixIcon: Icon(Icons.table_chart_outlined, color: Colors.white54),
-                    hintText: 'ej: users o sensor_data',
                   ),
-                  validator: (value) => value!.isEmpty ? 'El nombre de la tabla es obligatorio' : null,
+                  validator: (value) => value!.isEmpty ? 'La tabla es obligatoria' : null,
                 ),
+                const SizedBox(height: 16),
+
+                // 💡 NUEVO: Selector de Ordenamiento
+                DropdownButtonFormField<ChartSortType>(
+                  value: _selectedSort,
+                  decoration: const InputDecoration(
+                    labelText: 'Order data by',
+                    prefixIcon: Icon(Icons.sort, color: Colors.white54),
+                  ),
+                  dropdownColor: const Color(0xFF1F1F1F),
+                  items: const [
+                    DropdownMenuItem(value: ChartSortType.city, child: Text('City Name (A-Z)')),
+                    DropdownMenuItem(value: ChartSortType.men, child: Text('Men % (Highest first)')),
+                    DropdownMenuItem(value: ChartSortType.women, child: Text('Women % (Highest first)')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _selectedSort = value);
+                  },
+                ),
+
                 const SizedBox(height: 32),
 
-                // 3. Botón de Acción con indicador de carga integrado
                 ElevatedButton(
                   onPressed: _isLoading ? null : _fetchAndShowChart,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E88E5), // Azul institucional
+                    backgroundColor: const Color(0xFF1E88E5),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 4,
                   ),
                   child: _isLoading
-                      ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                  )
-                      : const Text(
-                    'GENERATE CHART 🚀',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('GENERATE CHART 🚀', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ],
             ),
@@ -177,6 +185,19 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
     );
   }
 
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFFE91E63), // Color Fucsia de alerta
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  
+
   @override
   void dispose() {
     _schemaController.dispose();
@@ -184,3 +205,5 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
     super.dispose();
   }
 }
+
+enum ChartSortType { city, men, women }
