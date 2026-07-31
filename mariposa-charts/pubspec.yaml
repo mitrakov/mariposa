@@ -9,9 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  fl_chart: 1.2.0        # charts
+  http: 1.6.0                          # http
   syncfusion_flutter_charts: 34.1.33   # charts and diagrams
-  http: 1.6.0            # http
+  shared_preferences: 2.5.4            # local key-value storage for settings
 
 flutter:
   uses-material-design: true

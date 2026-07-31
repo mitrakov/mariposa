@@ -12,7 +12,7 @@ SELECT
 FROM planet.gender
 WHERE gender IN ('man', 'woman')
 GROUP BY city
-HAVING total > 100
+HAVING total > 250
 ORDER BY women DESC
 ;
 EOF
