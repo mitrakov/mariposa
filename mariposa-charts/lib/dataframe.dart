@@ -14,9 +14,9 @@ class CityDemographics {
   factory CityDemographics.fromJson(Map<String, dynamic> json) {
     return CityDemographics(
       // HBase devuelve strings, por lo que usamos num.tryParse para evitar crashes
-      city: json['key'] ?? 'Unknown',
-      men: double.tryParse(json['Men'] ?? '0') ?? 0.0,
-      women: double.tryParse(json['Women'] ?? '0') ?? 0.0,
+      city: json['key'] ?? 'UNKNOWN',
+      men: double.tryParse(json['men'] ?? '0') ?? 0,
+      women: double.tryParse(json['women'] ?? '0') ?? 0,
     );
   }
 }

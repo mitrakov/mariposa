@@ -17,6 +17,7 @@ class MariposaApiClient {
       final response = await http.get(url).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
+        print(response.body);
         // 💡 parsear el arreglo puro JSON [{}, {}, {}]
         final List<dynamic> decodedJson = jsonDecode(response.body);
 

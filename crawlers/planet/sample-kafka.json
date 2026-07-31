@@ -23,15 +23,8 @@
     "personal_job": "———-",
     "personal_smoking": "Не курю, но не против",
     "personal_alcohol": "Не пью, но не против",
-    "personal_languages": 
-    [
-        "Русский"
-    ],
-    "personal_sports": 
-    [
-        "Ходьба",
-        "Гимнастика"
-    ],
+    "personal_languages": ["Русский"],
+    "personal_sports": ["Ходьба", "Гимнастика"],
     "portrait_education": "Высшее",
     "portrait_favorite_dishes": "Выпечка, мясо, салаты, моя консервация",
     "portrait_favorite_cities": "Россия, Горький, Нижний Новгород",
