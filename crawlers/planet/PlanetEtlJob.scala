@@ -5,7 +5,7 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 
 class PlanetEtlJob {
   private val sourceTable = "planet.t_import"
-  private val targetTable = "planet.t_basic_etl"
+  private val targetTable = "planet.gender"
 
   def run(spark: SparkSession): Unit = {
     import spark.implicits._
@@ -42,7 +42,6 @@ class PlanetEtlJob {
     sortedDf.write
       .mode("overwrite")
       .format("parquet")
-      .partitionBy("city")
       .saveAsTable(targetTable)
 
     println("[SUCCESS] planet ETL table successfully written and partitioned by city!")

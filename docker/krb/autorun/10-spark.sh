@@ -25,6 +25,8 @@ check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 # spark.kerberos.*                               Kerberos setup
 # spark.history.kerberos.*                       Kerberos setup
 # spark.*.extraClassPath                         HBASE support
+
+# TODO: check wildcards, e.g. lib/hbase-client-*.jar
 HBASE_LIBS="$HBASE_HOME/lib/hbase-client-2.5.14.jar:\
 $HBASE_HOME/lib/hbase-common-2.5.14.jar:\
 $HBASE_HOME/lib/hbase-protocol-2.5.14.jar:\
