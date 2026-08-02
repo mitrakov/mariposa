@@ -16,7 +16,8 @@
     "11-hive.sh",
     "12-hue.sh",
     "13-airflow.sh",
-    "99-complete.sh"
+    "20-complete.sh",
+    "21-app.sh"
   ],
   "shutdown": [
     "shutdown-1.sh",

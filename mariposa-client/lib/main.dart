@@ -15,7 +15,6 @@ class MariposaApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Mariposa Ecosistema',
-      // 💡 Aplicar Modo Oscuro global de nivel corporativo
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF121212),
         inputDecorationTheme: InputDecorationTheme(
@@ -49,55 +48,40 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
   final TextEditingController _tableController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  // 💡 Nuevo: Estado para el tipo de orden
-  ChartSortType _selectedSort = ChartSortType.city;
-
   final MariposaApiClient _apiClient = MariposaApiClient();
   bool _isLoading = false;
 
+  // En _fetchAndShowChart, simplifica la lógica:
   void _fetchAndShowChart() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-    final schema = _schemaController.text.trim();
-    final table = _tableController.text.trim();
 
     try {
-      List<CityDemographics> data = await _apiClient.fetchDemographics(schema, table);
-
-      // 💡 LOGICA DE ORDENAMIENTO EN FLUTTER
-      // Nota: Usamos compareTo. Para números, restamos o usamos compareTo directamente.
-      switch (_selectedSort) {
-        case ChartSortType.city:
-          data.sort((a, b) => a.city.compareTo(b.city));
-          break;
-        case ChartSortType.men:
-        // De mayor a menor (Descendente) para ver los líderes arriba
-          data.sort((a, b) => b.men.compareTo(a.men));
-          break;
-        case ChartSortType.women:
-          data.sort((a, b) => b.women.compareTo(a.women));
-          break;
-      }
+      // Bajamos los datos genéricos (Gen-3)
+      List<MariposaDataRow> data = await _apiClient.fetchDataMart(
+          _schemaController.text.trim(),
+          _tableController.text.trim()
+      );
 
       setState(() => _isLoading = false);
 
       if (data.isEmpty) {
-        _showSnackBar('La tabla especificada está vacía en HBase.');
+        _showSnackBar('Tabla vacía en HBase');
         return;
       }
 
+      // 💡 Navegamos directamente. El ordenamiento ocurrirá dentro de la gráfica.
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => MariposaScrollableChart(data),
-        ),
+        MaterialPageRoute(builder: (context) => MariposaUniversalChart(data)),
       );
     } catch (e) {
       setState(() => _isLoading = false);
-      _showSnackBar('Fallo de conexión: ${e.toString()}');
+      _showSnackBar('Fallo de conexión: $e');
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -146,26 +130,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // 💡 NUEVO: Selector de Ordenamiento
-                DropdownButtonFormField<ChartSortType>(
-                  value: _selectedSort,
-                  decoration: const InputDecoration(
-                    labelText: 'Order data by',
-                    prefixIcon: Icon(Icons.sort, color: Colors.white54),
-                  ),
-                  dropdownColor: const Color(0xFF1F1F1F),
-                  items: const [
-                    DropdownMenuItem(value: ChartSortType.city, child: Text('City Name (A-Z)')),
-                    DropdownMenuItem(value: ChartSortType.men, child: Text('Men % (Highest first)')),
-                    DropdownMenuItem(value: ChartSortType.women, child: Text('Women % (Highest first)')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => _selectedSort = value);
-                  },
-                ),
-
-                const SizedBox(height: 32),
-
                 ElevatedButton(
                   onPressed: _isLoading ? null : _fetchAndShowChart,
                   style: ElevatedButton.styleFrom(
@@ -205,5 +169,3 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
     super.dispose();
   }
 }
-
-enum ChartSortType { city, men, women }
