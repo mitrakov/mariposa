@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mariposa/api.dart';
+import 'package:mariposa/console.dart';
 import 'package:mariposa/dataframe.dart';
 import 'package:mariposa/mariposachart.dart';
 
@@ -91,6 +92,17 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
         backgroundColor: const Color(0xFF1F1F1F),
         elevation: 0,
         centerTitle: true,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SqlConsolePage()),
+          );
+        },
+        label: const Text('SPARK CONSOLE'),
+        icon: const Icon(Icons.bolt),
+        backgroundColor: const Color(0xFF1E88E5), // Tu azul corporativo
       ),
       body: Center(
         child: SingleChildScrollView(
