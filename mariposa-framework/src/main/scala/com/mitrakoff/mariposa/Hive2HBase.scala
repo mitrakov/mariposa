@@ -3,6 +3,7 @@ package com.mitrakoff.mariposa
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
 import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.slf4j.LoggerFactory
+import java.util.Base64
 
 case class Hive2HBase private (
   private val hbaseTableName: String = "default:my_table",
@@ -17,7 +18,9 @@ case class Hive2HBase private (
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa-Hive2HBase ===")
-    logger.info("Make sure that first column IS NOT NULL as it will be converted to 'rowkey'!")
+    if (hbaseTableName.contains("."))
+      logger.error(s"Your HBase tablename contains dot ('.'), please note it's NOT a delimiter! HBase delimiter is colon (':')")
+    logger.info("Make sure in your SQL first column IS NOT NULL as it will be converted to 'rowkey'")
     logger.info("SQL: {}", hiveSql)
 
     val spark = SparkSession.builder()
@@ -47,8 +50,6 @@ case class Hive2HBase private (
    * La primera columna siempre se mapea como RowKey.
    */
   private def generateCatalog(columns: Array[String], types: Array[String]): String = {
-    if (hbaseTableName.contains("."))
-      logger.warn(s"Your HBase tablename contains dot ('.'), please note it's NOT a delimiter! HBase delimiter is colon (':')")
     val Array(namespace, name) = if (hbaseTableName.contains(":")) hbaseTableName.split(":") else Array("default", hbaseTableName)
     val rowKey = columns.head // La primera columna es el RowKey por convención Mariposa
 
@@ -72,8 +73,10 @@ object Hive2HBase {
     Mariposa.printProps()
 
     val hbaseTable = sys.props.getOrElse("app.hbase.table", throwErr)
-    val sqlFile    = sys.props.getOrElse("app.hive.sql.file", throwErr)
-    val sql = Mariposa.readFileLocal(sqlFile)
+    val sql = sys.props.get("app.hive.sql.base64")
+      .map(base64 => new String(Base64.getDecoder.decode(base64)))
+      .orElse(sys.props.get("app.hive.sql.file") map Mariposa.readFileLocal)
+      .getOrElse(throwErr)
 
     builder()
       .withHBaseTable(hbaseTable)
@@ -82,8 +85,9 @@ object Hive2HBase {
       .run()
   }
 
-  private def throwErr: Nothing =
-    throw new Exception("These properties are necessary: -Dapp.hbase.table=default:my_table -Dapp.hive.sql.file=hive.sql")
+  private def throwErr: Nothing = throw new Exception(
+    "These properties are necessary: -Dapp.hbase.table=default:my_table;\n-Dapp.hive.sql.file=hive.sql OR -Dapp.hive.sql.base64=..."
+  )
 }
 
 /*

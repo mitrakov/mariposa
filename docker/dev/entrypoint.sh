@@ -206,6 +206,7 @@ $HBASE_HOME/lib/hbase-mapreduce-2.5.14.jar:\
 $HBASE_HOME/lib/hbase-shaded-miscellaneous-4.1.13.jar:\
 $HBASE_HOME/lib/hbase-shaded-protobuf-4.1.13.jar:\
 $HBASE_HOME/lib/hbase-shaded-netty-4.1.13.jar:\
+$HBASE_HOME/lib/hbase-shaded-gson-4.1.13.jar:\
 $HBASE_HOME/lib/hbase-unsafe-4.1.13.jar:\
 $HBASE_HOME/lib/protobuf-java-2.5.0.jar:\
 $HBASE_HOME/lib/client-facing-thirdparty/opentelemetry-api-1.49.0.jar:\

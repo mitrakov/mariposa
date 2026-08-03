@@ -36,6 +36,33 @@ class MariposaApiClient {
     }
   }
 
+  Stream<String> runSparkJobStream(String sql, String targetTable) async* {
+    final url = Uri.parse('$baseUrl/v1/spark');
+
+    // 💡 Preparamos la petición manual para manejar el Stream
+    final request = http.Request('POST', url);
+    request.headers['Content-Type'] = 'application/json';
+    request.body = jsonEncode({
+      'sql': sql,
+      'hbaseTable': targetTable,
+    });
+
+    try {
+      final response = await http.Client().send(request);
+
+      if (response.statusCode == 200) {
+        // 💡 Transformamos los bytes entrantes (UTF-8) en líneas de texto
+        yield* response.stream
+            .transform(utf8.decoder)
+            .transform(const LineSplitter());
+      } else {
+        yield '❌ Error del servidor: ${response.statusCode}';
+      }
+    } catch (e) {
+      yield '=== [MARIPOSA-SPARK-STREAM-ERROR] ===: $e';
+    }
+  }
+
   /// Procesa el JSON dinámico sin nombres de columnas fijos
   List<MariposaDataRow> _parseDynamicJson(String jsonString) {
     final List<dynamic> decodedJson = jsonDecode(jsonString);
