@@ -35,7 +35,7 @@ case class Hive2HBase private (
 
       df.write
         .mode(SaveMode.Overwrite)
-        .options(Map(HBaseTableCatalog.tableCatalog -> generatedCatalog))
+        .options(Map(HBaseTableCatalog.tableCatalog -> generatedCatalog, HBaseTableCatalog.newTable -> "1"))
         .format("org.apache.hadoop.hbase.spark")
         .save()
 
