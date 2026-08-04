@@ -6,7 +6,9 @@ val sttpVersion = "3.11.0"
 val circeVersion = "0.14.16"
 
 libraryDependencies ++= Seq(
-  // HTTP Client
+  "org.scala-lang" % "scala-compiler" % scalaVersion.value,
+
+// HTTP Client
   "com.softwaremill.sttp.client3" %% "core" % sttpVersion,
   "com.softwaremill.sttp.client3" %% "circe" % sttpVersion,
 
