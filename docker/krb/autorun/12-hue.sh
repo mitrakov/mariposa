@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # HUE
 set -euo pipefail
-. utils.sh
-. .env
+source utils.sh
+source .env
 
 check_env "IS_MASTER"
 

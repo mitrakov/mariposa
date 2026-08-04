@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # generate SSL certificates to enable SASL to auth data transfer protocol 
 set -euo pipefail
-. utils.sh
-. .env
+source utils.sh
+source .env
 
 check_env "CERTS_DIR"
 check_env "MY_HOSTNAME"

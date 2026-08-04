@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Kerberos
 set -euo pipefail
-. utils.sh
-. .env
+source utils.sh
+source .env
 
 check_env "MASTER_HOST"
 check_env "IS_MASTER"

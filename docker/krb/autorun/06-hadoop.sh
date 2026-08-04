@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Apache Hadoop
 set -euo pipefail
-. utils.sh
-. .env
+source utils.sh
+source .env
 
 check_env "MY_KEYSTORE"
 check_env "KEYTABS_DIR"

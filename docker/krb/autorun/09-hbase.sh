@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Apache HBase
 set -euo pipefail
-. utils.sh
-. .env
+source utils.sh
+source .env
 
 check_env "KEYTABS_DIR"
 check_env "MY_HOSTNAME"

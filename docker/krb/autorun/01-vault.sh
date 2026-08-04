@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # HashiCorp
 set -euo pipefail
-. utils.sh
+source utils.sh
 
 check_env "MASTER_HOST"
 check_env "IS_MASTER"
