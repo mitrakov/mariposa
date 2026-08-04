@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # get VAULT_TOKEN for HashiCorp
 set -euo pipefail
-. utils.sh
-. .env
+source utils.sh
+source .env
 
 check_env "CERTS_DIR"
 check_env "MASTER_HOST"

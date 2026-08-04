@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # graceful shutdown
 set -euo pipefail
-. utils.sh
+source utils.sh
 
 check_env "IS_MASTER"
 check_env "MASTER_HOST"

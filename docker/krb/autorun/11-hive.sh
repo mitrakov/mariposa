@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Apache Hive & Apache Tez
 set -euo pipefail
-. utils.sh
-. .env
+source utils.sh
+source .env
 
 check_env "IS_MASTER"
 check_env "HIVE_HOME"
