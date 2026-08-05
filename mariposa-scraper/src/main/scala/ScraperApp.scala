@@ -39,13 +39,13 @@ object ScraperApp extends App {
 
 /*
 Example 1 (HtmlJob.scala):
-import sttp.client3._
+import sttp.client4._
 import org.jsoup.Jsoup
 
 class HtmlJob {
   def run(): Unit = {
     println("--- Example parsing HTML: ---")
-    val http = HttpURLConnectionBackend()
+    val http = DefaultSyncBackend()
     val url = uri"https://mc.yandex.ru/metrika/match.html"
 
     println(s"Fetch $url")
@@ -67,14 +67,14 @@ class HtmlJob {
 /*
 Example 2 (JsonJob.scala):
 import io.circe.generic.codec.DerivedAsObjectCodec.deriveCodec
-import sttp.client3._
-import sttp.client3.circe.asJson
+import sttp.client4._
+import sttp.client4.circe.asJson
 
 class JsonJob {
   case class MambaResponse(title: String, description: String, keywords: String, metaRobots: String, header: String)
   def run(): Unit = {
     println("--- Example parsing JSON: ---")
-    val http = HttpURLConnectionBackend()
+    val http = DefaultSyncBackend()
     val url = uri"https://www.mamba.ru/api/seo/pages-meta?url=%2Fru"
 
     println(s"Fetch: $url")
@@ -90,14 +90,14 @@ class JsonJob {
 
 /*
 Example 3 (XmlJob.scala):
-import sttp.client3._
+import sttp.client4._
 import scala.xml.XML
 
 class XmlJob extends App {
   case class PomResponse(group: String, artifact: String, version: String, url: String)
   def run(): Unit = {
     println("--- Example parsing XML: ---")
-    val http = HttpURLConnectionBackend()
+    val http = DefaultSyncBackend()
     val url = uri"https://repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.18/scala-library-2.13.18.pom"
 
     println(s"Fetch: $url")
@@ -130,6 +130,7 @@ import org.apache.kafka.common.config.SslConfigs._
 class KafkaJob {
   case class KafkaMessage(key: String, userId: Int, name: String)
   def run(): Unit = {
+    println("--- Example publish message to Kafka: ---")
     val properties = new Properties()
     properties.put(BOOTSTRAP_SERVERS_CONFIG, "node49.host:9092")
     properties.put(KEY_SERIALIZER_CLASS_CONFIG,   classOf[StringSerializer].getName)
