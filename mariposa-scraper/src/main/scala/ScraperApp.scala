@@ -11,7 +11,7 @@ object ScraperApp extends App {
   if (args.length < 1) {
     println("Usage: java -jar mariposa-scraper.jar MyScript.scala")
     sys.exit(1)
-  } else println("=== Mariposa Scala Script Runner 2===")
+  } else println("=== Mariposa Scala Script Runner ===")
 
   // read user *.scala file
   val className = new File(args.head).getName.stripSuffix(".scala")
@@ -38,15 +38,16 @@ object ScraperApp extends App {
 }
 
 /*
-Example:
+Example 1 (HtmlJob.scala):
 import sttp.client3._
 import org.jsoup.Jsoup
 
-class YandexJob {
+class HtmlJob {
   def run(): Unit = {
-    println("--- Hello YandeJob! ---")
+    println("--- Example parsing HTML: ---")
     val http = HttpURLConnectionBackend()
 
+    println("Fetch https://mc.yandex.ru/metrika/match.html")
     val response = basicRequest.get(uri"https://mc.yandex.ru/metrika/match.html").send(http)
     response.body match {
       case Right(html) =>
@@ -57,6 +58,28 @@ class YandexJob {
         println(s"Result: $yandexResponse")
       case Left(err) =>
         println(s"Failed: $err")
+    }
+  }
+}
+*/
+
+/*
+Example 2 (JsonJob.scala):
+import io.circe.generic.codec.DerivedAsObjectCodec.deriveCodec
+import sttp.client3._
+import sttp.client3.circe.asJson
+
+class JsonJob {
+  case class MambaResponse(title: String, description: String, keywords: String, metaRobots: String, header: String)
+  def run(): Unit = {
+    println("--- Example parsing JSON: ---")
+    val http = HttpURLConnectionBackend()
+
+    println("Fetch: https://www.mamba.ru/api/seo/pages-meta?url=%2Fru")
+    val response = basicRequest.get(uri"https://www.mamba.ru/api/seo/pages-meta?url=%2Fru").response(asJson[MambaResponse]).send(http)
+    response.body match {
+      case Right(mamba) => println(s"Result: $mamba")
+      case Left (error) => println(s"Error: $error")
     }
   }
 }
