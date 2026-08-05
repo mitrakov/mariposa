@@ -1,31 +1,46 @@
-import org.slf4j.LoggerFactory
-import sttp.client3.HttpURLConnectionBackend
+import java.io.File
+import scala.io.Source
+import scala.tools.nsc.Settings
+import scala.tools.nsc.interpreter.IMain
+import scala.tools.nsc.interpreter.shell.ReplReporterImpl
+import scala.tools.nsc.interpreter.shell.ReplReporterImpl.defaultOut
 
-object ScraperApp {
-  private val logger = LoggerFactory.getLogger(getClass)
+//noinspection ScalaWeakerAccess
+object ScraperApp extends App {
+  // basic checks
+  if (args.length < 1) {
+    println("Usage: java -jar mariposa-scraper.jar MyScript.scala")
+    sys.exit(1)
+  } else println("=== Mariposa Scala Script Runner ===")
 
-  def main(args: Array[String]): Unit = {
-    logger.info("=== Mariposa Pure Execution Engine ===")
+  // read user *.scala file
+  val className = new File(args.head).getName.stripSuffix(".scala")
+  val src = Source.fromFile(args.head)
+  val scriptContent = try {src.mkString} finally {src.close()}
 
-    if (args.length < 1) {
-      logger.error("Usage: java -jar mariposa-scraper.jar <script.scala>")
-      sys.exit(1)
-    }
+  // add spark classpath to interpreter settings
+  val driverJarPath = this.getClass.getProtectionDomain.getCodeSource.getLocation.getPath
+  val existingClasspath = sys.props("java.class.path")
+  val settings = new Settings()
+  settings.classpath.value = s"$existingClasspath:$driverJarPath"
 
-    val scriptPath = args(0)
-    val backend = HttpURLConnectionBackend()
+  // create interpreter
+  val curClassLoader = Thread.currentThread().getContextClassLoader
+  val reporter = new ReplReporterImpl(settings, defaultOut)
+  val interpreter = new IMain(settings, Some(curClassLoader), settings, reporter)
 
-    try {
-      logger.info(s"Compiling and executing: $scriptPath")
-      ScriptCompiler.compileAndRun(scriptPath, backend)
-      logger.info("Execution finished successfully.")
-    } catch {
-      case e: Exception =>
-        logger.error(s"Runtime error executing $scriptPath", e)
-    } finally {
-      backend.close()
-    }
-  }
+  // compile & load user class
+  println(s"Compiling: $className...")
+  if (!interpreter.compileString(scriptContent))
+    throw new RuntimeException(s"Compilation failed for class: $className")
+  val jobClass = interpreter.classLoader.loadClass(className)
+  val job = jobClass.getDeclaredConstructor().newInstance()
+  val runMethod = jobClass.getMethod("run")
+
+  // run user class
+  println(s"Executing: $className.run()...")
+  runMethod.invoke(job)
+  println(s"SUCCESS: $className")
 }
 
 /*
