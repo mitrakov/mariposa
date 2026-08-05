@@ -46,9 +46,10 @@ class HtmlJob {
   def run(): Unit = {
     println("--- Example parsing HTML: ---")
     val http = HttpURLConnectionBackend()
+    val url = uri"https://mc.yandex.ru/metrika/match.html"
 
-    println("Fetch https://mc.yandex.ru/metrika/match.html")
-    val response = basicRequest.get(uri"https://mc.yandex.ru/metrika/match.html").send(http)
+    println(s"Fetch $url")
+    val response = basicRequest.get(url).send(http)
     response.body match {
       case Right(html) =>
         val div = Jsoup.parse(html).select(".main").first()
@@ -74,9 +75,10 @@ class JsonJob {
   def run(): Unit = {
     println("--- Example parsing JSON: ---")
     val http = HttpURLConnectionBackend()
+    val url = uri"https://www.mamba.ru/api/seo/pages-meta?url=%2Fru"
 
-    println("Fetch: https://www.mamba.ru/api/seo/pages-meta?url=%2Fru")
-    val response = basicRequest.get(uri"https://www.mamba.ru/api/seo/pages-meta?url=%2Fru").response(asJson[MambaResponse]).send(http)
+    println(s"Fetch: $url")
+    val response = basicRequest.get(url).response(asJson[MambaResponse]).send(http)
     response.body match {
       case Right(mamba) => println(s"Result: $mamba")
       case Left (error) => println(s"Error: $error")
@@ -84,3 +86,30 @@ class JsonJob {
   }
 }
 */
+
+/*
+Example 3 (XmlJob.scala):
+import sttp.client3._
+import scala.xml.XML
+
+class XmlJob extends App {
+  case class PomResponse(group: String, artifact: String, version: String, url: String)
+  def run(): Unit = {
+    println("--- Example parsing XML: ---")
+    val http = HttpURLConnectionBackend()
+    val url = uri"https://repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.18/scala-library-2.13.18.pom"
+
+    println(s"Fetch: $url")
+    val response = basicRequest.get(url).response(asStringAlways map parsePom).send(http)
+    response.body match {
+      case Right(pom) => println(s"Result: $pom")
+      case Left (err) => println(s"Error: $err")
+    }
+  }
+
+  def parsePom(xmlString: String): Either[String, PomResponse] = try {
+    val xml = XML.loadString(xmlString)
+    Right(PomResponse((xml \\ "groupId").text, (xml \\ "artifactId").text, (xml \\ "version").text, (xml \\ "url").head.text))
+  } catch { case e: Exception => Left(s"Failed to parse XML: ${e.getMessage}")}
+}
+ */
