@@ -22,8 +22,7 @@ object MariposaFly extends App {
   try {
     // read user *.scala file
     val src = Source.fromFile(args.head)
-    val scriptContent = src.mkString
-    src.close()
+    val scriptContent = try {src.mkString} finally {src.close()}
 
     // add spark classpath to interpreter settings
     val driverJarPath = this.getClass.getProtectionDomain.getCodeSource.getLocation.getPath
