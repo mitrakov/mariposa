@@ -83,7 +83,7 @@ def clean_hive_key(prefix, raw_key):
         "алкоголь": "alcohol",
         "знание_языков": "languages",
         "спорт": "sports",
-        "ваше_образование": "education",
+        "ваше_образование": "your_education",
         "любимая_музыка": "favorite_music",
         "любимые_фильмы": "favorite_movies",
         "любимые_книги": "favorite_books",
