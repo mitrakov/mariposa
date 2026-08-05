@@ -83,6 +83,7 @@ class JsonJob {
       case Right(mamba) => println(s"Result: $mamba")
       case Left (error) => println(s"Error: $error")
     }
+    http.close()
   }
 }
 */
@@ -105,6 +106,7 @@ class XmlJob extends App {
       case Right(pom) => println(s"Result: $pom")
       case Left (err) => println(s"Error: $err")
     }
+    http.close()
   }
 
   def parsePom(xmlString: String): Either[String, PomResponse] = try {
@@ -112,4 +114,46 @@ class XmlJob extends App {
     Right(PomResponse((xml \\ "groupId").text, (xml \\ "artifactId").text, (xml \\ "version").text, (xml \\ "url").head.text))
   } catch { case e: Exception => Left(s"Failed to parse XML: ${e.getMessage}")}
 }
- */
+*/
+
+/*
+Example 4 (KafkaJob.scala):
+import io.circe.syntax.EncoderOps
+import io.circe.generic.codec.DerivedAsObjectCodec.deriveCodec
+import java.util.Properties
+import org.apache.kafka.clients.producer._
+import org.apache.kafka.clients.producer.ProducerConfig._
+import org.apache.kafka.common.serialization.StringSerializer
+import org.apache.kafka.common.config.SaslConfigs._
+import org.apache.kafka.common.config.SslConfigs._
+
+class KafkaJob {
+  case class KafkaMessage(key: String, userId: Int, name: String)
+  def run(): Unit = {
+    val properties = new Properties()
+    properties.put(BOOTSTRAP_SERVERS_CONFIG, "node49.host:9092")
+    properties.put(KEY_SERIALIZER_CLASS_CONFIG,   classOf[StringSerializer].getName)
+    properties.put(VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
+
+    // optional: security settings for SASL/SSL
+    System.setProperty("java.security.auth.login.config", "/opt/kafka/config/kafka_jaas.conf")
+    properties.put("security.protocol", "SASL_SSL")
+    properties.put(SASL_MECHANISM, DEFAULT_SASL_MECHANISM)
+    properties.put(SASL_KERBEROS_SERVICE_NAME, "kafka")
+    properties.put(SSL_TRUSTSTORE_LOCATION_CONFIG, "/opt/vault/certs/truststore.jks")
+    properties.put(SSL_TRUSTSTORE_PASSWORD_CONFIG, "******")
+    // =====
+
+    val msg = KafkaMessage("001", 1, "Tommy")
+    val record = new ProducerRecord("temp-topic", msg.key, msg.asJson.noSpaces)
+    val producer = new KafkaProducer[String, String](properties)
+
+    producer.send(record, (metadata, err) => Option(err) match {
+      case None    => println(s"\nMessage sent to partition: ${metadata.partition()}, offset: ${metadata.offset()}\n")
+      case Some(e) => println(s"Failed to send message to Kafka", e)
+    })
+
+    producer.close()
+  }
+}
+*/
