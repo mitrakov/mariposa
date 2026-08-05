@@ -126,6 +126,7 @@ import org.apache.kafka.clients.producer.ProducerConfig._
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.common.config.SaslConfigs._
 import org.apache.kafka.common.config.SslConfigs._
+import org.apache.kafka.common.security.auth.SecurityProtocol._
 
 class KafkaJob {
   case class KafkaMessage(key: String, userId: Int, name: String)
@@ -138,7 +139,7 @@ class KafkaJob {
 
     // optional: security settings for SASL/SSL
     System.setProperty("java.security.auth.login.config", "/opt/kafka/config/kafka_jaas.conf")
-    properties.put("security.protocol", SecurityProtocol.SASL_SSL.name)
+    properties.put("security.protocol", SASL_SSL.name)
     properties.put(SASL_MECHANISM, DEFAULT_SASL_MECHANISM)
     properties.put(SASL_KERBEROS_SERVICE_NAME, "kafka")
     properties.put(SSL_TRUSTSTORE_LOCATION_CONFIG, "/opt/vault/certs/truststore.jks")

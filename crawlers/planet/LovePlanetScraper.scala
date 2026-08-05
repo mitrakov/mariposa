@@ -1,14 +1,15 @@
-import java.time.Instant
-import java.util.Properties
-import scala.jdk.CollectionConverters._
-import org.jsoup.Jsoup
-import sttp.client4._
+import io.circe.JsonObject
+import io.circe.syntax.EncoderOps
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.config.{SaslConfigs, SslConfigs}
-import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.serialization.StringSerializer
-import io.circe.JsonObject
-import io.circe.syntax._
+import org.apache.kafka.common.security.auth.SecurityProtocol.SASL_SSL
+import org.apache.kafka.common.config.SaslConfigs.DEFAULT_SASL_MECHANISM
+import org.jsoup.Jsoup
+import sttp.client4.{basicRequest, DefaultSyncBackend, UriContext}
+import java.time.Instant
+import java.util.Properties
+import scala.jdk.CollectionConverters.CollectionHasAsScala
 
 /*
 libraryDependencies ++= Seq(
@@ -19,7 +20,7 @@ libraryDependencies ++= Seq(
 )
 */
 class LovePlanetScraper {
-  val jksPassword: String = ???
+  val jksPassword: String = sys.env.getOrElse("JKS_PASSWORD", throw new Exception("Define export JKS_PASSWORD=..."))
   val targetTopic = "planet-import"
 
   def run(): Unit = {
@@ -30,8 +31,8 @@ class LovePlanetScraper {
     kafkaProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "node143.host:9092")
     kafkaProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     kafkaProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
-    kafkaProps.put("security.protocol", SecurityProtocol.SASL_SSL.name)
-    kafkaProps.put(SaslConfigs.SASL_MECHANISM, "GSSAPI")
+    kafkaProps.put("security.protocol", SASL_SSL.name)
+    kafkaProps.put(SaslConfigs.SASL_MECHANISM, DEFAULT_SASL_MECHANISM)
     kafkaProps.put(SaslConfigs.SASL_KERBEROS_SERVICE_NAME, "kafka")
     kafkaProps.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, "/opt/vault/certs/truststore.jks")
     kafkaProps.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, jksPassword)
@@ -62,7 +63,7 @@ class LovePlanetScraper {
                 // Expresión regular idéntica a tu re.compile(r"^/page/\w+/frl-2$")
                 if (href.matches("^/page/\\w+/frl-2$")) {
                   val fullProfileUrl = s"https://loveplanet.ru$href"
-                  println(s"Processing profile: $fullProfileUrl")
+                  println(s"\nProcessing profile: $fullProfileUrl")
 
                   val profileDataOpt = parseProfilePage(http, fullProfileUrl)
 
@@ -95,7 +96,6 @@ class LovePlanetScraper {
     } catch {
       case e: Exception => println(s"Fatal error inside loop execution: ${e.getMessage}")
     } finally {
-      println("Flushing and releasing framework assets...")
       producer.flush()
       producer.close()
       http.close()
