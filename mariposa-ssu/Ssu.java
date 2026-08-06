@@ -32,17 +32,24 @@ public class Ssu {
             final var config = (Map<String, Object>) VanillaJsonParser.parse(json);
             final var port = ((Number) config.get("port")).intValue();
             final var workDir = (String) config.get("workDir");
+            final var envFile = (String) config.get("environment");
             final var startup = (List<String>) config.get("startup");
             final var shutdown = (List<String>) config.get("shutdown");
             final var rawHosts = (List<String>) config.get("hosts");
             final var hosts = rawHosts.stream().flatMap(host -> Arrays.stream(host.split(","))).map(String::trim)
                     .filter(host -> !host.isEmpty()).toList(); // flatten comma-separated hosts, e.g. "host1,host2,host3"
+            
+            // load user ENV file
+            final var env = loadEnvFile(envFile, workDir);
 
+            // greetings
             System.out.printf("Port: %d\n", port);
             System.out.printf("Hosts: %s (total: %d)\n", hosts, hosts.size());
             System.out.printf("WorkDir: %s\n", workDir);
+            System.out.printf("EnvFile: %s\n", envFile);
             System.out.printf("Startup scripts:  %s\n", startup);
             System.out.printf("Shutdown scripts: %s\n", shutdown);
+            System.out.printf("Loaded ENV keys: %s\n", env.keySet());
 
             // create Synchronizer
             final var synchronizer = new Synchronizer(hosts, port);
@@ -50,7 +57,7 @@ public class Ssu {
             System.out.printf("My host: %s\n", myHost);
 
             // run startup scripts
-            runScripts(startup, workDir, synchronizer);
+            runScripts(startup, workDir, env, synchronizer);
 
             // add shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -59,7 +66,7 @@ public class Ssu {
 
                 System.out.println("\n[SYNC] SIGTERM DETECTED! Running graceful shutdown");
                 broadcastShutdown(hosts, myHost, port);
-                runScripts(shutdown, workDir, synchronizer);
+                runScripts(shutdown, workDir, env, synchronizer);
                 Runtime.getRuntime().halt(0);    // never use System.exit() in shutdown hooks!
             }));
 
@@ -67,6 +74,24 @@ public class Ssu {
             System.out.println("\n[SYNC] Init done... Press CTRL+C or use 'kill <PID>' to run distributed graceful shutdown");
             listenForRemoteShutdown(myHost, port);
         } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private static Map<String, String> loadEnvFile(String envFileName, String workDir) {
+        if (envFileName == null) return Collections.emptyMap();
+        
+        final var result = new TreeMap<String, String>();
+        final var path = workDir != null ? Paths.get(workDir, envFileName) : Paths.get(envFileName);
+        try (var br = new BufferedReader(new FileReader(path.toFile()))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty() || line.startsWith("#")) continue;
+                
+                final var parts = line.split("=", 2);
+                result.put(parts[0].trim(), parts[1].trim());
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return result;
     }
 
     private static void listenForRemoteShutdown(String myHost, int port) {
@@ -98,29 +123,30 @@ public class Ssu {
         try (DatagramSocket socket = new DatagramSocket()) {
             final var data = (myHost + ":SHUTDOWN_TRIGGERED").getBytes();
             for (final var host : hosts) {
-                if (!host.equals(myHost)) 
+                if (!host.equals(myHost))
                     socket.send(new DatagramPacket(data, data.length, InetAddress.getByName(host), port));
             }
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    private static void runScripts(List<String> scripts, String workDir, Synchronizer synchronizer) {
+    private static void runScripts(List<String> scripts, String workDir, Map<String, String> env, Synchronizer synchronizer) {
         final var workDirectory = new File(workDir);
         for (final var script : scripts) {
-            runScript(script, workDirectory);
+            runScript(script, workDirectory, env);
             synchronizer.waitForAllNodes(script);
         }
     }
 
-    private static void runScript(String script, File workDir) {
+    private static void runScript(String script, File workDir, Map<String, String> env) {
         try {
             System.out.printf("\n[SYNC] RUN: '%s'\n", script);
             final var pb = isWindows()
                     ? new ProcessBuilder("cmd.exe", "/c", script)
                     : new ProcessBuilder("./" + script);
             pb.directory(workDir);
+            pb.environment().putAll(env);
             pb.inheritIO();     // use the same stdin, stdout and stderr
-            
+
             final var status = pb.start().waitFor();
             if (status != 0)
                 System.exit(status);
@@ -139,6 +165,7 @@ public class Ssu {
           "port": 1030,
           "hosts": ["node1.host", "192.168.1.11", "${ENV_COMMA_SEP_HOSTS}"],
           "workDir": "/home/hadoop/autorun",
+          "environment": "vars.env",
           "startup": [
             "script1.sh",
             "script2.sh",
