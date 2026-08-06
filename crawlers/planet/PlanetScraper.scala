@@ -12,14 +12,14 @@ import java.util.Properties
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
 /*
-libraryDependencies ++= Seq(
+add to build.sbt: libraryDependencies ++= Seq(
   "org.jsoup" % "jsoup" % "1.23.1",
   "com.softwaremill.sttp.client4" %% "circe" % "4.0.26",
   "io.circe" %% "circe-generic" % "0.14.10",
   "org.apache.kafka" % "kafka-clients" % "4.2.0",
 )
 */
-class LovePlanetScraper {
+class PlanetScraper {
   val jksPassword: String = sys.env.getOrElse("JKS_PASSWORD", throw new Exception("Define export JKS_PASSWORD=..."))
   val targetTopic = "planet-import"
 

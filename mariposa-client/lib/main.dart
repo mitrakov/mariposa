@@ -44,21 +44,27 @@ class ConnectionInputPage extends StatefulWidget {
 }
 
 class _ConnectionInputPageState extends State<ConnectionInputPage> {
-  final TextEditingController _tableController = TextEditingController(text: 'default:table');
+  String? _selectedTable;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   final MariposaApiClient _apiClient = MariposaApiClient();
   bool _isLoading = false;
 
-  // En _fetchAndShowChart, simplifica la lógica:
+  late Future<List<String>> _tablesFuture;
+
+  @override
+  void initState() {
+    super.initState() ;
+    _tablesFuture = _apiClient.fetchHBaseTables();
+  }
+
   void _fetchAndShowChart() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate() || _selectedTable == null) return;
 
     setState(() => _isLoading = true);
 
     try {
-      // Bajamos los datos genéricos (Gen-3)
-      final parts = _tableController.text.trim().split(":");   // std format is "namespace:table"
+      final parts = _selectedTable!.trim().split(":");
       final data = await _apiClient.fetchDataMart(parts.length == 2 ? parts.first : "default", parts.last);
 
       setState(() => _isLoading = false);
@@ -68,7 +74,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
         return;
       }
 
-      // 💡 Navegamos directamente. El ordenamiento ocurrirá dentro de la gráfica.
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => MariposaUniversalChart(data)),
@@ -78,7 +83,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
       _showSnackBar('Fallo de conexión: $e');
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -93,12 +97,12 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const SqlConsolePage()),
+            MaterialPageRoute(builder: (context) => SqlConsolePage(_selectedTable)),
           );
         },
         label: const Text('SPARK CONSOLE'),
         icon: const Icon(Icons.bolt),
-        backgroundColor: const Color(0xFF1E88E5), // Tu azul corporativo
+        backgroundColor: const Color(0xFF1E88E5),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -118,13 +122,72 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                 ),
                 const SizedBox(height: 32),
 
-                TextFormField(
-                  controller: _tableController,
-                  decoration: const InputDecoration(
-                    labelText: 'HBase Table Name',
-                    prefixIcon: Icon(Icons.table_chart_outlined, color: Colors.white54),
-                  ),
-                  validator: (value) => value!.isEmpty ? 'La tabla es obligatoria' : null,
+                // 💡 INTEGRACIÓN MAESTRA: FutureBuilder para pintar el catálogo dinámico de HBase
+                FutureBuilder<List<String>>(
+                  future: _tablesFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      // Mientras Pekko responde, mostramos un dropdown simulado con un spinner discreto
+                      return TextFormField(
+                        readOnly: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Cargando catálogo de HBase...',
+                          prefixIcon: SizedBox(
+                            width: 20, height: 20,
+                            child: Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        ),
+                      );
+                    } else if (snapshot.hasError) {
+                      // Si falla Kerberos o la red, mostramos la alerta visual en el mismo campo
+                      return DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(
+                          labelText: 'Error al cargar tablas',
+                          prefixIcon: Icon(Icons.error_outline, color: Colors.redAccent),
+                        ),
+                        items: const [],
+                        onChanged: null, // Deshabilitado
+                        validator: (_) => 'Verifica la conexión del servidor Pekko',
+                      );
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(
+                          labelText: 'No se encontraron tablas',
+                          prefixIcon: Icon(Icons.warning_amber_outlined, color: Colors.orangeAccent),
+                        ),
+                        items: const [],
+                        onChanged: null,
+                      );
+                    }
+
+                    // ESTRATEGIA: Si ya hay datos, autoseleccionamos la primera tabla del clúster si el estado está limpio
+                    final tables = snapshot.data!;
+                    if (_selectedTable == null && tables.isNotEmpty) {
+                      _selectedTable = tables.first;
+                    }
+
+                    return DropdownButtonFormField<String>(
+                      initialValue: _selectedTable,
+                      decoration: const InputDecoration(
+                        labelText: 'Select HBase Table',
+                        prefixIcon: Icon(Icons.table_chart_outlined, color: Colors.white54),
+                      ),
+                      dropdownColor: const Color(0xFF1F1F1F), // Fondo oscuro para el menú desplegable
+                      items: tables.map((String table) {
+                        return DropdownMenuItem<String>(
+                          value: table,
+                          child: Text(table, style: const TextStyle(color: Colors.white)),
+                        );
+                      }).toList(),
+                      onChanged: _isLoading ? null : (newValue) {
+                        setState(() => _selectedTable = newValue);
+                      },
+                      validator: (value) => value == null ? 'La tabla es obligatoria' : null,
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -151,18 +214,10 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: const TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFFE91E63), // Color Fucsia de alerta
+        backgroundColor: const Color(0xFFE91E63),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
-  }
-
-  
-
-  @override
-  void dispose() {
-    _tableController.dispose();
-    super.dispose();
   }
 }
