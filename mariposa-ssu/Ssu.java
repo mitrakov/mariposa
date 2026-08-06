@@ -19,20 +19,24 @@ public class Ssu {
         if (args.length == 0) printHelpAndQuit();
 
         try {
-            // read file
+            // read file and upload environment variables BEFORE all other steps
             final var input = Files.readString(Paths.get(args[0]));
+            final var conf0 = (Map<String, Object>) VanillaJsonParser.parse(input);
+            final var envFile = (String) conf0.get("environment");
+            final var env = loadEnvFile(envFile);
 
             // replace ${ENV}
             final var json = Pattern.compile("\\$\\{(\\w+)}").matcher(input).replaceAll(match -> {
-                final var env = System.getenv(match.group(1));
-                return Matcher.quoteReplacement(env != null ? env : match.group(0));
+                final var key = match.group(1);
+                final var e1 = env.get(key);
+                final var e2 = System.getenv(key);
+                return Matcher.quoteReplacement(e1 != null ? e1 : e2 != null ? e2 : match.group(0));
             });
 
             // parse json
             final var config = (Map<String, Object>) VanillaJsonParser.parse(json);
             final var port = ((Number) config.get("port")).intValue();
             final var workDir = (String) config.get("workDir");
-            final var envFile = (String) config.get("environment");
             final var startup = (List<String>) config.get("startup");
             final var shutdown = (List<String>) config.get("shutdown");
             final var rawHosts = (List<String>) config.get("hosts");
@@ -40,7 +44,6 @@ public class Ssu {
                     .filter(host -> !host.isEmpty()).toList(); // flatten comma-separated hosts, e.g. "host1,host2,host3"
             
             // load user ENV file
-            final var env = loadEnvFile(envFile, workDir);
 
             // greetings
             System.out.printf("Port: %d\n", port);
@@ -76,12 +79,11 @@ public class Ssu {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    private static Map<String, String> loadEnvFile(String envFileName, String workDir) {
+    private static Map<String, String> loadEnvFile(String envFileName) {
         if (envFileName == null || envFileName.trim().isEmpty()) return Collections.emptyMap();
         
         final var result = new TreeMap<String, String>();
-        final var path = workDir != null ? Paths.get(workDir, envFileName) : Paths.get(envFileName);
-        try (var br = new BufferedReader(new FileReader(path.toFile()))) {
+        try (var br = new BufferedReader(new FileReader(envFileName))) {
             String line;
             while ((line = br.readLine()) != null) {
                 line = line.replaceAll("^export\\s+", "").trim(); // remove "export" keyword, if any
