@@ -84,7 +84,7 @@ public class Ssu {
         try (var br = new BufferedReader(new FileReader(path.toFile()))) {
             String line;
             while ((line = br.readLine()) != null) {
-                line = line.trim();
+                line = line.replaceAll("^export\\s+", "").trim(); // remove "export" keyword, if any
                 if (line.isEmpty() || line.startsWith("#")) continue;
                 
                 final var parts = line.split("=", 2);
