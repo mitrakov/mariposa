@@ -77,7 +77,7 @@ public class Ssu {
     }
 
     private static Map<String, String> loadEnvFile(String envFileName, String workDir) {
-        if (envFileName == null) return Collections.emptyMap();
+        if (envFileName == null || envFileName.trim().isEmpty()) return Collections.emptyMap();
         
         final var result = new TreeMap<String, String>();
         final var path = workDir != null ? Paths.get(workDir, envFileName) : Paths.get(envFileName);
