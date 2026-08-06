@@ -165,7 +165,7 @@ public class Ssu {
           "port": 1030,
           "hosts": ["node1.host", "192.168.1.11", "${ENV_COMMA_SEP_HOSTS}"],
           "workDir": "/home/hadoop/autorun",
-          "environment": "vars.env",
+          "environment": "optional.env",
           "startup": [
             "script1.sh",
             "script2.sh",
