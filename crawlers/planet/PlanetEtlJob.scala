@@ -1,9 +1,9 @@
-// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-assembly-1.0.0.jar PlanetEtlJob.scala &
+// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-assembly-*.jar PlanetRefineJob.scala &
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-class PlanetEtlJob {
+class PlanetRefineJob {
   private val sourceTable = "planet.t_import"
   private val targetTable = "planet.gender"
 

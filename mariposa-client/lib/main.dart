@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mariposa/api.dart';
 import 'package:mariposa/console.dart';
-import 'package:mariposa/dataframe.dart';
 import 'package:mariposa/mariposachart.dart';
 
 void main() {
@@ -45,8 +44,7 @@ class ConnectionInputPage extends StatefulWidget {
 }
 
 class _ConnectionInputPageState extends State<ConnectionInputPage> {
-  final TextEditingController _schemaController = TextEditingController(text: 'default');
-  final TextEditingController _tableController = TextEditingController();
+  final TextEditingController _tableController = TextEditingController(text: 'default:table');
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   final MariposaApiClient _apiClient = MariposaApiClient();
@@ -60,10 +58,8 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
 
     try {
       // Bajamos los datos genéricos (Gen-3)
-      List<MariposaDataRow> data = await _apiClient.fetchDataMart(
-          _schemaController.text.trim(),
-          _tableController.text.trim()
-      );
+      final parts = _tableController.text.trim().split(":");   // std format is "namespace:table"
+      final data = await _apiClient.fetchDataMart(parts.length == 2 ? parts.first : "default", parts.last);
 
       setState(() => _isLoading = false);
 
@@ -123,16 +119,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                 const SizedBox(height: 32),
 
                 TextFormField(
-                  controller: _schemaController,
-                  decoration: const InputDecoration(
-                    labelText: 'HBase Schema / Namespace',
-                    prefixIcon: Icon(Icons.folder_open, color: Colors.white54),
-                  ),
-                  validator: (value) => value!.isEmpty ? 'El schema es obligatorio' : null,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
                   controller: _tableController,
                   decoration: const InputDecoration(
                     labelText: 'HBase Table Name',
@@ -176,7 +162,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
 
   @override
   void dispose() {
-    _schemaController.dispose();
     _tableController.dispose();
     super.dispose();
   }
