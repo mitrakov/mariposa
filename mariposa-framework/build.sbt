@@ -1,6 +1,6 @@
 organization := "com.mitrakoff"
 name := "mariposa"
-version := "1.0.1"
+version := "1.2"
 scalaVersion := "2.13.17" // matches Spark 4.1.1
 
 val sparkVersion = "4.1.3"
@@ -11,6 +11,7 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion,
   "org.apache.hadoop" % "hadoop-client" % "3.4.3" % "provided", // 3.5.0 doesn't work, check why later
   "org.apache.hbase"  % "hbase-client" % "2.5.14" % "provided", // for Hive2HBase
+//"org.apache.hbase.connectors.spark" % "hbase-spark" % "1.1.0" // compiled manually for Scala 2.13 to /lib folder
   "org.antlr" % "antlr4-runtime" % "4.13.1" % "provided",       // matches Spark 4.1.1
   // test
   "io.cucumber" %% "cucumber-scala" % "8.36.0",                 // v8.37 requires Scala 2.13.18+

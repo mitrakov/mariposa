@@ -8,12 +8,14 @@ import java.util.Base64
 case class Hive2HBase private (
   private val hbaseTableName: String = "default:my_table",
   private val hbaseCf: String = "f",
+  private val hbaseTruncate: Boolean = true,
   private val hiveSql: String = "SELECT * FROM my_table"
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
 
   def withHBaseTable(table: String): Hive2HBase = copy(hbaseTableName = table)
   def withHBaseColFamily(family: String): Hive2HBase = copy(hbaseCf = family)
+  def withHBaseTruncateTable(value: Boolean): Hive2HBase = copy(hbaseTruncate = value)
   def withHiveSql(sql: String): Hive2HBase = copy(hiveSql = sql)
 
   def build(): Runnable = () => {
@@ -29,6 +31,7 @@ case class Hive2HBase private (
       .getOrCreate()
 
     try {
+      if (hbaseTruncate) truncateHBaseTable(spark)    // by default, hbase-spark connector overwrite new keys and leave old keys
       val df = spark.sql(hiveSql)
       val generatedCatalog = generateCatalog(df.schema.fieldNames, df.schema.fields.map(_.dataType.simpleString))
       logger.info("Generated HBase Catalog: {}", generatedCatalog)
@@ -63,6 +66,28 @@ case class Hive2HBase private (
        |  "rowkey":"$rowKey",
        |  "columns":{$columnsMapping}
        |}""".stripMargin
+  }
+
+  private def truncateHBaseTable(spark: SparkSession): Unit = {
+    import org.apache.hadoop.hbase.client.ConnectionFactory
+    import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
+
+    val connection = ConnectionFactory.createConnection(HBaseConfiguration.create(spark.sparkContext.hadoopConfiguration))
+    val admin = connection.getAdmin
+    try {
+      val hbaseTable = TableName.valueOf(hbaseTableName)
+      if (admin.tableExists(hbaseTable)) {
+        logger.info("HBase Table '{}' exists. Triggering truncate...", hbaseTableName)
+
+        admin.disableTable(hbaseTable)
+        admin.truncateTable(hbaseTable, true)
+
+        logger.info("Truncate completed successfully for '{}'.", hbaseTableName)
+      } else logger.info("HBase Table '{}' does not exist yet. Skipping truncation.", hbaseTableName)
+    } finally {
+      admin.close()
+      connection.close()
+    }
   }
 }
 
