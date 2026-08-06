@@ -38,7 +38,7 @@ case class Hive2HBase private (
 
       df.write
         .mode(SaveMode.Overwrite)
-        .options(Map(HBaseTableCatalog.tableCatalog -> generatedCatalog, HBaseTableCatalog.newTable -> "1"))
+        .options(Map(HBaseTableCatalog.tableCatalog -> generatedCatalog, HBaseTableCatalog.newTable -> "5"))
         .format("org.apache.hadoop.hbase.spark")
         .save()
 
@@ -111,22 +111,11 @@ object Hive2HBase {
   }
 
   private def throwErr: Nothing = throw new Exception(
-    "These properties are necessary: -Dapp.hbase.table=default:my_table;\n-Dapp.hive.sql.file=hive.sql OR -Dapp.hive.sql.base64=..."
+    "These properties are necessary: -Dapp.hbase.table=default:my_table;\n-Dapp.hive.sql.file=hive.sql OR -Dapp.hive.sql.base64=...\n"
   )
 }
 
 /*
-CREATE TABLE IF NOT EXISTS hivetable (id STRING, temperature STRING, sensor_type STRING) STORED AS PARQUET;
-INSERT INTO fz223_import VALUES 
-('sensor_001', '24.5', 'temp_metric'),
-('sensor_002', '19.8', 'temp_metric'),
-('sensor_003', '31.2', 'humidity_metric');
-
-mysql.sql:   SELECT * FROM hivetable;
-hbase shell: create 'sensor_data','f';
-
-spark-submit \
-  --driver-java-options="-Dapp.hbase.table=sensor_data -Dapp.hive.sql.file='mysql.sql'" \
-  --class com.mitrakoff.mariposa.Hive2HBase \
-  mariposa-assembly-1.0.1.jar
+spark-submit --driver-java-options="-Dapp.hbase.table=table1 -Dapp.hive.sql.file=a.sql" \
+  --class com.mitrakoff.mariposa.Hive2HBase mariposa-assembly-*.jar
 */
