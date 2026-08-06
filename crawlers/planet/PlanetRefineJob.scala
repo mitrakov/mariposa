@@ -1,54 +1,52 @@
-// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-assembly-*.jar PlanetRefineJob.scala &
+// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-*.jar PlanetRefineJob.scala &
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 class PlanetRefineJob {
   private val sourceTable = "planet.t_import"
-  private val targetTable = "planet.gender"
+  private val targetTable = "planet.refine"
 
   def run(spark: SparkSession): Unit = {
     import spark.implicits._
+    println(s"[ETL]: $sourceTable -> $targetTable")
 
     // load table
-    println(s"[INFO] Reading raw data from: $sourceTable")
     val rawDf: DataFrame = spark.read.table(sourceTable)
 
-    // deduplication
-    val dedupedDf: DataFrame = rawDf.dropDuplicates("profile_url")
+    // filter out empty / null values
+    val filteredDf: DataFrame = rawDf.filter(
+      $"profile_url".isNotNull && trim($"profile_url") =!= "" &&
+      $"name_age".isNotNull    && trim($"name_age")    =!= "" &&
+      $"city".isNotNull        && trim($"city")        =!= "" &&
+      $"photo_url".isNotNull   && trim($"photo_url")   =!= ""
+    )
 
-    // strip Name and Age
+    // deduplicate by profile_url
+    val dedupedDf: DataFrame = filteredDf.dropDuplicates("profile_url")
+
+    // split name_age into name and age
     val cleanedDf: DataFrame = dedupedDf
-      .withColumn("parsed_name", trim(regexp_extract($"name_age", "^([^,]+)", 1)))
-      .withColumn("parsed_age",  regexp_extract($"name_age", "(\\d+)$", 1).cast(IntegerType))
+      .withColumn("name", trim(regexp_extract($"name_age", "^([^,]+)", 1)))
+      .withColumn("age",  regexp_extract($"name_age", "(\\d+)$", 1).cast(IntegerType))
       .drop("name_age")
 
     // try to find out gender
-    val enrichedDf: DataFrame = addGenderPrediction(cleanedDf)
+    val enrichedDf: DataFrame = predictGender(cleanedDf)
 
-    // final selection & mapping
-    val finalDf: DataFrame = enrichedDf.select(
-      $"profile_url",
-      when($"is_male" === true, "man").when($"is_male" === false, "woman").otherwise("unknown").alias("gender"),
-      $"parsed_name".alias("name"),
-      $"parsed_age".alias("age"),
-      trim($"city").alias("city")
-    )
+    // sort dataframe within partitions by city
+    val sortedDf: DataFrame = enrichedDf.sortWithinPartitions("city")
 
-    // sort dataframe within cluster partitions for the future usage
-    val sortedDf: DataFrame = finalDf.sortWithinPartitions("gender", "age")
-
-    // write out
+    // write out partitioned by gender
     sortedDf.write
       .mode("overwrite")
       .format("parquet")
+      .partitionBy("gender")
       .saveAsTable(targetTable)
-
-    println("[SUCCESS] planet ETL table successfully written and partitioned by city!")
   }
 
   /** Predict gender (male/female) by internal data */
-  private def addGenderPrediction(df: DataFrame): DataFrame = {
+  private def predictGender(df: DataFrame): DataFrame = {
     import df.sparkSession.implicits._
     val femaleNames: Set[String] = Set(
       "света", "влада", "анна", "маша", "елизавета", "лия", "наталия", "юша", "ксения", "ольга",
@@ -99,29 +97,28 @@ class PlanetRefineJob {
       "c"    -> "ц"
     )
 
-    val femaleSeq = femaleNames.map(name => (name.toLowerCase, false)).toSeq
-    val maleSeq   = maleNames.map(name => (name.toLowerCase, true)).toSeq
+    val femaleSeq = femaleNames.map(name => (name.toLowerCase, "woman")).toSeq
+    val maleSeq   = maleNames.map(name => (name.toLowerCase, "man")).toSeq
     val dictionaryDf = (femaleSeq ++ maleSeq).toDF("lookup_name", "is_male_dict")
 
     // make cyrillic name
-    val cyrillicKey = replacements.foldLeft(lower(col("parsed_name"))) {
+    val cyrillicKey = replacements.foldLeft(lower(col("name"))) {
       case (column, (from, to)) => regexp_replace(column, from, to)
     }
     val firstWordCyrillic = regexp_extract(cyrillicKey, "^([^\\s,._—]+)", 1)  // remove double names
-
     val preparedDf = df.withColumn("cyrillic_name", firstWordCyrillic)
     val joinedDf = preparedDf.join(broadcast(dictionaryDf), col("cyrillic_name") === col("lookup_name"), "left")
 
-    // 5. Build final column with clean fallbacks evaluated against the Cyrillic name
-    val finalDf = joinedDf.withColumn("is_male",
+    // build final column with clean fallbacks evaluated against the Cyrillic name
+    val finalDf = joinedDf.withColumn("gender",
       when(col("is_male_dict").isNotNull, col("is_male_dict"))              // Strategy 1: Dictionary Match
-        .when(col("personal_status").isInCollection(maleStatuses), true)    // Strategy 2: Fallbacks
-        .when(col("personal_status").isInCollection(femaleStatuses), false)
-        .when(col("seeking").rlike("(?i)(женщин|девуш)"), true)
-        .when(col("seeking").rlike("(?i)(мужчин|парн)"), false)
-        .when(col("cyrillic_name").rlike("(?i)[йнрмксвлй]$"), true)
-        .when(col("cyrillic_name").rlike("(?i)[ая]$"), false)
-        .otherwise(lit(null))
+        .when(col("personal_status").isInCollection(maleStatuses), "man")   // Strategy 2: Fallbacks
+        .when(col("personal_status").isInCollection(femaleStatuses), "woman")
+        .when(col("seeking").rlike("(?i)(женщин|девуш)"), "man")
+        .when(col("seeking").rlike("(?i)(мужчин|парн)"), "woman")
+        .when(col("cyrillic_name").rlike("(?i)[йнрмксвлй]$"), "man")
+        .when(col("cyrillic_name").rlike("(?i)[ая]$"), "woman")
+        .otherwise(lit("unknown"))
     ).drop("lookup_name", "is_male_dict", "cyrillic_name")
 
     finalDf

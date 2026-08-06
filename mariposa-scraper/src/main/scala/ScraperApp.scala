@@ -42,6 +42,7 @@ Example 1 (HtmlJob.scala):
 import sttp.client4._
 import org.jsoup.Jsoup
 
+// build.sbt: libraryDependencies ++= Seq("org.jsoup" % "jsoup" % "1.23.1", "com.softwaremill.sttp.client4" %% "core" % "4.0.26")
 class HtmlJob {
   def run(): Unit = {
     println("--- Example parsing HTML: ---")
@@ -70,6 +71,7 @@ import io.circe.generic.codec.DerivedAsObjectCodec.deriveCodec
 import sttp.client4._
 import sttp.client4.circe.asJson
 
+// libraryDependencies ++= Seq("com.softwaremill.sttp.client4" %% "circe" % "4.0.26", "io.circe" %% "circe-generic" % "0.14.10")
 class JsonJob {
   case class MambaResponse(title: String, description: String, keywords: String, metaRobots: String, header: String)
   def run(): Unit = {
@@ -93,6 +95,7 @@ Example 3 (XmlJob.scala):
 import sttp.client4._
 import scala.xml.XML
 
+// libraryDependencies ++= Seq("com.softwaremill.sttp.client4" %% "core" % "4.0.26", "org.scala-lang.modules" %% "scala-xml" % "2.4.0")
 class XmlJob extends App {
   case class PomResponse(group: String, artifact: String, version: String, url: String)
   def run(): Unit = {
@@ -128,6 +131,7 @@ import org.apache.kafka.common.config.SaslConfigs._
 import org.apache.kafka.common.config.SslConfigs._
 import org.apache.kafka.common.security.auth.SecurityProtocol._
 
+// build.sbt: libraryDependencies ++= Seq("io.circe" %% "circe-generic" % "0.14.10", "org.apache.kafka" % "kafka-clients" % "4.2.0")
 class KafkaJob {
   case class KafkaMessage(key: String, userId: Int, name: String)
   def run(): Unit = {

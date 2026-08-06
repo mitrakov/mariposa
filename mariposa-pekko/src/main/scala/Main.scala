@@ -1,4 +1,4 @@
-import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory, Scan}
+import org.apache.hadoop.hbase.client.{Admin, Connection, ConnectionFactory, Scan}
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 import org.apache.hadoop.security.UserGroupInformation
@@ -44,35 +44,54 @@ object Main extends App {
 
   // Routes
   private val routes =
-    path("v1" / "hbase" / Segment / Segment) { (namespace, tableName) =>
-      get {
-        logger.info(s"GET HBase table: $namespace:$tableName")
-        val scanFuture = Future {
-          val table = hbaseConnection.getTable(TableName.valueOf(s"$namespace:$tableName"))
-          val scanner = table.getScanner(new Scan())
-          try {
-            scanner.asScala.map { result =>
-              val cellsMap = Option(result.listCells()).map(_.asScala).getOrElse(Nil).map { cell =>
-                val qualifierStr = Bytes.toString(cell.getQualifierArray, cell.getQualifierOffset, cell.getQualifierLength)
-                val valueStr     = Bytes.toString(cell.getValueArray,     cell.getValueOffset,     cell.getValueLength)
-                qualifierStr -> valueStr
-              }.toMap
+    pathPrefix("v1" / "hbase") {
+      path("tables") {
+        get {
+          logger.info("GET list all HBase tables")
+          val listFuture = Future {
+            val admin: Admin = hbaseConnection.getAdmin
+            try { admin.listTableDescriptors().asScala.map(_.getTableName.getNameAsString).toList.sorted } finally {admin.close()}
+          }
 
-              cellsMap + ("key" -> Bytes.toString(result.getRow))
-            }.toList
-          } finally {
-            scanner.close()
-            table.close()
+          onComplete(listFuture) {
+            case Success(tablesList) =>
+              logger.info(s"Result: ${tablesList.headOption} ... (${tablesList.size} tables)")
+              complete(tablesList)
+            case Failure(ex) =>
+              logger.error("Failed to retrieve HBase tables catalog", ex)
+              complete(StatusCodes.InternalServerError, Map("error" -> ex.getMessage))
           }
         }
+      } ~ path(Segment / Segment) { (namespace, tableName) =>
+        get {
+          logger.info(s"GET HBase table: $namespace:$tableName")
+          val scanFuture = Future {
+            val table = hbaseConnection.getTable(TableName.valueOf(s"$namespace:$tableName"))
+            val scanner = table.getScanner(new Scan())
+            try {
+              scanner.asScala.map { result =>
+                val cellsMap = Option(result.listCells()).map(_.asScala).getOrElse(Nil).map { cell =>
+                  val qualifierStr = Bytes.toString(cell.getQualifierArray, cell.getQualifierOffset, cell.getQualifierLength)
+                  val valueStr     = Bytes.toString(cell.getValueArray,     cell.getValueOffset,     cell.getValueLength)
+                  qualifierStr -> valueStr
+                }.toMap
 
-        onComplete(scanFuture) {
-          case Success(list) =>
-            logger.info(s"Result: ${list.headOption}... (${list.size} rows)")
-            complete(list)
-          case Failure(ex) =>
-            logger.error(s"HBase query failed for $namespace:$tableName", ex)
-            complete(StatusCodes.InternalServerError, Map("error" -> ex.getMessage))
+                cellsMap + ("key" -> Bytes.toString(result.getRow))
+              }.toList
+            } finally {
+              scanner.close()
+              table.close()
+            }
+          }
+
+          onComplete(scanFuture) {
+            case Success(list) =>
+              logger.info(s"Result: ${list.headOption}... (${list.size} rows)")
+              complete(list)
+            case Failure(ex) =>
+              logger.error(s"HBase query failed for $namespace:$tableName", ex)
+              complete(StatusCodes.InternalServerError, Map("error" -> ex.getMessage))
+          }
         }
       }
     } ~ path("v1" / "spark") {
@@ -81,7 +100,6 @@ object Main extends App {
           logger.info(s"POST Run Spark SQL: $req")
           val sqlBase64 = Base64.getEncoder.encodeToString(req.sql.getBytes())
 
-          // 💡 Cambiamos el tipo de la cola a ByteString
           val (queue, source) = Source.queue[ByteString](bufferSize = 1000, OverflowStrategy.dropTail).preMaterialize()
 
           Future {
@@ -92,7 +110,6 @@ object Main extends App {
               "/home/hadoop/mariposa-assembly-*.jar"
             )
 
-            // 💡 Función auxiliar para convertir String -> ByteString y meter a la cola
             def offerLog(line: String): Unit = queue.offer(ByteString(s"$line\n"))
 
             val processLogger = ProcessLogger(s => offerLog(s))
@@ -102,7 +119,6 @@ object Main extends App {
             queue.complete()
           }
 
-          // 💡 Usamos la firma correcta para Chunked
           complete(HttpEntity.Chunked.fromData(ContentTypes.`text/plain(UTF-8)`, source))
         }
       }
