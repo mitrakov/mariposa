@@ -2,6 +2,7 @@
   "port": 1025,
   "hosts": ["${MASTER_HOST}", "${WORKER_HOSTS}"],
   "workDir": "/home/hadoop/autorun",
+  "environment": "",
   "startup": [
     "01-vault.sh",
     "02-vault-token.sh",
