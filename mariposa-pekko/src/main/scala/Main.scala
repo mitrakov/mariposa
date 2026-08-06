@@ -89,7 +89,7 @@ object Main extends App {
               "spark-submit",
               s"--driver-java-options=-Dapp.hbase.table=${req.hbaseTable} -Dapp.hive.sql.base64=$sqlBase64",
               "--class", "com.mitrakoff.mariposa.Hive2HBase",
-              "/home/hadoop/mariposa-assembly-1.0.1.jar"
+              "/home/hadoop/mariposa-assembly-*.jar"
             )
 
             // 💡 Función auxiliar para convertir String -> ByteString y meter a la cola
