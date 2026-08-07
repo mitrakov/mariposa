@@ -14,6 +14,7 @@ import org.apache.pekko.util.ByteString
 import org.slf4j.LoggerFactory
 import spray.json.DefaultJsonProtocol._
 import spray.json.RootJsonFormat
+import java.io.File
 import java.util.Base64
 import java.util.concurrent.Executors
 import scala.concurrent.duration.DurationInt
@@ -98,28 +99,29 @@ object Main extends App {
       post {
         entity(as[SparkRequest]) { req =>
           logger.info(s"POST Run Spark SQL: $req")
-          val sqlBase64 = Base64.getEncoder.encodeToString(req.sql.getBytes())
+          SimpleSqlValidator.validate(req.sql) match {
+            case Right(_) =>
+              val sqlBase64 = Base64.getEncoder.encodeToString(req.sql.getBytes())
+              val (queue, source) = Source.queue[ByteString](1024, OverflowStrategy.dropTail).preMaterialize()
+              Future {
+                val command = Seq(
+                  "spark-submit",
+                  s"--driver-java-options=-Dapp.hbase.table=${req.hbaseTable} -Dapp.hive.sql.base64=$sqlBase64",
+                  "--class", "com.mitrakoff.mariposa.Hive2HBase",
+                  resolveJarPath()
+                )
 
-          val (queue, source) = Source.queue[ByteString](bufferSize = 1000, OverflowStrategy.dropTail).preMaterialize()
+                val processLogger = ProcessLogger(s => queue.offer(ByteString(s"$s\n")))
+                val exitCode = command ! processLogger
+                queue.offer(ByteString(s"Finished with code: $exitCode\n"))
+                queue.complete()
+              }
 
-          Future {
-            val command = Seq(
-              "spark-submit",
-              s"--driver-java-options=-Dapp.hbase.table=${req.hbaseTable} -Dapp.hive.sql.base64=$sqlBase64",
-              "--class", "com.mitrakoff.mariposa.Hive2HBase",
-              "/home/hadoop/mariposa-assembly-*.jar"
-            )
-
-            def offerLog(line: String): Unit = queue.offer(ByteString(s"$line\n"))
-
-            val processLogger = ProcessLogger(s => offerLog(s))
-
-            val exitCode = command ! processLogger
-            offerLog(s"Finished with code: $exitCode")
-            queue.complete()
+              complete(HttpEntity.Chunked.fromData(ContentTypes.`text/plain(UTF-8)`, source))
+            case Left(error) =>
+              logger.warn(s"Error parsing SQL: $error")
+              complete(StatusCodes.BadRequest, Map("error" -> error))
           }
-
-          complete(HttpEntity.Chunked.fromData(ContentTypes.`text/plain(UTF-8)`, source))
         }
       }
     }
@@ -136,6 +138,14 @@ object Main extends App {
 
   // add graceful shutdown hook
   sys.addShutdownHook { cleanUp() }
+
+  /** Finds mariposa-assembly-*.jar in current directory */
+  private def resolveJarPath(): String = {
+    new File(sys.props("user.dir")).listFiles()
+      .find(f => f.getName.startsWith("mariposa-assembly-") && f.getName.endsWith(".jar"))
+      .map(_.getAbsolutePath)
+      .getOrElse {throw new Exception("File mariposa-assembly-*.jar not found")}
+  }
 
   /** Graceful shutdown */
   private def cleanUp(): Unit = {
