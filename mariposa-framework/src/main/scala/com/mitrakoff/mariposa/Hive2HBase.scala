@@ -9,6 +9,7 @@ case class Hive2HBase private (
   private val hbaseTableName: String = "default:my_table",
   private val hbaseCf: String = "f",
   private val hbaseTruncate: Boolean = true,
+  private val hbaseUseStrings: Boolean = true,
   private val hiveSql: String = "SELECT * FROM my_table"
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -16,6 +17,7 @@ case class Hive2HBase private (
   def withHBaseTable(table: String): Hive2HBase = copy(hbaseTableName = table)
   def withHBaseColFamily(family: String): Hive2HBase = copy(hbaseCf = family)
   def withHBaseTruncateTable(value: Boolean): Hive2HBase = copy(hbaseTruncate = value)
+  def withHBaseCastColsToStr(value: Boolean): Hive2HBase = copy(hbaseUseStrings = value)
   def withHiveSql(sql: String): Hive2HBase = copy(hiveSql = sql)
 
   def build(): Runnable = () => {
@@ -56,8 +58,9 @@ case class Hive2HBase private (
     val Array(namespace, name) = if (hbaseTableName.contains(":")) hbaseTableName.split(":") else Array("default", hbaseTableName)
     val rowKey = columns.head // La primera columna es el RowKey por convención Mariposa
 
-    val columnsMapping = columns.zip(types).map { case (name, typ) =>
+    val columnsMapping = columns.zip(types).map { case (name, colType) =>
       val cf  = if (name == rowKey) "rowkey" else hbaseCf
+      val typ = if (hbaseUseStrings) "string" else colType
       s""""$name":{"cf":"$cf", "col":"$name", "type":"$typ"}"""
     }.mkString(",\n")
 
