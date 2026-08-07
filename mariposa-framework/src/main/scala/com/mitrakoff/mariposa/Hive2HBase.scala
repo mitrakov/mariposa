@@ -98,8 +98,8 @@ object Hive2HBase {
     Mariposa.printProps()
 
     val hbaseTable = sys.props.getOrElse("app.hbase.table", throwErr)
-    val sql = sys.props.get("app.hive.sql.base64")
-      .map(base64 => new String(Base64.getDecoder.decode(base64)))
+    val sql = sys.props.get("app.hive.sql.text")
+      .orElse(sys.props.get("app.hive.sql.base64")).map(base64 => new String(Base64.getDecoder.decode(base64)))
       .orElse(sys.props.get("app.hive.sql.file") map Mariposa.readFileLocal)
       .getOrElse(throwErr)
 
@@ -111,7 +111,9 @@ object Hive2HBase {
   }
 
   private def throwErr: Nothing = throw new Exception(
-    "These properties are necessary: -Dapp.hbase.table=default:my_table;\n-Dapp.hive.sql.file=hive.sql OR -Dapp.hive.sql.base64=...\n"
+    """These properties are necessary: -Dapp.hbase.table=my_table;
+      |-Dapp.hive.sql.file=hive.sql OR -Dapp.hive.sql.text='SELECT * FROM table' OR -Dapp.hive.sql.base64=U0VMRUNUICogRlJPTSB0Cg==
+      |""".stripMargin
   )
 }
 
