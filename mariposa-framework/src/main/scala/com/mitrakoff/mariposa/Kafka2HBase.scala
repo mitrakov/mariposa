@@ -81,9 +81,14 @@ case class Kafka2HBase private (
       .option("checkpointLocation", s"/tmp/spark-checkpoints/mariposa-hbase-$kafkaTopic") // TODO: /tmp/?
       .start()
 
+    val monitor = new EmptyStreamMonitor(10)
+    if (infinite)
+      monitor.start(query)
+
     query.awaitTermination()
     logger.info("Kafka to HBase completed successfully.")
     spark.close()
+    monitor.stop()
   }
 
   private def printParameters(): Unit = {
