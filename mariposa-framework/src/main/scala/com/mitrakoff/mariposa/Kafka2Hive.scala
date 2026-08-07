@@ -4,9 +4,9 @@ import org.apache.spark.sql.functions.{col, from_json}
 import org.apache.spark.sql.streaming.Trigger
 import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
+import java.util.concurrent.Executors
 
 case class Kafka2Hive  private (
     private val hiveTable: String = "myTable",
@@ -81,6 +81,61 @@ case class Kafka2Hive  private (
       .option("checkpointLocation", s"/tmp/spark-checkpoints/mariposa-hive-$kafkaTopic") // TODO: /tmp/?
       .start()
 
+    // 🔥 EL GUARDIÁN DE TU CLÚSTER CASERO (Hilo independiente)
+    val maxIdleTimeMs = 2 * 60 * 1000 // 5 minutos de tolerancia
+    val checkIntervalMs = 15 * 1000  // Revisar cada 15 segundos
+
+    // Nuestro propio marcador de tiempo inmutable ante los no-ops de Spark
+    var lastTimeDataWasSeen = System.currentTimeMillis()
+
+    val monitorExecutor = Executors.newSingleThreadScheduledExecutor()
+    monitorExecutor.scheduleAtFixedRate(new Runnable {
+      override def run(): Unit = {
+        try {
+          if (query.isActive) {
+            val lastProgress = query.lastProgress
+            val currentTime = System.currentTimeMillis()
+
+            if (lastProgress != null) {
+              val rowsInput = lastProgress.numInputRows
+
+              if (rowsInput > 0) {
+                // 🔥 Entraron datos reales de Kafka. Desplazamos nuestro marcador al presente.
+                lastTimeDataWasSeen = currentTime
+                logger.info(s"Monitor: Se procesaron $rowsInput registros. Reloj de inactividad reiniciado.")
+              } else {
+                // Kafka está vacío en este ciclo (numInputRows == 0). 
+                // NO actualizamos 'lastTimeDataWasSeen'. El tiempo sigue corriendo en su contra.
+                val currentIdleDuration = currentTime - lastTimeDataWasSeen
+
+                logger.info(s"Monitor: Kafka sigue vacio. Tiempo acumulado de inactividad: ${currentIdleDuration / 1000} segundos.")
+
+                if (currentIdleDuration >= maxIdleTimeMs) {
+                  logger.warn(s"⚠️ Alerta Clúster Doméstico: Se alcanzaron los ${maxIdleTimeMs / 60 / 1000} minutos de inactividad real. Liberando contenedores en YARN...")
+                  query.stop()
+                  monitorExecutor.shutdown()
+                }
+              }
+            } else {
+              // Si lastProgress es nulo, Spark ni siquiera ha completado su primer micro-batch.
+              // El tiempo se calcula desde que arrancó el hilo.
+              val currentIdleDuration = currentTime - lastTimeDataWasSeen
+              if (currentIdleDuration >= maxIdleTimeMs) {
+                logger.warn("⚠️ Alerta Clúster Doméstico: El Job arranco pero nunca recibio datos en el tiempo limite. Deteniendo...")
+                query.stop()
+                monitorExecutor.shutdown()
+              }
+            }
+          } else {
+            monitorExecutor.shutdown()
+          }
+        } catch {
+          case e: Exception => logger.error("Error en el monitor de inactividad", e)
+        }
+      }
+    }, checkIntervalMs, checkIntervalMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+
+
     query.awaitTermination()
     logger.info("Kafka to Hive  completed successfully.")
     spark.close()
@@ -116,7 +171,7 @@ object Kafka2Hive {
     val hiveTable      = sys.props.getOrElse("app.hive.table", throwErr)
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
     val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")
-    val pollInterval   = sys.props.getOrElse("app.kafka.poll.interval", "5 seconds")
+    val pollInterval   = sys.props.getOrElse("app.kafka.poll.interval", "10 seconds")
     val truststorePass = sys.props.getOrElse("app.security.truststore.password", "")
     val kafkaInfinite  = sys.props.get("app.kafka.run.infinitely").flatMap(_.toBooleanOption).getOrElse(false)
 
