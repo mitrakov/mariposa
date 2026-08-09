@@ -1,6 +1,6 @@
 organization := "com.mitrakoff"
 name := "mariposa"
-version := "1.2"
+version := "1.0"
 scalaVersion := "2.13.17" // matches Spark 4.1.1
 
 val sparkVersion = "4.1.3"

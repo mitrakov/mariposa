@@ -2,6 +2,7 @@ package com.mitrakoff.mariposa
 
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
 import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.functions._
 import org.slf4j.LoggerFactory
 import java.util.Base64
 
@@ -38,7 +39,8 @@ case class Hive2HBase private (
       val generatedCatalog = generateCatalog(df.schema.fieldNames, df.schema.fields.map(_.dataType.simpleString))
       logger.info("Generated HBase Catalog: {}", generatedCatalog)
 
-      df.write
+      df.withColumn(df.schema.fieldNames.head, coalesce(col(df.schema.fieldNames.head), lit("NULL"))) // cast NULL to "NULL" for keys
+        .write
         .mode(SaveMode.Overwrite)
         .options(Map(HBaseTableCatalog.tableCatalog -> generatedCatalog, HBaseTableCatalog.newTable -> "5"))
         .format("org.apache.hadoop.hbase.spark")
