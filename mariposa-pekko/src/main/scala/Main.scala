@@ -105,7 +105,7 @@ object Main extends App {
               val (queue, source) = Source.queue[ByteString](1024, OverflowStrategy.dropTail).preMaterialize()
               Future {
                 val command = Seq(
-                  "spark-submit",
+                  "/opt/spark/bin/spark-submit",
                   s"--driver-java-options=-Dapp.hbase.table=${req.hbaseTable} -Dapp.hive.sql.base64=$sqlBase64",
                   "--class", "com.mitrakoff.mariposa.Hive2HBase",
                   resolveJarPath()
@@ -115,7 +115,7 @@ object Main extends App {
                 val exitCode = command ! processLogger
                 queue.offer(ByteString(s"Finished with code: $exitCode\n"))
                 queue.complete()
-              }
+              }.recover{ case e => logger.error(s"ERROR: ${e.getMessage}", e) }
 
               complete(HttpEntity.Chunked.fromData(ContentTypes.`text/plain(UTF-8)`, source))
             case Left(error) =>

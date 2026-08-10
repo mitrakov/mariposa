@@ -1,5 +1,5 @@
 name := "mariposa-pekko"
-version := "1.1"
+version := "1.0"
 scalaVersion := "2.13.18"
 
 val pekkoVersion = "2.0.0-M1"
