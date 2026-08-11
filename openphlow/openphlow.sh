@@ -49,6 +49,7 @@ check_env "ZK_ID"
 check_env "KEYTABS_DIR"
 check_env "CERTS_DIR"
 check_env "KAFKA_OPTS"
+check_env "KAFKA_PROTOCOL"
 
 
 # DO NOT use _HOST in XML Configs! Use $MY_HOSTNAME (or $MASTER_HOST) instead!
@@ -716,11 +717,11 @@ node.id=$ZK_ID
 controller.quorum.voters=$VOTERS
 
 # Network settings
-listeners=SASL_SSL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-inter.broker.listener.name=SASL_SSL
-advertised.listeners=SASL_SSL://$MY_HOSTNAME:9092
+listeners=$KAFKA_PROTOCOL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+inter.broker.listener.name=$KAFKA_PROTOCOL
+advertised.listeners=$KAFKA_PROTOCOL://$MY_HOSTNAME:9092
 controller.listener.names=CONTROLLER
-listener.security.protocol.map=CONTROLLER:SASL_SSL,SASL_SSL:SASL_SSL
+listener.security.protocol.map=CONTROLLER:$KAFKA_PROTOCOL,$KAFKA_PROTOCOL:$KAFKA_PROTOCOL
 
 # Kerberos settings
 sasl.enabled.mechanisms=GSSAPI
