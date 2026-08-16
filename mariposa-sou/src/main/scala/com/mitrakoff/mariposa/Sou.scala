@@ -13,7 +13,6 @@ import java.io.File
 import java.util.concurrent.{ConcurrentHashMap, Executors}
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.sys.process._
 import scala.util.{Failure, Success, Try}
 
 // Caso para rastrear la metadata del proceso en memoria
@@ -22,7 +21,7 @@ case class StatusResponse(pid: Long, status: String, script: String, logFile: St
 
 object Sou {
   private val logger = LoggerFactory.getLogger(getClass)
-  private val serverPort = sys.props.getOrElse("app.scraper.port", "7015").toInt
+  private val serverPort = sys.props.getOrElse("app.scraper.port", "7013").toInt
 
   // Tabla mutable segura para hilos que guarda los procesos activos [ID_Identificador -> ProcessInfo]
   private val activeProcesses = new ConcurrentHashMap[String, (Process, ProcessInfo)]()
@@ -39,49 +38,38 @@ object Sou {
 
     val routes = pathPrefix("v1" / "scraper") {
       // 1) RUN PROCESS: /v1/scraper/start/mi-scraper
+      // IMPORTANT! in your bash use "exec" to keep the PID! E.g. "exec java -jar myprogram.jar"
       path("start" / Segment) { scraperId =>
         post {
           if (activeProcesses.containsKey(scraperId)) {
             complete(StatusCodes.BadRequest, Map("error" -> s"El scraper '$scraperId' ya se esta ejecutando."))
           } else {
-            val scriptPath = s"apps/$scraperId"
-            val scriptFile = new File(scriptPath)
+            logger.info(s"Starting: $scraperId")
+            val logsDirFile = new File("logs")
+            if (!logsDirFile.exists()) logsDirFile.mkdir()
+            val logFilePath = s"logs/$scraperId.log"
 
-            if (!scriptFile.exists()) {
-              complete(StatusCodes.NotFound, Map("error" -> s"Script no encontrado en la ruta: $scriptPath"))
-            } else {
-              new File("logs").mkdir()
-              val logFilePath = s"logs/$scraperId.log"
+            // Arrancar el proceso en un hilo secundario
+            Future {
+              val builder = new ProcessBuilder(s"./$scraperId")
+              builder.directory(new File(s"${sys.props("user.dir")}/apps"))
+              builder.redirectErrorStream()
+              builder.redirectOutput(new File(logFilePath))
 
-              // Arrancar el proceso en un hilo secundario
-              Future {
-                val command = Seq("bash", "-c", s"$scriptPath > $logFilePath 2>&1")
-                val process = command.run() // .run() inicia el proceso de forma asíncrona
+              val process = builder.start()
+              val info = ProcessInfo(process.pid(), scraperId, logFilePath, System.currentTimeMillis())
+              activeProcesses.put(scraperId, (process, info))
+              logger.info(s"Process started: $info")
 
-                // Intentar extraer el PID nativo usando reflexión sobre el proceso del OS
-                val pid = try {
-                  val field = process.getClass.getDeclaredField("process")
-                  field.setAccessible(true)
-                  val p = field.get(process).asInstanceOf[java.lang.Process]
-                  p.pid()
-                } catch {
-                  case _: Throwable => -1L // Fallback si la version de Java bloquea el acceso
-                }
+              val exitCode = process.waitFor()
+              logger.info(s"$scraperId completed with: $exitCode")
+              activeProcesses.remove(scraperId)
+            }.recover{ case e => logger.error(s"ERROR: ${e.getMessage}", e) }
 
-                val info = ProcessInfo(pid, scriptPath, logFilePath, System.currentTimeMillis())
-                activeProcesses.put(scraperId, (process, info))
-
-                // Bloqueo perezoso en segundo plano hasta que el script termine de forma natural
-                val exitCode = process.exitValue()
-                logger.info(s"Scraper '$scraperId' finalizo de forma natural con codigo: $exitCode")
-                activeProcesses.remove(scraperId)
-              }
-
-              complete(StatusCodes.Accepted, Map(
-                "message" -> s"Scraper '$scraperId' iniciado con éxito.",
-                "logFile" -> logFilePath
-              ))
-            }
+            complete(StatusCodes.Accepted, Map(
+              "message" -> s"Scraper '$scraperId' iniciado con éxito.",
+              "logFile" -> logFilePath
+            ))
           }
         }
       } ~

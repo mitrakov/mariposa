@@ -14,13 +14,13 @@ class ScraperHttpService {
 
   String _buildUrl(String nodeHost, String endpoint) {
     final cleanHost = nodeHost.trim().replaceAll('http://', '').replaceAll('/', '');
-    return 'http://$cleanHost:7015/v1/scraper/$endpoint';
+    return 'http://$cleanHost:7013/v1/scraper/$endpoint';
   }
 
   /// 1) RUN PROCESS -> Ahora devuelve un objeto ScraperStartResponse tipado
   Future<ScraperStartResponse> startScraper(String nodeHost, String scraperId) async {
     try {
-      final url = _buildUrl(nodeHost, 'start/$scraperId.sh');
+      final url = _buildUrl(nodeHost, 'start/$scraperId');
       print(url);
       final response = await _dio.post(url);
 
@@ -36,8 +36,7 @@ class ScraperHttpService {
   /// 2) CHECK STATUS -> Ahora devuelve un objeto ScraperStatus tipado
   Future<ScraperStatus> checkStatus(String nodeHost, String scraperId) async {
     try {
-      final url = _buildUrl(nodeHost, 'status/$scraperId.sh');
-      print(url);
+      final url = _buildUrl(nodeHost, 'status/$scraperId');
       final response = await _dio.get(url);
       return ScraperStatus.fromJson(response.data); // 👈 Parsing seguro
     } on DioException catch (e) {
@@ -48,8 +47,7 @@ class ScraperHttpService {
   /// 3) RETURN LOGS -> Se mantiene igual (devuelve String crudo)
   Future<String> getLogs(String nodeHost, String scraperId) async {
     try {
-      final url = _buildUrl(nodeHost, 'logs/$scraperId.sh');
-      print(url);
+      final url = _buildUrl(nodeHost, 'logs/$scraperId');
       final response = await _dio.get<String>(url);
       return response.data ?? 'No hay logs disponibles.';
     } on DioException catch (e) {
@@ -60,7 +58,7 @@ class ScraperHttpService {
   /// 4) KILL GRACEFUL (SIGTERM)
   Future<Map<String, dynamic>> stopScraper(String nodeHost, String scraperId) async {
     try {
-      final url = _buildUrl(nodeHost, 'stop/$scraperId.sh');
+      final url = _buildUrl(nodeHost, 'stop/$scraperId');
       print(url);
       final response = await _dio.post(url);
       return Map<String, dynamic>.from(response.data);

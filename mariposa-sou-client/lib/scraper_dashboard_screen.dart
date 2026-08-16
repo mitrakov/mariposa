@@ -16,7 +16,7 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
   final TextEditingController _nodeController = TextEditingController(text: 'localhost');
   final TextEditingController _newScraperController = TextEditingController();
 
-  List<String> _scrapers = ['test', 'planet-import', 'b2c-profiles'];
+  List<String> _scrapers = [];
   Map<String, ScraperStatus> _statuses = {};
   Timer? _pollingTimer;
   String _consoleLogs = 'Selecciona un scraper para ver sus logs...';
@@ -106,7 +106,7 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
   }
 
   void _addScraper() {
-    final name = _newScraperController.text.trim().replaceAll('.sh', '');
+    final name = _newScraperController.text.trim();
     if (name.isNotEmpty && !_scrapers.contains(name)) {
       setState(() {
         _scrapers.add(name);
@@ -143,7 +143,7 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
                   child: TextField(
                     controller: _nodeController,
                     decoration: const InputDecoration(
-                      labelText: 'IP o Host del Nodo Pekko',
+                      labelText: 'IP or Host',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.dns),
                     ),
@@ -168,7 +168,7 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
                   child: TextField(
                     controller: _newScraperController,
                     decoration: const InputDecoration(
-                      labelText: 'Nombre del nuevo script (ej: start-miner)',
+                      labelText: 'Nombre del script',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -184,7 +184,6 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
           const SizedBox(height: 10),
           // Lista de Azulejos (Tiles) de control
           Expanded(
-            flex: 3,
             child: ListView.builder(
               itemCount: _scrapers.length,
               itemBuilder: (context, index) {
@@ -201,8 +200,9 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
                       color: isRunning ? Colors.green : Colors.grey,
                       size: 36,
                     ),
-                    title: Text('start-$id.sh', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    title: Text('$id', style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(isRunning ? 'PID: ${status?.pid} • Uptime: ${status?.uptimeSeconds}s' : 'Estado: DETENIDO'),
+                    onLongPress: () => _deleteScraper(id),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -241,8 +241,8 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
                 child: Text(
                   _selectedScraperForLogs == null
                       ? _consoleLogs
-                      : '📝 [LOGS start-$_selectedScraperForLogs.sh]\n\n$_consoleLogs',
-                  style: const TextStyle(color: Colors.greenAccent, fontFamily: 'Courier', fontSize: 13),
+                      : '📝 [LOGS $_selectedScraperForLogs]\n\n$_consoleLogs',
+                  style: const TextStyle(color: Colors.greenAccent, fontFamily: 'Courier', fontSize: 11),
                 ),
               ),
             ),
@@ -251,4 +251,54 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
       ),
     );
   }
+
+  /// Elimina un scraper de la lista, limpia su estatus y actualiza SharedPreferences.
+  Future<void> _deleteScraper(String id) async {
+    // 1. Validar si el scraper está corriendo antes de borrarlo
+    final isRunning = _statuses[id]?.isRunning ?? false;
+    if (isRunning) {
+      _showSnackBar('No puedes eliminar "$id" mientras esté ejecutándose. Deténlo primero.', Colors.red);
+      return;
+    }
+
+    // 2. Mostrar diálogo nativo de confirmación
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('⚠️ ¿Eliminar Scraper?'),
+          content: Text('¿Estás seguro de que deseas eliminar "$id" de tu panel de control Mariposa?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false), // Cancelar
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true), // Confirmar
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // 3. Si el usuario confirmó, procedemos al borrado atómico
+    if (confirm == true) {
+      setState(() {
+        _scrapers.remove(id);   // Remover de la lista principal de la UI
+        _statuses.remove(id);   // Limpiar su caché de estatus en memoria
+        // Si teníamos seleccionados sus logs, limpiamos la consola oscura
+        if (_selectedScraperForLogs == id) {
+          _selectedScraperForLogs = null;
+          _consoleLogs = 'Selecciona un scraper para ver sus logs...';
+        }
+      });
+
+      // 4. Persistir la lista limpia en el almacenamiento externo
+      await _saveScrapersList();
+      _showSnackBar('Scraper "$id" eliminado de la lista.', Colors.blueGrey);
+    }
+  }
+
 }
