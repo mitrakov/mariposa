@@ -44,20 +44,22 @@ object Sou {
           if (activeProcesses.containsKey(scraperId)) {
             complete(StatusCodes.BadRequest, Map("error" -> s"El scraper '$scraperId' ya se esta ejecutando."))
           } else {
-            logger.info(s"Starting: $scraperId")
-            val logsDirFile = new File("logs")
-            if (!logsDirFile.exists()) logsDirFile.mkdir()
-            val logFilePath = s"logs/$scraperId.log"
+            val home = sys.props("user.dir")
+            val logPath = s"$home/logs/$scraperId.log"
+            val logDir = new File(s"$home/logs")
+            if (!logDir.exists())
+              logDir.mkdir()
+            logger.info(s"Starting: $home/apps/$scraperId")
 
             // Arrancar el proceso en un hilo secundario
             Future {
               val builder = new ProcessBuilder(s"./$scraperId")
-              builder.directory(new File(s"${sys.props("user.dir")}/apps"))
-              builder.redirectErrorStream()
-              builder.redirectOutput(new File(logFilePath))
+              builder.directory(new File(s"$home/apps"))
+              builder.redirectErrorStream()              // TODO: Spark logs are empty; call .inheritIO?
+              builder.redirectOutput(new File(logPath))  // TODO: I don't see stderr
 
               val process = builder.start()
-              val info = ProcessInfo(process.pid(), scraperId, logFilePath, System.currentTimeMillis())
+              val info = ProcessInfo(process.pid(), scraperId, logPath, System.currentTimeMillis())
               activeProcesses.put(scraperId, (process, info))
               logger.info(s"Process started: $info")
 
@@ -66,10 +68,7 @@ object Sou {
               activeProcesses.remove(scraperId)
             }.recover{ case e => logger.error(s"ERROR: ${e.getMessage}", e) }
 
-            complete(StatusCodes.Accepted, Map(
-              "message" -> s"Scraper '$scraperId' iniciado con éxito.",
-              "logFile" -> logFilePath
-            ))
+            complete(StatusCodes.Accepted, Map("message" -> s"Scraper '$scraperId' iniciado."))
           }
         }
       } ~
