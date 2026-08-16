@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
   "org.apache.pekko" %% "pekko-http-spray-json" % pekkoVersion,
   "org.apache.hbase" % "hbase-client"           % hbaseVersion,
   "org.apache.hbase" % "hbase-common"           % hbaseVersion,
-  //"ch.qos.logback"   % "logback-classic"        % "1.6.1",
+  //"ch.qos.logback"   % "logback-classic"        % "1.6.1",    "org.slf4j" % "slf4j-simple" % "2.0.18",
   "org.scalatest" %% "scalatest" % "3.2.20" % Test,
 )
 
