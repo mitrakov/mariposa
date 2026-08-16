@@ -89,7 +89,7 @@ object Sou {
         path("status" / Segment) { scraperId =>
           get {
             Option(activeProcesses.get(scraperId)) match {
-              case Some((process, info)) =>
+              case Some((_, info)) =>
                 val uptime = (System.currentTimeMillis() - info.startTime) / 1000
                 complete(StatusResponse(info.pid, "RUNNING", info.scriptPath, info.logFile, uptime))
               case None =>
