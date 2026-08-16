@@ -22,6 +22,7 @@ add to build.sbt: libraryDependencies ++= Seq(
 class PlanetScraper {
   val jksPassword: String = sys.env.getOrElse("JKS_PASSWORD", throw new Exception("Define export JKS_PASSWORD=..."))
   val targetTopic = "planet-import"
+  val sleepMsec = 1500
 
   def run(): Unit = {
     println("=== [Mariposa] Executing LovePlanet Scraper Job ===")
@@ -84,7 +85,7 @@ class PlanetScraper {
                         println(s"Failed to send $href to Kafka: ${e.getMessage}")
                     })
                   }
-                  Thread.sleep(1500) // Mantener delay de 1.5s idéntico a Python para evitar bloqueos
+                  Thread.sleep(sleepMsec)
                 }
               }
             }
