@@ -9,7 +9,8 @@ class HhRefineJob {
   private val usdToRur = 84.7
   private val eurToRur = 98.37
   private val kztToRur = 0.18
-  private val byrToRur = 27.91
+  private val byrToRur = 27.92
+  private val uzsToRur = 0.0072
 
   def run(spark: SparkSession): Unit = {
     import spark.implicits._
@@ -29,6 +30,7 @@ class HhRefineJob {
           .when(curr === "EUR", $"salary_from" * eurToRur)
           .when(curr === "KZT", $"salary_from" * kztToRur)
           .when(curr === "BYR", $"salary_from" * byrToRur)
+          .when(curr === "UZS", $"salary_from" * uzsToRur)
           .otherwise($"salary_from")}
         )
       .withColumn("rur_to", {
@@ -38,12 +40,13 @@ class HhRefineJob {
           .when(curr === "EUR", $"salary_to" * eurToRur)
           .when(curr === "KZT", $"salary_to" * kztToRur)
           .when(curr === "BYR", $"salary_to" * byrToRur)
+          .when(curr === "UZS", $"salary_to" * uzsToRur)
           .otherwise($"salary_to")}
         )
       .withColumn("average_salary", round(
            when($"rur_from".isNotNull && $"rur_to".isNotNull, ($"rur_from" + $"rur_to") / 2.0)
-          .when($"rur_from".isNotNull && $"rur_to".isNull,    $"rur_from" * 1.15)
-          .when($"rur_from".isNull    && $"rur_to".isNotNull, $"rur_to" * 0.85)
+          .when($"rur_from".isNotNull && $"rur_to".isNull,    $"rur_from" * 1.10)
+          .when($"rur_from".isNull    && $"rur_to".isNotNull, $"rur_to" * 0.60)
           .otherwise(lit(null)), 0)
         .cast(IntegerType)
       )
