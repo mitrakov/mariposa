@@ -35,6 +35,10 @@ object Sou {
 
   def main(args: Array[String]): Unit = {
     // Asegurar que el directorio de logs exista en el nodo
+    val home = sys.props("user.home")
+    val logDir = new File(s"$home/logs")
+    if (!logDir.exists())
+      logDir.mkdir()
 
     val routes = pathPrefix("v1" / "scraper") {
       // 1) RUN PROCESS: /v1/scraper/start/mi-scraper
@@ -44,22 +48,18 @@ object Sou {
           if (activeProcesses.containsKey(scraperId)) {
             complete(StatusCodes.BadRequest, Map("error" -> s"El scraper '$scraperId' ya se esta ejecutando."))
           } else {
-            val home = sys.props("user.home")
             val logPath = s"$home/logs/$scraperId.log"
-            val logDir = new File(s"$home/logs")
-            if (!logDir.exists())
-              logDir.mkdir()
             logger.info(s"Starting: $home/apps/$scraperId")
 
             // Arrancar el proceso en un hilo secundario
             Future {
               val builder = new ProcessBuilder(s"./$scraperId")
               builder.directory(new File(s"$home/apps"))
-              builder.redirectErrorStream()              // TODO: Spark logs are empty; call .inheritIO?
-              builder.redirectOutput(new File(logPath))  // TODO: I don't see stderr
+              builder.redirectErrorStream(true)
+              builder.redirectOutput(new File(logPath))
 
               val process = builder.start()
-              val info = ProcessInfo(process.pid(), scraperId, logPath, System.currentTimeMillis())
+              val info = ProcessInfo(process.pid(), s"$home/apps/$scraperId", logPath, System.currentTimeMillis())
               activeProcesses.put(scraperId, (process, info))
               logger.info(s"Process started: $info")
 
@@ -87,11 +87,11 @@ object Sou {
         // 3) RETURN LOGS: /v1/scraper/logs/mi-scraper
         path("logs" / Segment) { scraperId =>
           get {
-            val logFilePath = s"logs/$scraperId.log"
+            val logFilePath = s"$home/logs/$scraperId.log"
             val logFile = new File(logFilePath)
 
             if (!logFile.exists()) {
-              complete(StatusCodes.NotFound, Map("error" -> s"No se encontraron logs para '$scraperId'"))
+              complete(StatusCodes.NotFound, Map("error" -> s"No se encontraron logs en la ruta: $logFilePath"))
             } else {
               // Leer de forma segura las últimas 200 líneas del log para no saturar el HTTP
               val source = scala.io.Source.fromFile(logFilePath, "UTF-8")
