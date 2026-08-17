@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
 
 @immutable
 class ScraperStatus {
@@ -73,4 +74,34 @@ class ScraperStartResponse {
 
   @override
   String toString() => 'ScraperStartResponse(message: $message)';
+}
+
+class DistributedScript {
+  final String id;
+  final String host;
+
+  const DistributedScript({
+    required this.id,
+    required this.host,
+  });
+
+  // Clave única combinada para mapear los estados de forma aislada en la pantalla
+  String get uniqueKey => '$host/$id';
+
+  // Conversión a Mapa para SharedPreferences
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'host': host,
+  };
+
+  factory DistributedScript.fromMap(Map<String, dynamic> map) {
+    return DistributedScript(
+      id: map['id'] as String? ?? '',
+      host: map['host'] as String? ?? 'localhost',
+    );
+  }
+
+  // Métodos estándar para serialización limpia
+  String toJson() => json.encode(toMap());
+  factory DistributedScript.fromJson(String source) => DistributedScript.fromMap(json.decode(source) as Map<String, dynamic>);
 }

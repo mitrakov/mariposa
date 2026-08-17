@@ -13,14 +13,17 @@ class ScraperDashboardScreen extends StatefulWidget {
 
 class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
   final ScraperHttpService _httpService = ScraperHttpService();
-  final TextEditingController _nodeController = TextEditingController(text: 'localhost');
+  final TextEditingController _newHostController = TextEditingController(text: '192.168.1.49');
   final TextEditingController _newScraperController = TextEditingController();
 
-  List<String> _scrapers = [];
+  // 🔥 El cambio clave: Ahora es una lista de objetos distribuidos complejos
+  List<DistributedScript> _scrapers = [];
+
+  // Mapeamos los estados usando la clave única combinada '$host/$id'
   Map<String, ScraperStatus> _statuses = {};
   Timer? _pollingTimer;
   String _consoleLogs = 'Selecciona un scraper para ver sus logs...';
-  String? _selectedScraperForLogs;
+  DistributedScript? _selectedScriptForLogs;
 
   @override
   void initState() {
@@ -33,7 +36,7 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
   @override
   void dispose() {
     _pollingTimer?.cancel();
-    _nodeController.dispose();
+    _newHostController.dispose();
     _newScraperController.dispose();
     super.dispose();
   }
@@ -41,10 +44,20 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
   // --- PERSISTENCIA CON SHARED PREFERENCES ---
   Future<void> _loadScrapersList() async {
     final prefs = await SharedPreferences.getInstance();
-    final List<String>? savedList = prefs.getStringList('mariposa_scrapers');
-    if (savedList != null) {
+    final List<String>? savedJsonList = prefs.getStringList(
+      'mariposa_distributed_scrapers',
+    );
+
+    if (savedJsonList != null) {
       setState(() {
-        _scrapers = savedList;
+        _scrapers = savedJsonList
+            .map((item) => DistributedScript.fromJson(item))
+            .toList();
+      });
+    } else {
+      // Valores por defecto iniciales para pruebas en tu cluster casero
+      setState(() {
+        _scrapers = [];
       });
     }
     _updateAllStatuses();
@@ -52,52 +65,59 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
 
   Future<void> _saveScrapersList() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('mariposa_scrapers', _scrapers);
+    final List<String> jsonList = _scrapers
+        .map((item) => item.toJson())
+        .toList();
+    await prefs.setStringList('mariposa_distributed_scrapers', jsonList);
   }
 
-  // --- CONTROL LOGICO DE ACCIONES ---
+  // --- CONTROL LÓGICO DE ACCIONES DISTRIBUIDAS ---
   Future<void> _updateAllStatuses() async {
-    final host = _nodeController.text.trim();
-    if (host.isEmpty) return;
-
-    for (var id in _scrapers) {
+    for (var script in _scrapers) {
       try {
-        final status = await _httpService.checkStatus(host, id);
+        // Cada iteración consulta de forma independiente al host configurado en su modelo
+        final status = await _httpService.checkStatus(script.host, script.id);
         setState(() {
-          _statuses[id] = status;
+          _statuses[script.uniqueKey] = status;
         });
-        // Si el scraper seleccionado esta corriendo, refrescar logs en vivo
-        if (id == _selectedScraperForLogs && status.isRunning) {
-          _fetchLogs(id);
+
+        // Si este script en específico está seleccionado, refresca sus logs desde su propio servidor
+        if (_selectedScriptForLogs?.uniqueKey == script.uniqueKey) {
+          _fetchLogs(script);
         }
       } catch (_) {
-        // Si falla por desconexion, asumimos STOPPED por seguridad
+        // En caso de caída del servidor Pekko de ese nodo, no detenemos el bucle del resto del clúster
       }
     }
   }
 
-  Future<void> _fetchLogs(String id) async {
+  Future<void> _fetchLogs(DistributedScript script) async {
     try {
-      final logs = await _httpService.getLogs(_nodeController.text.trim(), id);
+      final logs = await _httpService.getLogs(script.host, script.id);
       setState(() {
         _consoleLogs = logs;
       });
     } catch (e) {
       setState(() {
-        _consoleLogs = 'Error al recuperar logs: $e';
+        _consoleLogs = 'Error al recuperar logs de ${script.host}: $e';
       });
     }
   }
 
-  Future<void> _toggleScraper(String id, bool isRunning) async {
-    final host = _nodeController.text.trim();
+  Future<void> _toggleScraper(DistributedScript script, bool isRunning) async {
     try {
       if (isRunning) {
-        await _httpService.stopScraper(host, id);
-        _showSnackBar('Se envió señal de parada a $id', Colors.orange);
+        await _httpService.stopScraper(script.host, script.id);
+        _showSnackBar(
+          'Se envió SIGTERM a ${script.id} en el nodo ${script.host}',
+          Colors.orange,
+        );
       } else {
-        await _httpService.startScraper(host, id);
-        _showSnackBar('Scraper $id iniciado con éxito', Colors.green);
+        await _httpService.startScraper(script.host, script.id);
+        _showSnackBar(
+          'Scraper ${script.id} iniciado en ${script.host}',
+          Colors.green,
+        );
       }
       _updateAllStatuses();
     } catch (e) {
@@ -107,13 +127,26 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
 
   void _addScraper() {
     final name = _newScraperController.text.trim();
-    if (name.isNotEmpty && !_scrapers.contains(name)) {
-      setState(() {
-        _scrapers.add(name);
-        _newScraperController.clear();
-      });
-      _saveScrapersList();
-      _updateAllStatuses();
+    final host = _newHostController.text.trim();
+
+    if (name.isNotEmpty && host.isNotEmpty) {
+      final newScript = DistributedScript(id: name, host: host);
+
+      // Validar duplicados exactos en el mismo nodo
+      final exists = _scrapers.any((s) => s.uniqueKey == newScript.uniqueKey);
+      if (!exists) {
+        setState(() {
+          _scrapers.add(newScript);
+          _newScraperController.clear();
+        });
+        _saveScrapersList();
+        _updateAllStatuses();
+      } else {
+        _showSnackBar(
+          'Este script ya esta registrado en el nodo $host',
+          Colors.red,
+        );
+      }
     }
   }
 
@@ -123,103 +156,115 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
     );
   }
 
-  // --- DISEÑO DE LA INTERFAZ DE USUARIO ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('🦋 Mariposa Scraper Controller'),
-        backgroundColor: Colors.blueGrey[900],
+        title: const Text('🦋 Mariposa Cluster Distributed Controller'),
+        backgroundColor: Colors.blueGrey,
         foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
-          // Sección de configuración de IP del Nodo
+          // Panel de Inserción: Script + Host Destino
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
                 Expanded(
+                  flex: 2,
                   child: TextField(
-                    controller: _nodeController,
+                    controller: _newScraperController,
                     decoration: const InputDecoration(
-                      labelText: 'IP or Host',
+                      labelText: 'Script name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: _newHostController,
+                    decoration: const InputDecoration(
+                      labelText: 'IP o Host',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.dns),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: _updateAllStatuses,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Check Cluster'),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
-                )
-              ],
-            ),
-          ),
-          // Sección para agregar nuevos scrapers a la lista externa
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _newScraperController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nombre del script',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 IconButton.filled(
                   onPressed: _addScraper,
                   icon: const Icon(Icons.add),
-                )
+                  style: IconButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 5),
           // Lista de Azulejos (Tiles) de control
           Expanded(
             child: ListView.builder(
               itemCount: _scrapers.length,
               itemBuilder: (context, index) {
-                final id = _scrapers[index];
-                final status = _statuses[id];
+                final script = _scrapers[index];
+                final status = _statuses[script.uniqueKey];
                 final isRunning = status?.isRunning ?? false;
 
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   color: isRunning ? Colors.green[50] : Colors.grey[100],
                   child: ListTile(
+                    dense: true,  
+                    contentPadding: EdgeInsets.zero,  
+                    minVerticalPadding: 0,  
+                    minTileHeight: 0,
+                    onLongPress: () => _deleteScraper(script),
                     leading: Icon(
                       isRunning ? Icons.play_circle_fill : Icons.stop_circle,
                       color: isRunning ? Colors.green : Colors.grey,
                       size: 36,
                     ),
-                    title: Text('$id', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(isRunning ? 'PID: ${status?.pid} • Uptime: ${status?.uptimeSeconds}s' : 'Estado: DETENIDO'),
-                    onLongPress: () => _deleteScraper(id),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.terminal, color: Colors.blueGrey),
-                          onPressed: () {
-                            setState(() {
-                              _selectedScraperForLogs = id;
-                            });
-                            _fetchLogs(id);
-                          },
-                        ),
-                        IconButton(
-                          icon: Icon(isRunning ? Icons.stop : Icons.play_arrow, color: isRunning ? Colors.orange : Colors.green),
-                          onPressed: () => _toggleScraper(id, isRunning),
-                        ),
-                      ],
+                    title: Text(
+                      '${script.id}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    // 🔥 UI Mejorada: Muestra claramente a qué IP/Nodo pertenece este proceso
+                    subtitle: Text(
+                      isRunning
+                          ? 'Nodo: ${script.host}\nPID: ${status?.pid} • Uptime: ${status?.uptimeSeconds}s'
+                          : 'Nodo: ${script.host} • Estado: DETENIDO',
+                    ),
+                    isThreeLine: isRunning,
+                    trailing: SizedBox(
+                      width: isRunning ? 140 : 96,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.terminal,
+                              color: Colors.blueGrey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _selectedScriptForLogs = script;
+                              });
+                              _fetchLogs(script);
+                            },
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              isRunning ? Icons.stop : Icons.play_arrow,
+                              color: isRunning ? Colors.orange : Colors.green,
+                            ),
+                            onPressed: () => _toggleScraper(script, isRunning),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -239,42 +284,45 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
               ),
               child: SingleChildScrollView(
                 child: Text(
-                  _selectedScraperForLogs == null
+                  _selectedScriptForLogs == null
                       ? _consoleLogs
-                      : '📝 [LOGS $_selectedScraperForLogs]\n\n$_consoleLogs',
-                  style: const TextStyle(color: Colors.greenAccent, fontFamily: 'Courier', fontSize: 11),
+                      : '📝 [LOGS ${_selectedScriptForLogs!.id} en ${_selectedScriptForLogs!.host}]\n\n$_consoleLogs',
+                  style: const TextStyle(
+                    color: Colors.greenAccent,
+                    fontFamily: 'Courier',
+                    fontSize: 11,
+                  ),
                 ),
               ),
             ),
-          )
+          ),
         ],
       ),
     );
   }
 
-  /// Elimina un scraper de la lista, limpia su estatus y actualiza SharedPreferences.
-  Future<void> _deleteScraper(String id) async {
-    // 1. Validar si el scraper está corriendo antes de borrarlo
-    final isRunning = _statuses[id]?.isRunning ?? false;
+  Future _deleteScraper(DistributedScript script) async {
+    final isRunning = _statuses[script.uniqueKey]?.isRunning ?? false;
     if (isRunning) {
-      _showSnackBar('No puedes eliminar "$id" mientras esté ejecutándose. Deténlo primero.', Colors.red);
+      _showSnackBar(
+        'No puedes eliminar este script mientras se ejecute en ${script.host}.',
+        Colors.red,
+      );
       return;
     }
-
-    // 2. Mostrar diálogo nativo de confirmación
-    final bool? confirm = await showDialog<bool>(
+    final bool? confirm = await showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('⚠️ ¿Eliminar Scraper?'),
-          content: Text('¿Estás seguro de que deseas eliminar "$id" de tu panel de control Mariposa?'),
+          content: Text('¿Estás seguro de que deseas eliminar "${script.id}" de tu panel de control Mariposa?'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false), // Cancelar
+              onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Cancelar'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(true), // Confirmar
+              onPressed: () => Navigator.of(context).pop(true),
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Eliminar'),
             ),
@@ -282,23 +330,17 @@ class _ScraperDashboardScreenState extends State<ScraperDashboardScreen> {
         );
       },
     );
-
-    // 3. Si el usuario confirmó, procedemos al borrado atómico
     if (confirm == true) {
       setState(() {
-        _scrapers.remove(id);   // Remover de la lista principal de la UI
-        _statuses.remove(id);   // Limpiar su caché de estatus en memoria
-        // Si teníamos seleccionados sus logs, limpiamos la consola oscura
-        if (_selectedScraperForLogs == id) {
-          _selectedScraperForLogs = null;
+        _scrapers.removeWhere((s) => s.uniqueKey == script.uniqueKey);
+        _statuses.remove(script.uniqueKey);
+        if (_selectedScriptForLogs?.uniqueKey == script.uniqueKey) {
+          _selectedScriptForLogs = null;
           _consoleLogs = 'Selecciona un scraper para ver sus logs...';
         }
       });
-
-      // 4. Persistir la lista limpia en el almacenamiento externo
       await _saveScrapersList();
-      _showSnackBar('Scraper "$id" eliminado de la lista.', Colors.blueGrey);
+      _showSnackBar('Script removido de la lista.', Colors.blueGrey);
     }
   }
-
 }
