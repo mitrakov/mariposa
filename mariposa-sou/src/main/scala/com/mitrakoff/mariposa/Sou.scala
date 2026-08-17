@@ -44,7 +44,7 @@ object Sou {
           if (activeProcesses.containsKey(scraperId)) {
             complete(StatusCodes.BadRequest, Map("error" -> s"El scraper '$scraperId' ya se esta ejecutando."))
           } else {
-            val home = sys.props("user.dir")
+            val home = sys.props("user.home")
             val logPath = s"$home/logs/$scraperId.log"
             val logDir = new File(s"$home/logs")
             if (!logDir.exists())
