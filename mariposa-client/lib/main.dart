@@ -97,7 +97,7 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => SqlConsolePage(_selectedTable)),
+            MaterialPageRoute(builder: (context) => SqlConsolePage()),
           );
         },
         label: const Text('SPARK CONSOLE'),

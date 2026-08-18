@@ -46,7 +46,7 @@ object MariposaFly extends App {
     // run user class
     println(s"Executing: $className.run(spark)...")
     runMethod.invoke(job, spark)
-    println(s"SUCCESS: $className")
+    println(s"\nSUCCESS: $className\n")
   } finally {
     spark.stop()
   }

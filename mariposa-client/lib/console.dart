@@ -2,16 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:mariposa/api.dart';
 
 class SqlConsolePage extends StatefulWidget {
-  final String? initialTable;
-  SqlConsolePage(this.initialTable);
+  SqlConsolePage();
 
   @override
   State<SqlConsolePage> createState() => _SqlConsolePageState();
 }
 
 class _SqlConsolePageState extends State<SqlConsolePage> {
-  static final TextEditingController _sqlController = TextEditingController(text: "SELECT...;");
-  static final TextEditingController _tableController = TextEditingController(text: "");
+  static final TextEditingController _sqlController = TextEditingController(text: "SELECT...");
+  static final TextEditingController _tableController = TextEditingController(text: "namespace:table");
 
   String _logBuffer = "";
   bool _isExecuting = false;
@@ -51,13 +50,6 @@ class _SqlConsolePageState extends State<SqlConsolePage> {
         _isExecuting = false;
       }),
     );
-  }
-
-
-  @override
-  void initState() {
-    super.initState();
-    _tableController.text = widget.initialTable ?? "default:table";
   }
 
   @override
