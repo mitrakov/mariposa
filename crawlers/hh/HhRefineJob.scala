@@ -44,11 +44,9 @@ class HhRefineJob {
           .otherwise($"salary_to")}
         )
       .withColumn("average_salary", round(
-           when($"rur_from".isNotNull && $"rur_to".isNotNull, ($"rur_from" + $"rur_to") / 2.0)
-          .when($"rur_from".isNotNull && $"rur_to".isNull,    $"rur_from" * 1.10)
-          .when($"rur_from".isNull    && $"rur_to".isNotNull, $"rur_to" * 0.60)
-          .otherwise(lit(null)), 0)
-        .cast(IntegerType)
+           when($"rur_from".isNotNull && $"rur_to".isNotNull && $"rur_from" === $"rur_to", $"rur_from") // FROM=TO, use it
+          .when($"rur_from".isNotNull, $"rur_from" * 1.15)                                              // FROM + 15%
+          .otherwise(lit(null)), 0).cast(IntegerType)                                                   // else skip it
       )
       .sort("area_name")
       .write
