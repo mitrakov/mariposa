@@ -68,8 +68,10 @@ function RUN() {
 }
 function ENV() {
   export "$1"
-  if ! grep --quiet "$1" /etc/environment; then
-    echo "$1" >> /etc/environment
+  #if ! grep --quiet "$1" /etc/environment; then
+    #echo "$1" >> /etc/environment
+  if ! grep --quiet "export $1" /etc/profile.d/mariposa.sh; then
+    echo "export $1" >> /etc/profile.d/mariposa.sh
   fi
 }
 function COPY() {
