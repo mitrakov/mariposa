@@ -21,7 +21,7 @@ RUN apt install --yes krb5-kdc krb5-admin-server libsasl2-modules-gssapi-mit net
 
 # extra ENV variables and folders for Kerberos
 ENV KEYTABS_DIR=/etc/security/keytabs
-ENV KAFKA_OPTS="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf"
+ENV KAFKA_OPTS="-Djava.security.auth.login.config=/opt/kafka/config/kafka_jaas.conf"
 RUN mkdir $KEYTABS_DIR && chown hadoop:hadoop $KEYTABS_DIR
 
 # add extra user
@@ -35,10 +35,3 @@ RUN chown --recursive hadoop:hadoop .
 USER hadoop
 
 ENTRYPOINT ["java", "-jar", "ssu.jar", "ssu.json"]
-
-# history:
-# 1.0.0 (2026-06-05): mvp
-# 1.0.1 (2026-06-13): install vault w/o VPN
-# 1.0.2 (2026-06-15): run on real Ubuntu
-# 1.0.3 (2026-07-28): add SSU
-# 1.0.4 (2026-07-29): fix HBase libs for Spark

@@ -53,7 +53,7 @@ RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HBASE_HOME/conf/hbase-env.sh
 # fix SLF4J multiple bindings error
 RUN rm $HBASE_HOME/lib/client-facing-thirdparty/log4j-slf4j-impl-*.jar
 # patch HBase
-COPY mariposa-hbase-patch-2.5.13.jar $HBASE_HOME/lib/
+COPY mariposa-hbase-patch-2.5.14.jar $HBASE_HOME/lib/
 
 
 # download Apache Kafka 4.2.0 (non-Zookeeper version)
@@ -109,8 +109,8 @@ COPY --from=mitrakov/hadoop-hue:1.0.0 /usr/lib/python3.9 /usr/lib/python3.9
 COPY --from=mitrakov/hadoop-hue:1.0.0 $HUE_HOME $HUE_HOME
 
 
-# create user 'hadoop', add it to sudoers and let it SSH to other nodes
-RUN useradd --create-home --shell /bin/bash hadoop
+# create user 'hadoop' (if not exists!), add it to sudoers and let it SSH to other nodes
+RUN useradd --create-home --shell /bin/bash hadoop || [ $? -eq 9 ]
 RUN echo "hadoop ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 RUN su --login hadoop --command "ssh-keygen -t rsa -N '' -f ~/.ssh/id_rsa && cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys"
 

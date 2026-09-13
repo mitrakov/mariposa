@@ -22,7 +22,7 @@ find $HBASE_HOME/lib -name "hbase-shaded-client-*.jar" -delete
 cp -v $HADOOP_HOME/share/hadoop/common/lib/guava-*.jar $HBASE_HOME/lib/
 
 {
-  echo "export HBASE_CLASSPATH_PREFIX=\"/opt/hbase/lib/mariposa-hbase-patch-2.5.13.jar\""
+  echo "export HBASE_CLASSPATH_PREFIX=\"/opt/hbase/lib/mariposa-hbase-patch-2.5.14.jar\""
   echo "export HBASE_CLASSPATH=\"$HADOOP_CONF_DIR:$(hadoop classpath)\""
 } >> $HBASE_HOME/conf/hbase-env.sh
 

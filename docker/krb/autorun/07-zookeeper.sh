@@ -13,7 +13,7 @@ check_env "WORKER_HOSTS"
 check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 
 
-# ZK_ID must be a unique number for every node, e.g. 1,2,3
+# ZK_ID must be a unique integer for every node
 echo "$ZK_ID" > $ZOOKEEPER_HOME/data/myid
 {
   echo 'export SERVER_JVMFLAGS="$SERVER_JVMFLAGS -Djava.security.auth.login.config=$ZOOKEEPER_HOME/conf/jaas.conf"'
@@ -30,10 +30,10 @@ clientPort=2181
 authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
 requireClientAuthScheme=sasl
 
-server.1=$MASTER_HOST:2888:3888
+server.2=$MASTER_HOST:2888:3888
 EOF
 
-count=2     # "1" is already set for $MASTER_HOST
+count=3     # "1" is skipped, "2" is already set for $MASTER_HOST
 IFS=','
 for worker in $WORKER_HOSTS; do
     echo "server.$count=$worker:2888:3888" >> $ZOOKEEPER_HOME/conf/zoo.cfg

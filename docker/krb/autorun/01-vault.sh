@@ -7,13 +7,14 @@ check_env "MASTER_HOST"
 check_env "IS_MASTER"
 echo "export MY_HOSTNAME=$(hostname)" >> .env
 echo "export VAULT_ADDR=http://$MASTER_HOST:8200" >> .env
-. .env
+source .env
 
 if [[ "$IS_MASTER" == "true" ]]; then
     check_env "VAULT_HOME"
 
     # create main config
-    cat << EOF | sudo tee $VAULT_HOME/vault.hcl
+    cat << EOF | tee $VAULT_HOME/vault.hcl
+disable_mlock = true
 storage "file" {
   path = "$VAULT_HOME/data"
 }
@@ -24,9 +25,9 @@ listener "tcp" {
 }
 EOF
 
-    # start HashiCorp Vault (as sudo to avoid error: "mlock syscall is not available" on real Ubuntu)
+    # start HashiCorp Vault
     log "Starting Vault..."
-    sudo $VAULT_HOME/vault server --config=$VAULT_HOME/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
+    $VAULT_HOME/vault server --config=$VAULT_HOME/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
     until nc -zv $MASTER_HOST 8200; do sleep 1; done
 
     # initialization Logic

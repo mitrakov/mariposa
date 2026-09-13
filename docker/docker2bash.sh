@@ -45,7 +45,7 @@ function check_files() {
 
     local file=$(echo "$line" | awk '{print $2}')
 
-    if [[ ! -f "$file" ]]; then
+    if [[ ! -f "$file" && ! -d "$file" ]]; then
       error "Missing file from COPY command: $file"
       exit 4
     fi
@@ -77,15 +77,20 @@ function ENV() {
 function COPY() {
   if [[ "$1" =~ --from.* ]]; then
     warn "COPY --from is not supported. Please do it manually"
+  elif [[ "$2" == "." ]]; then
+    log "Target is '.'. No copy needed"
   else
-    cp -v "$@"
+    cp --recursive --verbose "$@"
   fi
 }
 function LABEL() {
   info "LABEL $*"
 }
 function USER() {
-  info "USER $*"     # TODO: sudo su -?
+  warn "USER $* is skipped. Continuing as a '$(whoami)'"
+}
+function WORKDIR() {
+  info "WORKDIR $*"
 }
 function ENTRYPOINT() {
   info "ENTRYPOINT $*"

@@ -18,9 +18,9 @@ check_file "$TRUSTSTORE"
 check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 
 
-# format: id1@host1:9093,id2@host2:9093,id3@host3:9093 (hardcoding the master as ID 1 and workers starting from 2)
-VOTERS="1@$MASTER_HOST:9093"
-count=2
+# format: id1@host1:9093,id2@host2:9093,id3@host3:9093 (we skip "1" and hardcode the master as "2")
+VOTERS="2@$MASTER_HOST:9093"
+count=3
 IFS=','
 for worker in $WORKER_HOSTS; do
     VOTERS="$VOTERS,$count@$worker:9093"
