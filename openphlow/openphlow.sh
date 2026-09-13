@@ -317,6 +317,7 @@ cat <<EOF > $HADOOP_CONF_DIR/mapred-site.xml
 EOF
 
 # note! HTTP/ principal is needed (!) for secured old Hadoops
+# OPT: dfs.namenode.delegation.token.max-lifetime = 120000, dfs.namenode.delegation.token.renew-interval = 90000
 cat <<EOF > $HADOOP_CONF_DIR/hdfs-site.xml
 <configuration>
     <property>

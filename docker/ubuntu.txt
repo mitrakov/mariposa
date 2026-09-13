@@ -2,16 +2,19 @@
 
 ssh-keygen -t rsa -C "mariposa"
 
-ssh-copy-id -i ~/.ssh/mariposa/id_rsa.pub hadoop@192.168.1.49
-ssh-copy-id -i ~/.ssh/mariposa/id_rsa.pub hadoop@192.168.1.132
-ssh-copy-id -i ~/.ssh/mariposa/id_rsa.pub hadoop@192.168.1.137
-ssh-copy-id -i ~/.ssh/mariposa/id_rsa.pub hadoop@192.168.1.143
+# for i in {1..13};
+for i in 2 3 4 5 6 7 8 12 13; do ssh-copy-id -i ~/.ssh/mariposa/id_rsa.pub hadoop@192.168.1.$i; done
 
 cat << TOM | sudo tee -a /etc/hosts
-192.168.1.49   node49.host
-192.168.1.131  node131.host
-192.168.1.137  node137.host
-192.168.1.143  node143.host
+192.168.1.2    node02.host
+192.168.1.3    node03.host
+192.168.1.4    node04.host
+192.168.1.5    node05.host
+192.168.1.6    node06.host
+192.168.1.7    node07.host
+192.168.1.8    node08.host
+192.168.1.12   node12.host
+192.168.1.13   node13.host
 TOM
 
 scp -i ~/.ssh/mariposa/id_rsa docker2bash.sh hadoop.dockerfile mariposa-hbase-patch-2.5.13.jar krb/dockerfile krb/entrypoint.sh hadoop@node49.host:~
