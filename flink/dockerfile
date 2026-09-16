@@ -1,0 +1,6 @@
+# docker build --tag mitrakov/flink-dev:1.0 .
+FROM mitrakov/flink:1.0.0
+LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
+USER hadoop
+COPY entrypoint.sh /
+ENTRYPOINT ["/entrypoint.sh"]

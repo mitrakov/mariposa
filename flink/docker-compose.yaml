@@ -1,0 +1,35 @@
+services:
+  namenode:
+    image: mitrakov/flink-dev:1.0
+    hostname: namenode.host
+    environment:
+      - MASTER_HOST=namenode.host
+      - WORKER_HOSTS=datanode1.host,datanode2.host
+    volumes:
+      - ~/hadoop/hdfs1_data:/opt/hadoop/dfs/name
+    ports:
+      - "9870:9870"   # HDFS UI
+      - "8088:8088"   # YARN UI
+      - "8081:8081"   # Flink Web UI
+
+  datanode1:
+    image: mitrakov/flink-dev:1.0
+    hostname: datanode1.host
+    environment:
+      - MASTER_HOST=namenode.host
+      - WORKER_HOSTS=datanode1.host,datanode2.host
+    volumes:
+      - ~/hadoop/hdfs2_data:/opt/hadoop/dfs/data
+    ports:
+      - "8042:8042"   # NodeManager
+
+  datanode2:
+    image: mitrakov/flink-dev:1.0
+    hostname: datanode2.host
+    environment:
+      - MASTER_HOST=namenode.host
+      - WORKER_HOSTS=datanode1.host,datanode2.host
+    volumes:
+      - ~/hadoop/hdfs3_data:/opt/hadoop/dfs/data
+    ports:
+      - "8043:8042"   # NodeManager
