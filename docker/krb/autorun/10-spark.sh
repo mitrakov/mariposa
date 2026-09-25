@@ -12,7 +12,6 @@ check_env "HIVE_HOME"
 check_env "MASTER_HOST"
 check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 
-
 # spark.master                                   YARN is a master
 # spark.history.fs.logDirectory                  must-have
 # spark.eventLog.*                               write Spark logs to HDFS
@@ -64,7 +63,7 @@ spark.executor.extraClassPath                    $HBASE_HOME/conf:$HBASE_LIBS
 EOF
 
 
-if [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     log "Starting Spark History Server..."
     
     hdfs dfs -mkdir -p /spark/logs           # must-have

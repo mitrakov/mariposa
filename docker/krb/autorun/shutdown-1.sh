@@ -3,12 +3,9 @@
 set -euo pipefail
 source utils.sh
 
-check_env "IS_MASTER"
 check_env "MASTER_HOST"
 
-
-if [[ "$IS_MASTER" == "true" ]]; then
-
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     # stop HBase
     hbase-daemon.sh stop thrift
     hbase-daemon.sh stop master

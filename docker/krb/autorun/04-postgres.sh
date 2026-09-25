@@ -4,12 +4,9 @@ set -euo pipefail
 source utils.sh
 source .env
 
-check_env "IS_MASTER"
+check_env "MASTER_HOST"
 
-
-if [[ "$IS_MASTER" == "true" ]]; then
-    check_env "MASTER_HOST"
-
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     log "Starting PostgreSQL..."
     PG_DATA_DIR="/var/lib/postgresql/16/main"
 

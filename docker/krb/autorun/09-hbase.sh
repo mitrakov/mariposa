@@ -11,9 +11,7 @@ check_env "HADOOP_HOME"
 check_env "HADOOP_CONF_DIR"
 check_env "MASTER_HOST"
 check_env "WORKER_HOSTS"
-check_env "IS_MASTER"
 check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
-
 
 # Fix SASL issue (secured HBase only): https://issues.apache.org/jira/browse/HDFS-16644
 find $HBASE_HOME/lib -name "hadoop-*.jar" -delete
@@ -84,7 +82,7 @@ EOF
 
 
 log "Starting HBase..."
-if [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     hdfs dfs -mkdir -p /hbase           # must-have
     hdfs dfs -chown hbase:hadoop /hbase
     hbase-daemon.sh start master

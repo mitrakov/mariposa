@@ -4,12 +4,11 @@ set -euo pipefail
 source utils.sh
 
 check_env "MASTER_HOST"
-check_env "IS_MASTER"
 echo "export MY_HOSTNAME=$(hostname)" >> .env
 echo "export VAULT_ADDR=http://$MASTER_HOST:8200" >> .env
 source .env
 
-if [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     check_env "VAULT_HOME"
 
     # create main config

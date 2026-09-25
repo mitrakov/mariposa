@@ -10,7 +10,6 @@ check_env "MY_HOSTNAME"
 check_env "HADOOP_CONF_DIR"
 check_env "MASTER_HOST"
 check_env "HADOOP_HOME"
-check_env "IS_MASTER"
 check_env "JKS_PASSWORD"
 check_file "$MY_KEYSTORE"
 check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
@@ -196,7 +195,7 @@ cat <<EOF > $HADOOP_CONF_DIR/capacity-scheduler.xml
 EOF
 
 log "Starting HDFS..."
-if [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     # format HDFS
     if [ ! -f "$HADOOP_HOME/dfs/name/current/VERSION" ]; then
         log "First time run. Formatting Namenode"

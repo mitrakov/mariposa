@@ -4,14 +4,12 @@ set -euo pipefail
 source utils.sh
 source .env
 
-check_env "IS_MASTER"
 check_env "HIVE_HOME"
 check_env "TEZ_HOME"
 check_env "MASTER_HOST"
 
-
 # setup Hive
-if [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     check_env "KEYTABS_DIR"
     check_env "HIVE_DB_PASSWORD"
     check_file "$KEYTABS_DIR/$MASTER_HOST.keytab"
@@ -113,7 +111,7 @@ echo "export HADOOP_CLASSPATH=\$HADOOP_CLASSPATH:$TEZ_HOME/conf:$TEZ_HOME/*.jar:
 
 
 log "Starting Hive..."
-if [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     hdfs dfs -mkdir -p  /user/hive/warehouse  # must-have
     hdfs dfs -mkdir -p  /tmp/hive             # must-have
     hdfs dfs -chmod 777 /tmp/hive             # must-have

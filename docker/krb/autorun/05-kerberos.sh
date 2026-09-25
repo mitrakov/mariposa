@@ -5,8 +5,6 @@ source utils.sh
 source .env
 
 check_env "MASTER_HOST"
-check_env "IS_MASTER"
-
 
 # main config file
 cat << EOF | sudo tee /etc/krb5.conf
@@ -34,7 +32,7 @@ EOF
 echo "*/admin@MARIPOSA.COM *" | sudo tee /etc/krb5kdc/kadm5.acl
 
 
-if [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     check_env "WORKER_HOSTS"
     check_env "KEYTABS_DIR"
 

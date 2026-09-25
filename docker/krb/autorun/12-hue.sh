@@ -4,14 +4,12 @@ set -euo pipefail
 source utils.sh
 source .env
 
-check_env "IS_MASTER"
-
+check_env "MASTER_HOST"
 
 # set ccache_path to $HUE_HOME, because on real Ubuntu /var/run/hue/ is getting cleared after reboot
-if [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     if [[ ${SKIP_HUE:-} != "true" ]]; then
         check_env "KEYTABS_DIR"
-        check_env "MASTER_HOST"
         check_env "HUE_HOME"
         check_env "HIVE_HOME"
         check_env "HUE_DB_PASSWORD"

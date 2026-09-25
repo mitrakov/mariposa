@@ -4,12 +4,10 @@ set -euo pipefail
 source utils.sh
 source .env
 
-check_env "IS_MASTER"
+check_env "MASTER_HOST"
 
-
-if [[ "$IS_MASTER" == "true" ]]; then
+if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     if [[ ${SKIP_AIRFLOW:-} != "true" ]]; then
-        check_env "MASTER_HOST"
         check_env "AIRFLOW_HOME"
         check_env "KEYTABS_DIR"
         check_env "AIRFLOW_DB_PASSWORD"
