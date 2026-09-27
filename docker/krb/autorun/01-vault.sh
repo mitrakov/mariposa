@@ -10,6 +10,7 @@ source .env
 
 if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     check_env "VAULT_HOME"
+    check_env "WORKER_HOSTS"
 
     # create main config
     cat << EOF | tee $VAULT_HOME/vault.hcl
@@ -28,6 +29,7 @@ EOF
     log "Starting Vault..."
     $VAULT_HOME/vault server --config=$VAULT_HOME/vault.hcl > $VAULT_HOME/vault.log 2>&1 &
     until nc -zv $MASTER_HOST 8200; do sleep 1; done
+    sleep 2       # must-have!
 
     # initialization Logic
     if [ ! -f "$VAULT_HOME/data/initialized" ]; then
@@ -80,6 +82,7 @@ EOF
         ROLE_ID=$(vault read -field=role_id auth/approle/role/hadoop/role-id)
         SECRET_ID=$(vault write -field=secret_id -force auth/approle/role/hadoop/secret-id)
         check_env "CERTS_DIR"
+        mkdir --parents $CERTS_DIR
         echo $ROLE_ID    > $CERTS_DIR/hadoop.approle
         echo $SECRET_ID >> $CERTS_DIR/hadoop.approle
         chmod 400          $CERTS_DIR/hadoop.approle
@@ -100,7 +103,12 @@ EOF
         vault write -field=certificate pki/root/generate/internal common_name="mariposa-ca" ttl=87600h > $CERTS_DIR/root_ca.crt
         check_file "$CERTS_DIR/root_ca.crt"
         # create a role for nodes to sign their public keys
-        vault write pki/roles/mariposa allowed_domains="host" allow_subdomains=true ttl=87599h
+        vault write pki/roles/mariposa allow_any_name=true allow_subdomains=true ttl=87599h
+
+        # copy certificates to all other nodes, make sure ssh is allowed
+        for worker in ${WORKER_HOSTS//,/ }; do
+            scp $CERTS_DIR/hadoop.approle $CERTS_DIR/root_ca.crt hadoop@$worker:$CERTS_DIR/
+        done
 
         touch $VAULT_HOME/data/initialized
         info "Vault initialized"

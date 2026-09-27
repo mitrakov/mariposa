@@ -49,35 +49,4 @@ EOF
 crontab -e
 @reboot java -jar /home/hadoop/autorun/ssu.jar /home/hadoop/autorun/ssu.json > /home/hadoop/ssu.log 2>&1
 
-
-# done
 reboot
-
-
-# AFTER FIRST RUN:
-# copy security files from Master (e.g. "n01") to all other nodes:
-for i in 02 03 04 05 06 07 08 09 10 11; do scp $CERTS_DIR/hadoop.approle $KEYTABS_DIR/n$i.keytab hadoop@n$i:~; done
-
-
-
-
-
-
-### OLD?
-# autorun.sh for master:
-#!/usr/bin/env bash
-sleep 220
-/home/hadoop/spark-hh-import.sh
-sleep 30
-/home/hadoop/spark-planet-import.sh
-
-
-# autorun.sh for slaves:
-#!/usr/bin/env bash
-sleep 250
-(cd /home/hadoop/hh && ./hh.py --topic hh-import --kafka-config kafka.properties --current-id-file id.txt --batch-size 28800 &)
-
-
-#!/usr/bin/env bash
-sleep 250
-(cd /home/hadoop/planet && ./planet.py --topic planet-import --kafka-config kafka.properties &)

@@ -1,5 +1,6 @@
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 @SuppressWarnings("CallToPrintStackTrace")
 public class Synchronizer {
@@ -29,30 +30,53 @@ public class Synchronizer {
     }
 
     public void waitForAllNodes(String scriptName) {
-        final var pendingHosts = new HashSet<>(allHosts);
-        pendingHosts.remove(myHostName);    // remove myself from the set
+        final var pendingHosts = new HashMap<String, Boolean>();     // map of all nodes except me
+        for (String host : allHosts) {
+            if (!host.equals(myHostName))
+                pendingHosts.put(host, true);
+        }
+
         if (pendingHosts.isEmpty()) return; // edge case for N=1
 
-        System.out.printf("\n[SYNC] Success: '%s'. Waiting for %s\n", scriptName, pendingHosts);
+        System.out.printf("\n[SYNC] Success: '%s'. Waiting for %s\n", scriptName, pendingHosts.keySet());
+
         try (final var socket = new DatagramSocket(port)) {
+            socket.setSoTimeout(1000); // timeout 1 sec. for "granularity"
             final var buffer = new byte[1024];
             final var bytes = (myHostName + ":" + scriptName).getBytes();
 
-            while (!pendingHosts.isEmpty()) try {
-                broadcastMessage(socket, allHosts, bytes);
-
-                final var packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet);
-                final var data = new String(packet.getData(), 0, packet.getLength()).split(":");
-                final var senderHost = data[0];
-                final var senderScript = data[1];
-
-                if (senderScript.equals(scriptName) && pendingHosts.contains(senderHost)) {
-                    pendingHosts.remove(senderHost);
-                    System.out.printf("\n[SYNC] Node %s completed '%s'. Remaining: %s\n", senderHost, scriptName, pendingHosts);
+            // dedicated thread to make retries every 2 seconds
+            final var scheduler = Executors.newSingleThreadScheduledExecutor();
+            scheduler.scheduleAtFixedRate(() -> {
+                if (!pendingHosts.isEmpty()) {
+                    broadcastMessage(socket, allHosts, bytes);
                 }
-            } catch (Exception e) { e.printStackTrace(); }
-            
+            }, 200, 2000, TimeUnit.MILLISECONDS);
+
+            while (!pendingHosts.isEmpty()) {
+                try {
+                    final var packet = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(packet); // block for 500ms
+
+                    final var msg = new String(packet.getData(), 0, packet.getLength()).split(":");
+                    if (msg.length < 2) continue;
+
+                    final var senderHost = msg[0];
+                    final var senderScript = msg[1];
+
+                    // processing
+                    if (senderScript.equals(scriptName)) {
+                        if (pendingHosts.remove(senderHost) != null) {
+                            System.out.printf("\n[SYNC] Node %s completed '%s'. Remaining: %s\n",
+                                    senderHost, scriptName, pendingHosts.keySet());
+                        }
+                    }
+                } catch (SocketTimeoutException ignored) {  // ignore 1 se.c timeout exceptions
+                } catch (Exception e) { e.printStackTrace(); }
+            }
+
+            scheduler.shutdown();
+
             broadcastMessage(socket, allHosts, bytes);
             System.out.printf("\n[SYNC] ALL NODES DONE: '%s'\n", scriptName);
         } catch (Exception e) { e.printStackTrace(); }

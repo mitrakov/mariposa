@@ -30,16 +30,14 @@ clientPort=2181
 authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
 requireClientAuthScheme=sasl
 
-server.2=$MASTER_HOST:2888:3888
+server.1=$MASTER_HOST:2888:3888
 EOF
 
-count=3     # "1" is skipped, "2" is already set for $MASTER_HOST
-IFS=','
-for worker in $WORKER_HOSTS; do
+count=2
+for worker in ${WORKER_HOSTS//,/ }; do
     echo "server.$count=$worker:2888:3888" >> $ZOOKEEPER_HOME/conf/zoo.cfg
     count=$((count + 1))
 done
-unset IFS
 
 cat <<EOF > $ZOOKEEPER_HOME/conf/jaas.conf
 Server {

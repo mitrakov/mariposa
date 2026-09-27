@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TODO: check if /etc/environment file is ok afterwards
+# TODO: check ENV function with this case: ENV PATH=$PATH:$VAULT_HOME
 # execute dockerfile as bash (Ubuntu, root/sudo)
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive        # skip shitty dialogs
@@ -68,9 +68,11 @@ function RUN() {
 }
 function ENV() {
   export "$1"
-  #if ! grep --quiet "$1" /etc/environment; then
-    #echo "$1" >> /etc/environment
-  if ! grep --quiet "export $1" /etc/profile.d/mariposa.sh; then
+  local var_name="${1%%=*}"
+  if ! grep --quiet "export $var_name=" /etc/profile.d/mariposa.sh; then
+    echo "export $1" >> /etc/profile.d/mariposa.sh
+  else      # var already exists!
+    source /etc/profile.d/mariposa.sh
     echo "export $1" >> /etc/profile.d/mariposa.sh
   fi
 }

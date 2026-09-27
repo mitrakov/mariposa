@@ -54,21 +54,25 @@ if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
         sudo kadmin.local -q "addprinc -randkey tommy@MARIPOSA.COM"
         sudo kadmin.local -q "xst -k $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM zookeeper/$MASTER_HOST@MARIPOSA.COM hbase/$MASTER_HOST@MARIPOSA.COM kafka/$MASTER_HOST@MARIPOSA.COM hive/$MASTER_HOST@MARIPOSA.COM hue/$MASTER_HOST@MARIPOSA.COM"
         sudo kadmin.local -q "xst -k $KEYTABS_DIR/tommy.keytab tommy@MARIPOSA.COM"
-        IFS=','
-        for worker in $WORKER_HOSTS; do
+
+        for worker in ${WORKER_HOSTS//,/ }; do
             sudo kadmin.local -q "addprinc -randkey hadoop/$worker@MARIPOSA.COM"
             sudo kadmin.local -q "addprinc -randkey zookeeper/$worker@MARIPOSA.COM"
             sudo kadmin.local -q "addprinc -randkey hbase/$worker@MARIPOSA.COM"
             sudo kadmin.local -q "addprinc -randkey kafka/$worker@MARIPOSA.COM"
             sudo kadmin.local -q "xst -k $KEYTABS_DIR/$worker.keytab hadoop/$worker@MARIPOSA.COM zookeeper/$worker@MARIPOSA.COM hbase/$worker@MARIPOSA.COM kafka/$worker@MARIPOSA.COM"
-        done
-        unset IFS
+        done        
 
         # set keytabs to be read-only by hadoop
         sudo chown hadoop:hadoop $KEYTABS_DIR/*.keytab
         sudo chown tommy:hadoop  $KEYTABS_DIR/tommy.keytab
         sudo chmod 400 $KEYTABS_DIR/*.keytab
-        
+
+        # copy keytab files to all other nodes, make sure ssh is allowed
+        for worker in ${WORKER_HOSTS//,/ }; do
+            scp $KEYTABS_DIR/$worker.keytab hadoop@$worker:$KEYTABS_DIR/
+        done
+
         log "Kerberos Principals and keytabs created"
     fi
 
