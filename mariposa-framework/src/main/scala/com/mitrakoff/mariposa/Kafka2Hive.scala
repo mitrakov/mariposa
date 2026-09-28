@@ -31,8 +31,7 @@ case class Kafka2Hive  private (
 
     val spark = SparkSession.builder()
       .appName(s"Mariposa-Kafka2Hive-$kafkaTopic")
-      .config("spark.sql.warehouse.dir", "/user/hive/warehouse")
-      .config("hive.metastore.uris", "thrift://node49.host:9083")       // TODO: hardcode
+      .config("spark.sql.warehouse.dir", "/user/hive/warehouse")    // TODO: check if we need it
       .enableHiveSupport()
       .getOrCreate()
 

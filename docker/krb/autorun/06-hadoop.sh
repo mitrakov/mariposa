@@ -138,6 +138,16 @@ cat <<EOF > $HADOOP_CONF_DIR/yarn-site.xml
         <name>yarn.nodemanager.keytab</name>
         <value>$KEYTABS_DIR/$MY_HOSTNAME.keytab</value>
     </property>
+    <property>
+        <name>yarn.resourcemanager.webapp.address</name>
+        <value>0.0.0.0:8088</value>
+        <description>FIX: expose Web page of RM to external networks</description>
+    </property>
+    <property>
+        <name>yarn.nodemanager.webapp.address</name>
+        <value>0.0.0.0:8042</value>
+        <description>same for workers</description>
+    </property>
 </configuration>
 EOF
 

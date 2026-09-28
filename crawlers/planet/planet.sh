@@ -3,9 +3,7 @@
 exec spark-submit \
   --name "Kafka2Hive-planet-import" \
   --deploy-mode cluster \
-  --queue default \
-  --driver-memory 2g \
-  --executor-memory 1600m \
+  --queue mariposa \
   --driver-java-options=" \
    -Dapp.hive.table=planet.t_import \
    -Dapp.kafka.topic=planet-import \

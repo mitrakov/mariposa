@@ -1,5 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS planet;
 CREATE TABLE IF NOT EXISTS planet.t_import (
+    api_capture_date             TIMESTAMP NOT NULL     COMMENT 'Internal: время API запроса',
     profile_url                         STRING          COMMENT 'PRIMARY KEY: Полный URL-адрес профиля пользователя',
     name_age                            STRING          COMMENT 'Имя и возраст пользователя (например: Алла, 27)',
     city                                STRING          COMMENT 'Город проживания',
@@ -44,8 +45,7 @@ CREATE TABLE IF NOT EXISTS planet.t_import (
     portrait_job_interesting            STRING          COMMENT 'Чем пользователю интересна его работа',
     portrait_adventure                  STRING          COMMENT 'Самый авантюрный поступок в жизни',
     portrait_tv                         STRING          COMMENT 'Мнение о телевидении и телепередачах',
-    portrait_profanity                  STRING          COMMENT 'Отношение пользователя к использованию мата',
-    api_capture_date             TIMESTAMP NOT NULL     COMMENT 'Internal: время API запроса'
+    portrait_profanity                  STRING          COMMENT 'Отношение пользователя к использованию мата'
 )
 COMMENT 'Базовая таблица с сырыми данными для loveplanet.ru'
 STORED AS PARQUET;
