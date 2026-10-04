@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+JKS_PASSWORD=...
 exec spark-submit \
   --name "Kafka2Hive-planet-import" \
   --deploy-mode cluster \

@@ -13,18 +13,19 @@ import java.util.Properties
 import scala.io.Source
 
 /*
+kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic hh-import
+JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar /home/hadoop/apps/HhScraper.scala
 libraryDependencies ++= Seq(
-  "org.jsoup" % "jsoup" % "1.23.1",
-  "com.softwaremill.sttp.client4" %% "circe" % "4.0.26",
-  "io.circe" %% "circe-generic" % "0.14.10",
-  "org.apache.kafka" % "kafka-clients" % "4.2.0",
+  "org.jsoup" % "jsoup" % "1.23.1", "com.softwaremill.sttp.client4" %% "circe" % "4.0.26",
+  "io.circe" %% "circe-generic" % "0.14.10", "org.apache.kafka" % "kafka-clients" % "4.2.0",
 )
 */
 class HhScraper {
   val jksPassword: String = sys.env.getOrElse("JKS_PASSWORD", throw new Exception("Define export JKS_PASSWORD=..."))
+  val kafkaServer = "n01:9092"
   val targetTopic = "hh-import"
   val batchSize = 1000000
-  val idFile = "id.txt"
+  val idFile = "hh-id.txt"
   val sleepMsec = 3500     // update this param to catch up the ID!
   
   def run(): Unit = {
@@ -32,7 +33,7 @@ class HhScraper {
     System.setProperty("java.security.auth.login.config", "/opt/kafka/config/kafka_jaas.conf")
 
     val kafkaProps = new Properties()
-    kafkaProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "node143.host:9092")
+    kafkaProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaServer)
     kafkaProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     kafkaProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     kafkaProps.put("security.protocol", SASL_SSL.name)

@@ -11,8 +11,10 @@ import java.time.Instant
 import java.util.Properties
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
+
 /*
 kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic planet-import
+JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar /home/hadoop/apps/PlanetScraper.scala
 build.sbt: libraryDependencies ++= Seq(
   "org.jsoup" % "jsoup" % "1.23.1", "com.softwaremill.sttp.client4" %% "circe" % "4.0.26",
   "io.circe" %% "circe-generic" % "0.14.10", "org.apache.kafka" % "kafka-clients" % "4.2.0",
@@ -20,15 +22,16 @@ build.sbt: libraryDependencies ++= Seq(
 */
 class PlanetScraper {
   val jksPassword: String = sys.env.getOrElse("JKS_PASSWORD", throw new Exception("Define export JKS_PASSWORD=..."))
+  val kafkaServer = "n01:9092"
   val targetTopic = "planet-import"
-  val sleepMsec = 1500
+  val sleepMsec = 2000
 
   def run(): Unit = {
     println("=== [Mariposa] Executing LovePlanet Scraper Job ===")
     System.setProperty("java.security.auth.login.config", "/opt/kafka/config/kafka_jaas.conf")
 
     val kafkaProps = new Properties()
-    kafkaProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "n01:9092")
+    kafkaProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaServer)
     kafkaProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     kafkaProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     kafkaProps.put("security.protocol", SASL_SSL.name)

@@ -1,5 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS zakupki;
 CREATE TABLE IF NOT EXISTS zakupki.fz223_import (
+  api_id              BIGINT     COMMENT 'Internal: ID в URL API запроса',
+  api_capture_date    TIMESTAMP  COMMENT 'Internal: время API запроса',
   reg_number          STRING     COMMENT 'ID закупки',
   price               DECIMAL    COMMENT 'Начальная цена',
   address             STRING     COMMENT 'Почтовый адрес',
@@ -20,9 +22,7 @@ CREATE TABLE IF NOT EXISTS zakupki.fz223_import (
   ogrn                STRING     COMMENT 'ОГРН',
   contact_person      STRING     COMMENT 'Контактное лицо',
   contact_email       STRING     COMMENT 'Контактный E-mail',
-  contact_phone       STRING     COMMENT 'Контактный телефон',
-  api_id              BIGINT     COMMENT 'Internal: ID в URL API запроса',
-  api_capture_date    TIMESTAMP  COMMENT 'Internal: время API запроса'
+  contact_phone       STRING     COMMENT 'Контактный телефон'
 )
 COMMENT 'Базовая таблица с сырыми данными для zakupki.gov.ru (223-ФЗ)'
 STORED AS PARQUET;

@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
+JKS_PASSWORD=...
 exec spark-submit \
   --name "Kafka2Hive-hh-import" \
   --deploy-mode cluster \
   --queue mariposa \
-  --driver-memory 2g \
-  --executor-memory 1600m \
   --driver-java-options=" \
    -Dapp.hive.table=hh.t_import \
    -Dapp.kafka.topic=hh-import \

@@ -1,5 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS hh;
 CREATE TABLE IF NOT EXISTS hh.t_import (
+  api_vacancy_id   BIGINT    NOT NULL     COMMENT 'Internal: ID обр. вакансии в URL API запроса',
+  api_capture_date TIMESTAMP NOT NULL     COMMENT 'Internal: время API запроса',
   vacancy_id                BIGINT        COMMENT 'ID вакансии',
   published                 TIMESTAMP     COMMENT 'Дата публикации',
   name                      STRING        COMMENT 'Заголовок вакансии',
@@ -40,9 +42,7 @@ CREATE TABLE IF NOT EXISTS hh.t_import (
   snippet_req               STRING        COMMENT 'Фрагмент текста требований к вакансии',
   snippet_resp              STRING        COMMENT 'Фрагмент текста рабочих задач',
   snippet_cond              STRING        COMMENT 'Фрагмент текста условий трудоустройства',
-  snippet_skill             STRING        COMMENT 'Фрагмент текста требуемых навыков',
-  api_vacancy_id   BIGINT    NOT NULL     COMMENT 'Internal: ID обр. вакансии в URL API запроса',
-  api_capture_date TIMESTAMP NOT NULL     COMMENT 'Internal: время API запроса'
+  snippet_skill             STRING        COMMENT 'Фрагмент текста требуемых навыков'
 )
 COMMENT 'Базовая таблица с сырыми данными для hh.ru'
 STORED AS PARQUET;
