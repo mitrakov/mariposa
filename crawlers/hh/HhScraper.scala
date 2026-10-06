@@ -26,7 +26,7 @@ class HhScraper {
   val targetTopic = "hh-import"
   val batchSize = 1000000
   val idFile = "hh-id.txt"
-  val sleepMsec = 3500     // update this param to catch up the ID!
+  val sleepMsec = 4000     // update this param to catch up the ID!
   
   def run(): Unit = {
     println("=== [Mariposa] Executing HeadHunter Scraper Job ===")

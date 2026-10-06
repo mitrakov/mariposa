@@ -24,7 +24,7 @@ class PlanetScraper {
   val jksPassword: String = sys.env.getOrElse("JKS_PASSWORD", throw new Exception("Define export JKS_PASSWORD=..."))
   val kafkaServer = "n01:9092"
   val targetTopic = "planet-import"
-  val sleepMsec = 2000
+  val sleepMsec = 2000      // full cycle: 5h 17m
 
   def run(): Unit = {
     while (true) {
