@@ -13,6 +13,7 @@ case class Kafka2HBase private (
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
     private val pollInterval: String = "10 seconds",
+    private val stopOnEmptyStreamMin: Int = 2880,    // 2 days
     private val infinite: Boolean = false,
     private val truststorePassword: String = "",
 ) {
@@ -22,6 +23,7 @@ case class Kafka2HBase private (
   def withKafkaTopic(topic: String): Kafka2HBase = copy(kafkaTopic = topic)
   def withKafkaBootstrapServers(servers: String): Kafka2HBase = copy(kafkaBootstrapServers = servers)
   def withPollInterval(interval: String): Kafka2HBase = copy(pollInterval = interval)
+  def withStopOnEmptyStream(minutes: Int): Kafka2HBase = copy(stopOnEmptyStreamMin = minutes)
   def withRunInfinitely(infinite: Boolean): Kafka2HBase = copy(infinite = infinite)
   def withTruststorePass(password: String): Kafka2HBase = copy(truststorePassword = password)
 
@@ -81,7 +83,7 @@ case class Kafka2HBase private (
       .option("checkpointLocation", s"/tmp/spark-checkpoints/mariposa-hbase-$kafkaTopic") // TODO: /tmp/?
       .start()
 
-    val monitor = new EmptyStreamMonitor(10)
+    val monitor = new EmptyStreamMonitor(stopOnEmptyStreamMin)
     if (infinite)
       monitor.start(query)
 
@@ -106,13 +108,12 @@ object Kafka2HBase {
   def main(args: Array[String]): Unit = {
     System.setProperty("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // Fix NPE error on Kafka-Metrics
 
-    Mariposa.printProps()
-
     val hbaseCatalog   = sys.props.getOrElse("app.hbase.json.catalog", throwErr)
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
     val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")
-    val pollInterval   = sys.props.getOrElse("app.kafka.poll.interval", "5 seconds")
+    val pollInterval   = sys.props.getOrElse("app.kafka.poll.interval", "10 seconds")
     val truststorePass = sys.props.getOrElse("app.security.truststore.password", "")
+    val stopOnEmpty    = sys.props.get("app.kafka.stop.on.empty.stream.mins").flatMap(_.toIntOption).getOrElse(2880)
     val kafkaInfinite  = sys.props.get("app.kafka.run.infinitely").flatMap(_.toBooleanOption).getOrElse(false)
 
     builder()
@@ -120,6 +121,7 @@ object Kafka2HBase {
       .withKafkaTopic(kafkaTopic)
       .withKafkaBootstrapServers(kafkaBootstrap)
       .withPollInterval(pollInterval)
+      .withStopOnEmptyStream(stopOnEmpty)
       .withRunInfinitely(kafkaInfinite)
       .withTruststorePass(truststorePass)
       .build()
@@ -127,7 +129,7 @@ object Kafka2HBase {
   }
 
   private def throwErr: Nothing =
-    throw new Exception("These properties are necessary: -Dapp.hbase.json.catalog=hbase.json -Dapp.kafka.topic=my-topic")
+    throw new Exception("Required properties: -Dapp.hbase.json.catalog=hbase.json -Dapp.kafka.topic=my-topic")
 }
 
 /*

@@ -65,8 +65,6 @@ object Hive2Kafka {
   def builder() = new Hive2Kafka()
 
   def main(args: Array[String]): Unit = {
-    Mariposa.printProps()
-
     val hiveTable      = sys.props.getOrElse("app.hive.table", throwErr)
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
     val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")

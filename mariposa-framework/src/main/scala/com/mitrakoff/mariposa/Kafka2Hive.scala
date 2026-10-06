@@ -12,6 +12,7 @@ case class Kafka2Hive  private (
     private val kafkaTopic: String = "myTopic",
     private val kafkaBootstrapServers: String = "localhost:9092",
     private val pollInterval: String = "10 seconds",
+    private val stopOnEmptyStreamMin: Int = 2880,    // 2 days
     private val infinite: Boolean = false,
     private val truststorePassword: String = "",
 ) {
@@ -21,8 +22,9 @@ case class Kafka2Hive  private (
   def withKafkaTopic(topic: String): Kafka2Hive  = copy(kafkaTopic = topic)
   def withKafkaBootstrapServers(servers: String): Kafka2Hive  = copy(kafkaBootstrapServers = servers)
   def withPollInterval(interval: String): Kafka2Hive  = copy(pollInterval = interval)
+  def withStopOnEmptyStream(minutes: Int): Kafka2Hive  = copy(stopOnEmptyStreamMin = minutes)
   def withRunInfinitely(infinite: Boolean): Kafka2Hive  = copy(infinite = infinite)
-  def withTruststorePass(password: String): Kafka2Hive = copy(truststorePassword = password)
+  def withTruststorePass(password: String): Kafka2Hive  = copy(truststorePassword = password)
 
   def build(): Runnable = () => {
     logger.info("=== Mariposa-Kafka2Hive ===")
@@ -31,7 +33,7 @@ case class Kafka2Hive  private (
 
     val spark = SparkSession.builder()
       .appName(s"Mariposa-Kafka2Hive-$kafkaTopic")
-      .config("spark.sql.warehouse.dir", "/user/hive/warehouse")    // TODO: check if we need it
+      //.config("spark.sql.warehouse.dir", "/user/hive/warehouse")    // TODO: check if we need it
       .enableHiveSupport()
       .getOrCreate()
 
@@ -76,15 +78,15 @@ case class Kafka2Hive  private (
         } else logger.info(s"--- Batch $batchId is empty, skipping ---")
       }
       .trigger(if (infinite) Trigger.ProcessingTime(pollInterval) else Trigger.AvailableNow())
-      .option("checkpointLocation", s"/tmp/spark-checkpoints/mariposa-hive-$kafkaTopic") // TODO: /tmp/?
+      //.option("checkpointLocation", s"/tmp/spark-checkpoints/mariposa-hive-$kafkaTopic") // TODO: /tmp/?
       .start()
 
-    val monitor = new EmptyStreamMonitor(10)
+    val monitor = new EmptyStreamMonitor(stopOnEmptyStreamMin)
     if (infinite)
       monitor.start(query)
 
     query.awaitTermination()
-    logger.info("Kafka to Hive  completed successfully.")
+    logger.info("Kafka to Hive completed successfully.")
     spark.close()
     monitor.stop()
   }
@@ -114,13 +116,13 @@ object Kafka2Hive {
 
   def main(args: Array[String]): Unit = {
     System.setProperty("spark.sql.streaming.kafka.enableMinMaxLatency", "false") // Fix NPE error on Kafka-Metrics
-    Mariposa.printProps()
 
     val hiveTable      = sys.props.getOrElse("app.hive.table", throwErr)
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
     val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")
     val pollInterval   = sys.props.getOrElse("app.kafka.poll.interval", "10 seconds")
     val truststorePass = sys.props.getOrElse("app.security.truststore.password", "")
+    val stopOnEmpty    = sys.props.get("app.kafka.stop.on.empty.stream.mins").flatMap(_.toIntOption).getOrElse(2880)
     val kafkaInfinite  = sys.props.get("app.kafka.run.infinitely").flatMap(_.toBooleanOption).getOrElse(false)
 
     builder()
@@ -128,6 +130,7 @@ object Kafka2Hive {
       .withKafkaTopic(kafkaTopic)
       .withKafkaBootstrapServers(kafkaBootstrap)
       .withPollInterval(pollInterval)
+      .withStopOnEmptyStream(stopOnEmpty)
       .withRunInfinitely(kafkaInfinite)
       .withTruststorePass(truststorePass)
       .build()

@@ -7,7 +7,7 @@ import java.util.concurrent.{Executors, TimeUnit}
 class EmptyStreamMonitor(minutes: Int) {
   private val logger = LoggerFactory.getLogger(getClass)
   private lazy val slave = Executors.newSingleThreadScheduledExecutor()
-  @volatile private var lastTimeDataSeen = System.currentTimeMillis()
+  private var lastTimeDataSeen = System.currentTimeMillis()
   
   def start(query: StreamingQuery): Unit = slave.scheduleAtFixedRate(() => run(query), 1, 1, TimeUnit.MINUTES)
   def stop(): Unit = slave.shutdown()
@@ -25,7 +25,7 @@ class EmptyStreamMonitor(minutes: Int) {
           logger.info(s"streaming is empty for ${currentIdleDuration / 60000}/$minutes minutes.")
 
           if (currentIdleDuration >= minutes*60000) {
-            logger.warn(s"⚠️ streaming was empty for $minutes minutes. Stopping Spark...")
+            logger.warn(s"Streaming was empty for $minutes minutes. Stopping Spark...")
             query.stop()
             slave.shutdown()
           }

@@ -73,8 +73,6 @@ object HBase2Kafka {
   def builder() = new HBase2Kafka()
 
   def main(args: Array[String]): Unit = {
-    Mariposa.printProps()
-
     val hbaseCatalog   = sys.props.getOrElse("app.hbase.json.catalog", throwErr)
     val kafkaTopic     = sys.props.getOrElse("app.kafka.topic", throwErr)
     val kafkaBootstrap = sys.props.getOrElse("app.kafka.bootstrap.servers", s"${InetAddress.getLocalHost.getHostName}:9092")

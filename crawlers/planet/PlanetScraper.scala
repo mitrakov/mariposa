@@ -27,6 +27,13 @@ class PlanetScraper {
   val sleepMsec = 2000
 
   def run(): Unit = {
+    while (true) {
+      run_()
+      Thread.sleep(12*3600*1000)
+    }
+  }
+
+  private def run_(): Unit = {
     println("=== [Mariposa] Executing LovePlanet Scraper Job ===")
     System.setProperty("java.security.auth.login.config", "/opt/kafka/config/kafka_jaas.conf")
 
@@ -102,6 +109,7 @@ class PlanetScraper {
       producer.flush()
       producer.close()
       http.close()
+      println("DONE.\n")
     }
   }
 

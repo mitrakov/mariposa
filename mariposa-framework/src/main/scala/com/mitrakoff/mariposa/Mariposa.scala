@@ -30,15 +30,6 @@ object Mariposa extends App {
 
   runSqlFile()
 
-  def printProps(): Unit = {
-    if (sys.props exists (_._1.startsWith("app.")))
-      logger.info("App properties are:")
-    sys.props collect { case (k, v) if k.startsWith("app.") =>
-      // TODO: skip passwords
-      logger.info("{}: {}", k, v)
-    }
-  }
-
   /**
    * Reads file from a local File System
    * @param path local path

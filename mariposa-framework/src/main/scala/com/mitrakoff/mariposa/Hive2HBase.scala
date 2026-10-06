@@ -100,8 +100,6 @@ object Hive2HBase {
   def builder() = new Hive2HBase()
 
   def main(args: Array[String]): Unit = {
-    Mariposa.printProps()
-
     val hbaseTable = sys.props.getOrElse("app.hbase.table", throwErr)
     val sql = sys.props.get("app.hive.sql.text")
       .orElse(sys.props.get("app.hive.sql.base64")).map(base64 => new String(Base64.getDecoder.decode(base64)))
