@@ -1,4 +1,3 @@
-// lib/ui/widgets/data_card.dart
 import 'package:flutter/material.dart';
 
 class DataCard extends StatelessWidget {
@@ -9,7 +8,6 @@ class DataCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 💡 APUNTE 2: Filtramos el mapa para eliminar CUALQUIER entrada que sea null antes de renderizar
     final cleanData = Map<String, dynamic>.from(rowData)
       ..removeWhere((key, value) => value == null);
 
@@ -55,11 +53,11 @@ class DataCard extends StatelessWidget {
                       children: [
                         // Columna Izquierda: Nombre del campo (Ancho fijo o proporcional)
                         Expanded(
-                          flex: 2,
+                          flex: 1,
                           child: Text(
                             entry.key.toUpperCase(),
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 10,
                               color: Colors.grey,
                               fontWeight: FontWeight.w600,
                             ),
@@ -68,10 +66,10 @@ class DataCard extends StatelessWidget {
                         const SizedBox(width: 12),
                         // Columna Derecha: Valor del campo alineado a la derecha
                         Expanded(
-                          flex: 3,
+                          flex: 5,
                           child: Text(
                             entry.value.toString(),
-                            textAlign: TextAlign.end, // Alineación limpia a la derecha
+                            textAlign: TextAlign.start,
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,

@@ -33,9 +33,9 @@ class ConfigScreen extends StatefulWidget {
 }
 
 class _ConfigScreenState extends State<ConfigScreen> {
-  final _urlController = TextEditingController(text: 'mock'); // Por defecto listo para testear
-  final _portController = TextEditingController(text: '8080');
-  final _tableController = TextEditingController(text: 'etl_mariposa_oct_2026');
+  final _urlController = TextEditingController(text: 'http://10.1.1.1');
+  final _portController = TextEditingController(text: '6191');
+  final _tableController = TextEditingController(text: 'planet:taxi');
 
   void _connect() {
     if (_urlController.text.isEmpty || _tableController.text.isEmpty) {

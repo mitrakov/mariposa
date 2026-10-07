@@ -22,8 +22,9 @@ libraryDependencies ++= Seq(
   "com.github.pjfanning" %% "pekko-http-circe" % "2.8.0"
 )
 
-//assembly / mainClass := Some("com.mitrakoff.mariposa.Main"),
 assembly / assemblyMergeStrategy := {
-  case PathList("META-INF", xs*) => MergeStrategy.discard
-  case x => MergeStrategy.first
+  case PathList("META-INF", "services", xs*) => MergeStrategy.filterDistinctLines     // for Java SPI
+  case PathList("META-INF", xs*) => MergeStrategy.discard                             // discard multiple manifests
+  case x if x.endsWith(".conf")  => MergeStrategy.concat                              // for application.conf, reference.conf, etc.
+  case _ => MergeStrategy.first
 }

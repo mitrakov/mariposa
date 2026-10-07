@@ -54,7 +54,7 @@ class ApiService {
       final Map<String, dynamic> decodedJson = jsonDecode(response.body);
       return DataFrameResponse.fromJson(decodedJson);
     } else {
-      throw Exception("Error al conectar con Pekko: ${response.statusCode}");
+      throw Exception("Error al conectar con Pekko: ${response}");
     }
   }
 }

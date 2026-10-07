@@ -38,6 +38,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      print("ERROR: $e");
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -47,7 +48,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_hasError && _allRows.isEmpty) {
+    if (_hasError) {
       return const Scaffold(body: Center(child: Text("Error al cargar datos de HBase, bro. Check server.")));
     }
 
