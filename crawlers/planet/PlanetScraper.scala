@@ -11,7 +11,6 @@ import java.time.Instant
 import java.util.Properties
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
-
 /*
 kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic planet-import
 JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar /home/hadoop/apps/PlanetScraper.scala
@@ -29,7 +28,7 @@ class PlanetScraper {
   def run(): Unit = {
     while (true) {
       run_()
-      Thread.sleep(12*3600*1000)
+      Thread.sleep(30*3600*1000)       // full rotation: ≈30h; 750 positions for 25h
     }
   }
 
@@ -113,8 +112,6 @@ class PlanetScraper {
     }
   }
 
-  // Simulación rápida de tu función de transliteración y limpieza para llaves compatibles con Hive
-  // 💡 Mapeo exacto de tu diccionario de Python a un Map nativo de Scala
   private val translations: Map[String, String] = Map(
     "внешность" -> "appearance",
     "отношения" -> "status",
@@ -168,9 +165,7 @@ class PlanetScraper {
   // 💡 El método principal clean_hive_key idéntico a tu lógica de Python
   private def cleanHiveKey(prefix: String, rawKey: String): String = {
     // Normalizamos el string: lowercase, trim, espacios a guiones bajos y removemos caracteres especiales
-    val normalizedKey = rawKey.toLowerCase.trim
-      .replaceAll(" ", "_")
-      .replaceAll("[^a-z0-9_а-яё]", "")
+    val normalizedKey = rawKey.toLowerCase.trim.replaceAll(" ", "_").replaceAll("[^a-z0-9_а-яё]", "")
 
     val finalKey = translations.get(normalizedKey) match {
       case Some(translated) => translated
@@ -179,8 +174,8 @@ class PlanetScraper {
 
     s"${prefix}_$finalKey"
   }
-  
-  // 💡 Sub-parser de páginas de perfil desarrollado nativamente con Jsoup y Circe
+
+  // Sub-parser de páginas de perfil desarrollado nativamente con Jsoup y Circe
   private def parseProfilePage(http: sttp.client4.SyncBackend, url: String): Option[JsonObject] = {
     try {
       val response = basicRequest
@@ -197,16 +192,16 @@ class PlanetScraper {
       val soup = Jsoup.parse(html)
 
       // Extracción limpia de campos DOM selectores CSS nativos
-      val displayName = Option(soup.select("span.fbold.fsize20").first()).map(_.text()).getOrElse("")
+      val displayName = Option(soup.select("span.fbold.fsize20").first()).map(_.text())
 
       val mainPhotoUrl = Option(soup.select("div[class*=prof-photo] img").first())
-        .filter(_.hasAttr("src")).map(_.attr("src")).getOrElse("")
+        .filter(_.hasAttr("src")).map(_.attr("src"))
 
-      var city = ""
+      var city: Option[String] = None
       var visitorsCount = 0
       val locationBox = soup.select("div.blue_14").first()
       if (locationBox != null) {
-        city = Option(locationBox.select("span").first()).map(_.text()).getOrElse("")
+        city = Option(locationBox.select("span").first()).map(_.text())
         val visitorsDiv = locationBox.select("div[class*=visiters], div[class*=blue_g]").first()
         if (visitorsDiv != null) {
           val txt = visitorsDiv.text().trim
@@ -214,29 +209,18 @@ class PlanetScraper {
         }
       }
 
-      val statusText = Option(soup.select("div[class*=prof-status]").first()).map(_.text()).getOrElse("")
+      val quote = Option(soup.select("div[class*=prof-status]").first()).map(_.text())
+      val interests = soup.select("div#tag-container a").asScala.map(_.text().trim).filter(_.nonEmpty)
+      val seekingText = Option(soup.select("div:containsOwn(Я ищу)").first()).map(div => div.nextElementSibling().text())
+      val aboutText = Option(soup.select("div:containsOwn(Свободно о себе)").first()).map(div => div.nextElementSibling().text())
+      val targetSearchText = Option(soup.select("div:containsOwn(Кого я хочу найти)").first()).map(div => div.nextElementSibling().text())
 
-      val interests = soup.select("div#tag-container a").asScala
-        .map(_.text().trim).filter(_.nonEmpty).toVector
-
-      // Selectores avanzados utilizando la potente búsqueda por texto propio de Jsoup (idéntico a re.compile en BeautifulSoup)
-      val seekingText = Option(soup.select("div:containsOwn(Я ищу)").first())
-        .map(div => div.nextElementSibling().text()).getOrElse("")
-
-      val aboutText = Option(soup.select("div:containsOwn(Свободно о себе)").first())
-        .map(div => div.nextElementSibling().text()).getOrElse("")
-
-      val targetSearchText = Option(soup.select("div:containsOwn(Кого я хочу найти)").first())
-        .map(div => div.nextElementSibling().text()).getOrElse("")
-
-      // 💡 APLANAMIENTO DINÁMICO (Flattening): Inyectamos todo directo a un JsonObject intermedio de Circe
-      // Esto reemplaza los diccionarios dinámicos anidados de Python (personal_details y self_portrait)
       var jsonMap = JsonObject(
         "name_age"      -> displayName.asJson,
         "photo_url"     -> mainPhotoUrl.asJson,
         "city"          -> city.asJson,
         "visitors"      -> visitorsCount.asJson,
-        "quote"         -> statusText.asJson,
+        "quote"         -> quote.asJson,
         "interests"     -> interests.asJson,
         "seeking"       -> seekingText.asJson,
         "about"         -> aboutText.asJson,

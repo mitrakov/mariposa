@@ -46,7 +46,7 @@ case class Hive2HBase private (
         .format("org.apache.hadoop.hbase.spark")
         .save()
 
-      logger.info("Hive2HBase completed for {}", hbaseTableName)
+      logger.info("\n[SUCCESS] Hive2HBase completed for {}\n", hbaseTableName)
     } finally {
       spark.close()
     }
@@ -102,7 +102,7 @@ object Hive2HBase {
   def main(args: Array[String]): Unit = {
     val hbaseTable = sys.props.getOrElse("app.hbase.table", throwErr)
     val sql = sys.props.get("app.hive.sql.text")
-      .orElse(sys.props.get("app.hive.sql.base64")).map(base64 => new String(Base64.getDecoder.decode(base64)))
+      .orElse(sys.props.get("app.hive.sql.base64").map(base64 => new String(Base64.getDecoder.decode(base64))))
       .orElse(sys.props.get("app.hive.sql.file") map Mariposa.readFileLocal)
       .getOrElse(throwErr)
 

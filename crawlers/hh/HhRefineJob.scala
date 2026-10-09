@@ -1,4 +1,4 @@
-// exec spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-*.jar HhRefineJob.scala
+// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-*.jar HhRefineJob.scala
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
