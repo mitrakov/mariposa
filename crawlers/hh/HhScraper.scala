@@ -27,7 +27,7 @@ class HhScraper {
   val batchSize = 1000000
   val idFile = "hh-id.txt"
   val sleepMsec = 4000     // update this param to catch up the ID!
-  
+
   def run(): Unit = {
     println("=== [Mariposa] Executing HeadHunter Scraper Job ===")
     System.setProperty("java.security.auth.login.config", "/opt/kafka/config/kafka_jaas.conf")
@@ -46,67 +46,63 @@ class HhScraper {
     val http = DefaultSyncBackend()
     val curId = readCurrentId()
     
-    try {
-      // Bucle Batch controlado
-      var errCount = 0
-      for (vacId <- curId to (curId + batchSize)) {
-        println(s"\nProcessing vacancy ID $vacId")
+    // Bucle Batch controlado
+    var errCount = 0
+    for (vacId <- curId to (curId + batchSize)) try {
+      Thread.sleep(sleepMsec)
 
-        val url = s"https://hh.ru/shards/vacancy/related_vacancies?vacancyId=$vacId"
-        val response = basicRequest
-          .get(uri"$url")
-          .header("User-Agent", "Mozilla/5.0")
-          .send(http)
+      println(s"\nProcessing vacancy ID $vacId")
 
-        if (response.code.code != 200) {
-          println(s"Failed to fetch $url (Status: ${response.code})")
-          errCount += 1
-          if (errCount >= 99) {
-            println(s"Too many errors to call API ($errCount). Exiting production loop...")
-            return
-          }
-        } else {
-          errCount = 0 // Reseteamos contador de errores consecutivos
+      val url = s"https://hh.ru/shards/vacancy/related_vacancies?vacancyId=$vacId"
+      val response = basicRequest
+        .get(uri"$url")
+        .header("User-Agent", "Mozilla/5.0")
+        .send(http)
 
-          response.body match {
-            case Right(jsonString) =>
-              // Parseamos el string crudo a un Json manipulable por Circe
-              parse(jsonString) match {
-                case Right(json) =>
-                  // 💡 Extraemos el array "vacancies" usando cursores dinámicos
-                  val vacanciesArray = json.hcursor.downField("vacancies").as[List[Json]].getOrElse(Nil)
-
-                  for (vacancyJson <- vacanciesArray) {
-                    val msgObject = extractMessage(vacancyJson.hcursor, vacId)
-                    val payload = msgObject.asJson.noSpaces
-                    println(s"\n$payload")
-
-                    val record = new ProducerRecord[String, String](targetTopic, null, payload)
-                    producer.send(record, (metadata, err) => Option(err) match {
-                      case None =>
-                        // 💡 Al confirmar entrega en Kafka, incrementamos y persistimos el ID en id.txt
-                        writeCurrentId(vacId + 1)
-                        println(s"ID=$vacId delivered to $targetTopic [partition ${metadata.partition()}] at offset ${metadata.offset()}")
-                      case Some(e) =>
-                        println(s"❌ Failed to send vacancy $vacId to Kafka: ${e.getMessage}")
-                    })
-                  }
-                case Left(parseErr) => println(s"Circe parsing failed for payload string: $parseErr")
-              }
-            case Left(httpErr) => println(s"STTP Transport error body missing: $httpErr")
-          }
+      if (response.code.code != 200) {
+        println(s"Failed to fetch $url (Status: ${response.code})")
+        errCount += 1
+        if (errCount >= 64) {
+          println(s"Too many errors to call API ($errCount). Exiting production loop...")
+          return
         }
+      } else {
+        errCount = 0 // Reseteamos contador de errores consecutivos
 
-        producer.flush() // flush inmediato por iteración para asegurar la persistencia secuencial del ID
-        Thread.sleep(sleepMsec)
+        response.body match {
+          case Right(jsonString) =>
+            // Parseamos el string crudo a un Json manipulable por Circe
+            parse(jsonString) match {
+              case Right(json) =>
+                // 💡 Extraemos el array "vacancies" usando cursores dinámicos
+                val vacanciesArray = json.hcursor.downField("vacancies").as[List[Json]].getOrElse(Nil)
+
+                for (vacancyJson <- vacanciesArray) {
+                  val msgObject = extractMessage(vacancyJson.hcursor, vacId)
+                  val payload = msgObject.asJson.noSpaces
+                  println(s"\n$payload")
+
+                  val record = new ProducerRecord[String, String](targetTopic, null, payload)
+                  producer.send(record, (metadata, err) => Option(err) match {
+                    case None =>
+                      // 💡 Al confirmar entrega en Kafka, incrementamos y persistimos el ID en id.txt
+                      writeCurrentId(vacId + 1)
+                      println(s"ID=$vacId delivered to $targetTopic [partition ${metadata.partition()}] at offset ${metadata.offset()}")
+                    case Some(e) =>
+                      println(s"❌ Failed to send vacancy $vacId to Kafka: ${e.getMessage}")
+                  })
+                }
+              case Left(parseErr) => println(s"Circe parsing failed for payload string: $parseErr")
+            }
+          case Left(httpErr) => println(s"STTP Transport error body missing: $httpErr")
+        }
       }
-    } catch {
-      case e: Exception => println(s"Fatal exception inside master HH execution stream: ${e.getMessage}")
-    } finally {
-      producer.flush()
-      producer.close()
-      http.close()
-    }
+
+      producer.flush() // flush inmediato por iteración para asegurar la persistencia secuencial del ID
+    } catch { case e: Exception => e.printStackTrace() }
+
+    producer.close()
+    http.close()
   }
 
   private def readCurrentId(): Int = {
