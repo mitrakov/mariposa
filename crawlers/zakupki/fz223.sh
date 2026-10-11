@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 JKS_PASSWORD=...
-source /etc/profile.d/mariposa.sh
 spark-submit \
   --name "Kafka2Hive-fz223-import" \
   --deploy-mode cluster \
-  --queue queue2 \
-  --driver-memory 2g \
-  --executor-memory 1600m \
+  --queue mariposa \
   --driver-java-options=" \
    -Dapp.hive.table=zakupki.fz223_import \
    -Dapp.kafka.topic=zakupki-fz223-import \
@@ -17,4 +13,7 @@ spark-submit \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.Kafka2Hive \
-  mariposa-assembly-1.0.1.jar &
+  /home/hadoop/mariposa-assembly-*.jar &
+
+
+JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar Fz223Scraper.scala > /home/hadoop/logs/$0.log 2>&1 &

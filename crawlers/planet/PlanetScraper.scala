@@ -11,6 +11,7 @@ import java.time.Instant
 import java.util.Properties
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
+
 /*
 kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic planet-import
 JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar /home/hadoop/apps/PlanetScraper.scala

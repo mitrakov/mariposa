@@ -16,15 +16,14 @@ spark-submit \
   /home/hadoop/mariposa-assembly-*.jar &
 
 
-JKS_PASSWORD=...
-java -jar /home/hadoop/mariposa-scraper-assembly-*.jar PlanetScraper.scala > /home/hadoop/logs/$0 2>&1 &
+JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar PlanetScraper.scala > /home/hadoop/logs/$0 2>&1 &
 
 
 spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar PlanetRefineJob.scala
 
 
 spark-submit \
-  --name "Kafka2Hive-planet-import" \
+  --name "Hive2HBase-planet" \
   --driver-java-options=" \
    -Dapp.hbase.table=planet:cards \
    -Dapp.hive.sql.text='SELECT * FROM planet.refine WHERE city = \"Санкт-Петербург\";'" \

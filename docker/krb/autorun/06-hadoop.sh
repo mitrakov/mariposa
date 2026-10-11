@@ -201,6 +201,11 @@ cat <<EOF > $HADOOP_CONF_DIR/capacity-scheduler.xml
     <value>*</value>
     <description>open ACLs so all users can submit to mariposa queue</description>
   </property>
+  <property>
+    <name>yarn.scheduler.capacity.maximum-am-resource-percent</name>
+    <value>0.50</value>
+    <description>Max percent of the queue resources for Application Masters (default is too low, like 4 GB)</description>
+  </property>
 </configuration>
 EOF
 

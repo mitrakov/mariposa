@@ -15,7 +15,7 @@ import scala.io.Source
 /*
 kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic hh-import
 JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar /home/hadoop/apps/HhScraper.scala
-libraryDependencies ++= Seq(
+build.sbt: libraryDependencies ++= Seq(
   "org.jsoup" % "jsoup" % "1.23.1", "com.softwaremill.sttp.client4" %% "circe" % "4.0.26",
   "io.circe" %% "circe-generic" % "0.14.10", "org.apache.kafka" % "kafka-clients" % "4.2.0",
 )
@@ -105,18 +105,18 @@ class HhScraper {
     http.close()
   }
 
-  private def readCurrentId(): Int = {
+  private def readCurrentId(): Long = {
     val src = Source.fromFile(idFile)
-    try {src.mkString.toInt} finally {src.close()}
+    try {src.mkString.toLong} finally {src.close()}
   }
 
-  private def writeCurrentId(id: Int): Unit = {
+  private def writeCurrentId(id: Long): Unit = {
     val writer = new PrintWriter(idFile)
     try { writer.print(id) } finally { writer.close() }
   }
 
   // 💡 EL PARSER DE EXTRACCIÓN DINÁMICA: Reemplaza completamente los mapeos de diccionarios de Python
-  private def extractMessage(c: HCursor, apiVacancyId: Int): JsonObject = {
+  private def extractMessage(c: HCursor, apiVacancyId: Long): JsonObject = {
     // Funciones auxiliares de navegación estricta
     def str(path: HCursor => ACursor): Json =
       path(c).as[String].map(Json.fromString).getOrElse(Json.Null)
@@ -179,7 +179,7 @@ class HhScraper {
       "snippet_resp"          -> str(_.downField("snippet").downField("resp")),
       "snippet_cond"          -> str(_.downField("snippet").downField("cond")),
       "snippet_skill"         -> str(_.downField("snippet").downField("skill")),
-      "api_vacancy_id"        -> Json.fromInt(apiVacancyId),
+      "api_vacancy_id"        -> Json.fromLong(apiVacancyId),
       "api_capture_date"      -> Json.fromString(Instant.now().toString)
     )
   }
