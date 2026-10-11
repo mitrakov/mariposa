@@ -1,8 +1,9 @@
-// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-*.jar PlanetRefineJob.scala
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
+// build.sbt: "org.apache.spark" %% "spark-sql"  % "4.1.1" % "provided"
+// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-*.jar PlanetRefineJob.scala
 class PlanetRefineJob {
   private val sourceTable = "planet.t_import"
   private val targetTable = "planet.refine"
@@ -17,9 +18,9 @@ class PlanetRefineJob {
     // filter out empty / null values
     val filteredDf: DataFrame = rawDf.filter(
       $"profile_url".isNotNull && trim($"profile_url") =!= "" &&
-      $"name_age".isNotNull    && trim($"name_age")    =!= "" &&
-      $"city".isNotNull        && trim($"city")        =!= "" &&
-      $"photo_url".isNotNull   && trim($"photo_url")   =!= ""
+        $"name_age".isNotNull    && trim($"name_age")  =!= "" &&
+        $"city".isNotNull        && trim($"city")      =!= "" &&
+        $"photo_url".isNotNull   && trim($"photo_url") =!= ""
     )
 
     // deduplicate by profile_url
@@ -34,8 +35,11 @@ class PlanetRefineJob {
     // try to find out gender
     val enrichedDf: DataFrame = predictGender(cleanedDf)
 
+    // make PK first column
+    val heyDf: DataFrame = enrichedDf.select(("profile_url" :: enrichedDf.columns.filter(_ != "profile_url").toList).map(col): _*)
+
     // sort dataframe within partitions by city
-    val sortedDf: DataFrame = enrichedDf.sortWithinPartitions("city")
+    val sortedDf: DataFrame = heyDf.sortWithinPartitions("city")
 
     // write out partitioned by gender
     sortedDf.write

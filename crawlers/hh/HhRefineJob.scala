@@ -1,8 +1,9 @@
-// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-*.jar HhRefineJob.scala
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
 
+// build.sbt: "org.apache.spark" %% "spark-sql"  % "4.1.1" % "provided"
+// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-*.jar HhRefineJob.scala
 class HhRefineJob {
   private val sourceTable = "hh.t_import"
   private val targetTable = "hh.refine"
@@ -16,7 +17,7 @@ class HhRefineJob {
     import spark.implicits._
     println(s"[ETL]: $sourceTable -> $targetTable")
 
-    spark.read
+    val df = spark.read
       .table(sourceTable)
       .filter($"vacancy_id".isNotNull &&
         $"name".isNotNull && trim($"name") =!= "" &&
@@ -25,29 +26,32 @@ class HhRefineJob {
       .dropDuplicates("vacancy_id")
       .withColumn("rur_from", {
         val curr = upper(coalesce($"currency", lit("RUR")))
-           when(curr === "RUR" || curr === "RUB", $"salary_from")
+        when(curr === "RUR" || curr === "RUB", $"salary_from")
           .when(curr === "USD", $"salary_from" * usdToRur)
           .when(curr === "EUR", $"salary_from" * eurToRur)
           .when(curr === "KZT", $"salary_from" * kztToRur)
           .when(curr === "BYR", $"salary_from" * byrToRur)
           .when(curr === "UZS", $"salary_from" * uzsToRur)
           .otherwise($"salary_from")}
-        )
+      )
       .withColumn("rur_to", {
         val curr = upper(coalesce($"currency", lit("RUR")))
-           when(curr === "RUR" || curr === "RUB", $"salary_to")
+        when(curr === "RUR" || curr === "RUB", $"salary_to")
           .when(curr === "USD", $"salary_to" * usdToRur)
           .when(curr === "EUR", $"salary_to" * eurToRur)
           .when(curr === "KZT", $"salary_to" * kztToRur)
           .when(curr === "BYR", $"salary_to" * byrToRur)
           .when(curr === "UZS", $"salary_to" * uzsToRur)
           .otherwise($"salary_to")}
-        )
-      .withColumn("average_salary", round(
-           when($"rur_from".isNotNull && $"rur_to".isNotNull && $"rur_from" === $"rur_to", $"rur_from") // FROM=TO, use it
-          .when($"rur_from".isNotNull, $"rur_from" * 1.15)                                              // FROM + 15%
-          .otherwise(lit(null)), 0).cast(IntegerType)                                                   // else skip it
       )
+      .withColumn("average_salary", round(
+        when($"rur_from".isNotNull && $"rur_to".isNotNull && $"rur_from" === $"rur_to", $"rur_from") // FROM=TO, use it
+          .when($"rur_from".isNotNull, $"rur_from" * 1.15)                                           // FROM + 15%
+          .otherwise(lit(null)), 0).cast(IntegerType)                                                // else skip it
+      )
+
+    // make PK first column
+    df.select(("profile_url" :: df.columns.filter(_ != "profile_url").toList).map(col): _*)
       .sort("area_name")
       .write
       .format("parquet")

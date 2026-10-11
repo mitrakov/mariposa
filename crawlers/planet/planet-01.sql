@@ -1,7 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS planet;
-CREATE TABLE IF NOT EXISTS planet.t_import (
-    api_capture_date             TIMESTAMP NOT NULL     COMMENT 'Internal: время API запроса',
+CREATE TABLE  IF NOT EXISTS planet.t_import (
     profile_url                         STRING          COMMENT 'PRIMARY KEY: Полный URL-адрес профиля пользователя',
+    api_capture_date             TIMESTAMP NOT NULL     COMMENT 'Internal: время API запроса',
     name_age                            STRING          COMMENT 'Имя и возраст пользователя (например: Алла, 27)',
     city                                STRING          COMMENT 'Город проживания',
     photo_url                           STRING          COMMENT 'Прямая ссылка на главную фотографию профиля',

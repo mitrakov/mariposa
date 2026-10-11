@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 JKS_PASSWORD=...
-exec spark-submit \
+spark-submit \
   --name "Kafka2Hive-hh-import" \
   --deploy-mode cluster \
   --queue mariposa \
@@ -14,3 +14,6 @@ exec spark-submit \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.Kafka2Hive \
   /home/hadoop/mariposa-assembly-*.jar
+
+
+java -jar /home/hadoop/mariposa-scraper-assembly-*.jar /home/hadoop/apps/HhScraper.scala
