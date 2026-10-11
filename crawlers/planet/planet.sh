@@ -13,20 +13,20 @@ spark-submit \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.Kafka2Hive \
-  /home/hadoop/mariposa-assembly-*.jar
+  /home/hadoop/mariposa-assembly-*.jar &
+
+
+JKS_PASSWORD=...
+java -jar /home/hadoop/mariposa-scraper-assembly-*.jar PlanetScraper.scala > /home/hadoop/logs/$0 2>&1 &
 
 
 spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar PlanetRefineJob.scala
-
-
-java -jar /home/hadoop/mariposa-scraper-assembly-*.jar /home/hadoop/apps/PlanetScraper.scala
 
 
 spark-submit \
   --name "Kafka2Hive-planet-import" \
   --driver-java-options=" \
    -Dapp.hbase.table=planet:cards \
-   -Dapp.hive.sql.text='SELECT * FROM planet.refine WHERE city = \"Санкт-Петербург\";' \
-   -Dapp.kafka.run.infinitely=true" \
+   -Dapp.hive.sql.text='SELECT * FROM planet.refine WHERE city = \"Санкт-Петербург\";'" \
   --class com.mitrakoff.mariposa.Hive2HBase \
   /home/hadoop/mariposa-assembly-*.jar

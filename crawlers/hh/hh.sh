@@ -13,7 +13,11 @@ spark-submit \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --class com.mitrakoff.mariposa.Kafka2Hive \
-  /home/hadoop/mariposa-assembly-*.jar
+  /home/hadoop/mariposa-assembly-*.jar &
 
 
-java -jar /home/hadoop/mariposa-scraper-assembly-*.jar /home/hadoop/apps/HhScraper.scala
+JKS_PASSWORD=...
+java -jar /home/hadoop/mariposa-scraper-assembly-*.jar HhScraper.scala > /home/hadoop/logs/$0 2>&1 &
+
+
+spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar HhRefineJob.scala
