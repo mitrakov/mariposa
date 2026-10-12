@@ -7,6 +7,7 @@ spark-submit \
   --queue mariposa \
   --principal $(whoami)/$MASTER_HOST@MARIPOSA.COM \
   --keytab $KEYTABS_DIR/$MASTER_HOST.keytab \
+  --driver-memory 4g \
   --driver-java-options=" \
    -Dapp.hive.table=hh.t_import \
    -Dapp.kafka.topic=hh-import \
