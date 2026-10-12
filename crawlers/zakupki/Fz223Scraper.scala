@@ -33,7 +33,7 @@ class Fz223Scraper {
   val targetTopic = "zakupki-fz223-import"
   val batchSize = 1000000
   val idFile = "fz223-id.txt"
-  val sleepMsec = 4000     // update this param to catch up the ID!
+  val sleepMsec = 6000     // update this param to catch up the ID!
 
   def run(): Unit = {
     println("=== [Mariposa] Executing Zakupki FZ-223 Scraper Job ===")
@@ -51,7 +51,7 @@ class Fz223Scraper {
     kafkaProps.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, jksPassword)
 
     val producer = new KafkaProducer[String, String](kafkaProps)
-    
+
     // make "unsafe" HTTPS client. Inicializamos el contexto SSL inyectando nuestro TrustManager ciego
     val sslContext = SSLContext.getInstance("TLS")
     sslContext.init(null, Array(
@@ -87,7 +87,7 @@ class Fz223Scraper {
         } else if (response.code.code != 200) {
           println(s"Failed to fetch $id (Status: ${response.code})")
           errCount += 1
-          if (errCount >= 64) {
+          if (errCount >= 100) {
             println(s"💥 Circuit-breaker activo ($errCount errores). Deteniendo proceso...")
             producer.flush()
             producer.close()
@@ -160,20 +160,33 @@ class Fz223Scraper {
     val soup = Jsoup.parse(htmlContent)
     var data = Map[String, Json]()
 
-    // 1. 🌍 EXTRACCIÓN DEL NÚMERO DE REGISTRO (Crucial para pasar el filtro de validación)
-    val regEl = soup.select(".registry-entry__header-mid__number a").first()
+    // 1. 🌍 EXTRACCIÓN DEL NÚMERO DE REGISTRO
+    val regEl = soup.select(".registry-entry__header-mid__number a, div[class*='number'] a").first()
     if (regEl != null) {
       val cleanRegNumber = regEl.text().replace("№", "").replaceAll("\\s+", "").trim
       data += ("reg_number" -> Json.fromString(cleanRegNumber))
     }
 
-    // 2. 🛡️ EXTRACCIÓN DEL STATUS DE LA LICITACIÓN
-    val statusEl = soup.select(".registry-entry__header-mid__title").first()
+    // 2. 🛡️ EXTRACCIÓN DEL STATUS
+    val statusEl = soup.select(".registry-entry__header-mid__title, div[class*='header-mid'] div[class*='title']").first()
     if (statusEl != null) {
       data += ("status" -> Json.fromString(statusEl.text().trim))
     }
 
-    // 3. 🚖 OBJETO DE LA COMPRA Y CLIENTE (Mapeo dinámico del Cuerpo)
+    // 3. 🌍 EXTRACCIÓN DE TIMEZONE (Selector Único y Estricto de la Zona Horaria)
+    // Apuntamos directo al span hijo de .time-zone__value para evitar capturar el bloque del reg_number
+    val tzEl = soup.select(".time-zone__value span").first()
+    if (tzEl != null) {
+      data += ("timezone" -> Json.fromString(tzEl.text().trim))
+    } else {
+      // Fallback secundario: si cambian el span, buscamos la clase de valor directa
+      val tzFallback = soup.select(".time-zone__value").first()
+      if (tzFallback != null) {
+        data += ("timezone" -> Json.fromString(tzFallback.text().trim))
+      }
+    }
+
+    // 4. 🚖 OBJETO DE LA COMPRA Y CLIENTE
     val bodyBlocks = soup.select(".registry-entry__body-block")
     for (block <- bodyBlocks.asScala) {
       val titleEl = block.select(".registry-entry__body-title").first()
@@ -187,11 +200,21 @@ class Fz223Scraper {
           data += ("description" -> Json.fromString(valueText))
         } else if (titleText == "Заказчик") {
           data += ("customer" -> Json.fromString(valueText))
+
+          // ⚡ EXTRACTOR INTELIGENTE DE INN, КПП, ОГРН DESDE EL LINK DEL CLIENTE
+          val linkEl = valueEl.select("a[href]").first()
+          if (linkEl != null) {
+            val href = linkEl.attr("href")
+            // Expresiones regulares para capturar los parámetros de la URL estatal
+            "inn=(\\d+)".r.findFirstMatchIn(href).foreach(m => data += ("inn" -> Json.fromString(m.group(1))))
+            "kpp=(\\d+)".r.findFirstMatchIn(href).foreach(m => data += ("kpp" -> Json.fromString(m.group(1))))
+            "ogrn=(\\d+)".r.findFirstMatchIn(href).foreach(m => data += ("ogrn" -> Json.fromString(m.group(1))))
+          }
         }
       }
     }
 
-    // 4. 💰 EXTRACCIÓN DE PRECIO BASE
+    // 5. 💰 EXTRACCIÓN DE PRECIO
     val priceValEl = soup.select(".price-block__value").first()
     if (priceValEl != null) {
       val rawPrice = priceValEl.text().trim
@@ -202,8 +225,8 @@ class Fz223Scraper {
       }
     }
 
-    // 5. 📅 EXTRACCIÓN DE FECHAS Y METADATOS CRÍTICOS
-    val dataBlocks = soup.select(".data-block .col-6, .data-block .col-12")
+    // 6. 📅 EXTRACCIÓN DE FECHAS
+    val dataBlocks = soup.select(".data-block .col-6, .data-block .col-12, .data-block__value")
     for (block <- dataBlocks.asScala) {
       val titleEl = block.select(".data-block__title").first()
       val valueEl = block.select(".data-block__value").first()
@@ -224,16 +247,18 @@ class Fz223Scraper {
       }
     }
 
-    // 6. 🌍 PARSEO SECUNDARIO POR FIELD_MAP (Garantía de compatibilidad)
-    val commonFields = soup.select(".common-text__title")
+    // 7. 🌍 FALLBACK: PARSEO SECUNDARIO POR FIELD_MAP (Por si vienen en texto plano abajo)
+    val commonFields = soup.select(".common-text__title, div[class*='text__title']")
     for (titleEl <- commonFields.asScala) {
       // 💡 SOLUCIÓN: Usamos el método nativo correcto 'nextElementSibling()' de Jsoup
       val valEl = titleEl.nextElementSibling()
-
-      if (valEl != null && (valEl.hasClass("common-text__value") || valEl.hasClass("registry-entry__body-value"))) {
+      if (valEl != null) {
         val cleanKey = titleEl.text().replace(":", "").trim
         fieldMap.get(cleanKey).foreach { mappedKey =>
-          data += (mappedKey -> Json.fromString(valEl.text().trim))
+          // Solo agregamos si no lo extrajo el analizador principal
+          if (!data.contains(mappedKey)) {
+            data += (mappedKey -> Json.fromString(valEl.text().trim))
+          }
         }
       }
     }

@@ -29,7 +29,7 @@ class PlanetScraper {
   def run(): Unit = {
     while (true) {
       run_()
-      Thread.sleep(30*3600*1000)       // full rotation: ≈30h; 750 positions for 25h
+      Thread.sleep(24*3600*1000)       // full rotation: ≈30h;
     }
   }
 
