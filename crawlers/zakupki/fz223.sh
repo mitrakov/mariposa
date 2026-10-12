@@ -5,6 +5,8 @@ spark-submit \
   --name "Kafka2Hive-fz223-import" \
   --deploy-mode cluster \
   --queue mariposa \
+  --principal $(whoami)/$MASTER_HOST@MARIPOSA.COM \
+  --keytab $KEYTABS_DIR/$MASTER_HOST.keytab \
   --driver-java-options=" \
    -Dapp.hive.table=zakupki.fz223_import \
    -Dapp.kafka.topic=zakupki-fz223-import \
@@ -16,4 +18,4 @@ spark-submit \
   /home/hadoop/mariposa-assembly-*.jar &
 
 
-JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar Fz223Scraper.scala > /home/hadoop/logs/$0.log 2>&1 &
+JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar Fz223Scraper.scala  > /home/hadoop/logs/$0.log 2>&1 &

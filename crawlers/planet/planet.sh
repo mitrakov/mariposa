@@ -5,6 +5,8 @@ spark-submit \
   --name "Kafka2Hive-planet-import" \
   --deploy-mode cluster \
   --queue mariposa \
+  --principal $(whoami)/$MASTER_HOST@MARIPOSA.COM \
+  --keytab $KEYTABS_DIR/$MASTER_HOST.keytab \
   --driver-java-options=" \
    -Dapp.hive.table=planet.t_import \
    -Dapp.kafka.topic=planet-import \
@@ -16,7 +18,7 @@ spark-submit \
   /home/hadoop/mariposa-assembly-*.jar &
 
 
-JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar PlanetScraper.scala > /home/hadoop/logs/$0 2>&1 &
+JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar PlanetScraper.scala > /home/hadoop/logs/$0.log 2>&1 &
 
 
 spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar PlanetRefineJob.scala
