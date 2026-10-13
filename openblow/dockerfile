@@ -1,9 +1,0 @@
-# docker build --tag mitrakov/openblow:1.0.0 .
-FROM mitrakov/openblow-base:1.0.0
-LABEL author="Artem Mitrakov (mitrakov-artem@yandex.ru)"
-
-RUN wget --directory-prefix $SPARK_HOME/jars/ https://repo1.maven.org/maven2/org/apache/hbase/connectors/spark/hbase-spark/1.0.1/hbase-spark-1.0.1.jar
-RUN wget --directory-prefix $SPARK_HOME/jars/ https://repo1.maven.org/maven2/org/apache/hbase/connectors/spark/hbase-spark-protocol/1.0.1/hbase-spark-protocol-1.0.1.jar
-
-COPY openblow.sh /openblow.sh
-ENTRYPOINT ["/bin/bash", "/openblow.sh"]
