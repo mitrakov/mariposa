@@ -7,7 +7,9 @@ spark-submit \
   --queue mariposa \
   --principal $(whoami)/$MASTER_HOST@MARIPOSA.COM \
   --keytab $KEYTABS_DIR/$MASTER_HOST.keytab \
-  --driver-memory 4g \
+  --driver-memory 3g \
+  --executor-memory 1g \
+  --num-executors 6 \
   --driver-java-options=" \
    -Dapp.hive.table=hh.t_import \
    -Dapp.kafka.topic=hh-import \
@@ -15,11 +17,13 @@ spark-submit \
    -Dapp.security.truststore.password=$JKS_PASSWORD \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
+  --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
   --class com.mitrakoff.mariposa.Kafka2Hive \
   /home/hadoop/mariposa-assembly-*.jar &
 
 
 JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar HhScraper.scala     > /home/hadoop/logs/$0.log 2>&1 &
+kill `ps x | grep HhScraper.scala | head -1 | awk '{print $1}'`
 
 
 spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar HhRefineJob.scala

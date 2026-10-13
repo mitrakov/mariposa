@@ -11,6 +11,7 @@ if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
     hbase-daemon.sh stop master
 
     # stop Yarn apps
+    kinit -kt $KEYTABS_DIR/$MASTER_HOST.keytab hadoop/$MASTER_HOST@MARIPOSA.COM
     if nc -zv $MASTER_HOST 8032; then
         for app in $(yarn application -list -appStates RUNNING | grep -Po "application_\d+_\d+"); do
             yarn application -kill "$app"

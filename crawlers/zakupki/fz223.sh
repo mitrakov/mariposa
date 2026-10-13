@@ -7,6 +7,9 @@ spark-submit \
   --queue mariposa \
   --principal $(whoami)/$MASTER_HOST@MARIPOSA.COM \
   --keytab $KEYTABS_DIR/$MASTER_HOST.keytab \
+  --driver-memory 1g \
+  --executor-memory 1g \
+  --num-executors 6 \
   --driver-java-options=" \
    -Dapp.hive.table=zakupki.fz223_import \
    -Dapp.kafka.topic=zakupki-fz223-import \
@@ -19,3 +22,4 @@ spark-submit \
 
 
 JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar Fz223Scraper.scala  > /home/hadoop/logs/$0.log 2>&1 &
+kill `ps x | grep Fz223Scraper.scala | head -1 | awk '{print $1}'`
