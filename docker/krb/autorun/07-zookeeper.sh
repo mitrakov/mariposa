@@ -33,7 +33,7 @@ requireClientAuthScheme=sasl
 server.1=$MASTER_HOST:2888:3888
 EOF
 
-count=2
+count=2     # "1" is skipped, "2" is already set for $MASTER_HOST
 for worker in ${WORKER_HOSTS//,/ }; do
     echo "server.$count=$worker:2888:3888" >> $ZOOKEEPER_HOME/conf/zoo.cfg
     count=$((count + 1))

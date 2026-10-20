@@ -61,7 +61,7 @@ if [[ "$(hostname)" == "$MASTER_HOST" ]]; then
             sudo kadmin.local -q "addprinc -randkey hbase/$worker@MARIPOSA.COM"
             sudo kadmin.local -q "addprinc -randkey kafka/$worker@MARIPOSA.COM"
             sudo kadmin.local -q "xst -k $KEYTABS_DIR/$worker.keytab hadoop/$worker@MARIPOSA.COM zookeeper/$worker@MARIPOSA.COM hbase/$worker@MARIPOSA.COM kafka/$worker@MARIPOSA.COM"
-        done        
+        done
 
         # set keytabs to be read-only by hadoop
         sudo chown hadoop:hadoop $KEYTABS_DIR/*.keytab
