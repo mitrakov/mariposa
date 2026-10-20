@@ -9,7 +9,7 @@ spark-submit \
   --keytab $KEYTABS_DIR/$MASTER_HOST.keytab \
   --driver-memory 1g \
   --executor-memory 1g \
-  --num-executors 6 \
+  --num-executors 4 \
   --driver-java-options=" \
    -Dapp.hive.table=zakupki.fz223_import \
    -Dapp.kafka.topic=zakupki-fz223-import \
