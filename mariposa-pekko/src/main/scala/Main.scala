@@ -1,47 +1,31 @@
-import org.apache.hadoop.hbase.client.{Admin, Connection, ConnectionFactory, Scan}
-import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
-import org.apache.hadoop.security.UserGroupInformation
+import hbase.{DataFrameService, TableResponse}
+import org.apache.hadoop.hbase.HBaseConfiguration
+import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory}
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, StatusCodes}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives._
-import org.apache.pekko.stream.OverflowStrategy
-import org.apache.pekko.stream.scaladsl.Source
-import org.apache.pekko.util.ByteString
 import org.slf4j.LoggerFactory
 import spray.json.DefaultJsonProtocol._
 import spray.json.RootJsonFormat
-import java.io.File
-import java.util.Base64
 import java.util.concurrent.Executors
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.jdk.CollectionConverters._
-import scala.sys.process.{ProcessLogger, stringSeqToProcess}
 import scala.util.{Failure, Success, Try}
 
-/** Simple HTTP server to read HBase tables. Supports Kerberos GSSAPI */
+/** Simple HTTP server to read HBase tables */
 object Main extends App {
   private val logger = LoggerFactory.getLogger(Main.getClass)
-  private val loginToKerberos = sys.props.getOrElse("app.kerberos.enabled", "false").toBoolean
   private val serverPort = sys.props.getOrElse("app.server.port", "7012").toInt
-  private val hbaseConfig = HBaseConfiguration.create()
-  private val hbaseConnection: Connection = ConnectionFactory.createConnection(hbaseConfig)
+  private val hbaseConnection: Connection = ConnectionFactory.createConnection(HBaseConfiguration.create())
+  private val dfService = new DataFrameService(hbaseConnection)
   private val executor = Executors.newFixedThreadPool(16)
   implicit val system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "Mariposa")
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
-  implicit val sparkRequestFormat: RootJsonFormat[SparkRequest] = jsonFormat2(SparkRequest)
-
-  if (loginToKerberos) {
-    logger.info("Kerberos is active. Negotiating TGT...")
-    val principal = sys.props.getOrElse("app.kerberos.principal", throw new Exception("Set -Dapp.kerberos.principal"))
-    val keytab    = sys.props.getOrElse("app.kerberos.keytab", throw new Exception("Set -Dapp.kerberos.keytab"))
-    UserGroupInformation.setConfiguration(hbaseConfig)
-    UserGroupInformation.loginUserFromKeytab(principal, keytab)
-  }
+  implicit val tableResponseFmt: RootJsonFormat[TableResponse] = jsonFormat4(TableResponse)
 
   // Routes
   private val routes =
@@ -50,8 +34,7 @@ object Main extends App {
         get {
           logger.info("GET list all HBase tables")
           val listFuture = Future {
-            val admin: Admin = hbaseConnection.getAdmin
-            try { admin.listTableDescriptors().asScala.map(_.getTableName.getNameAsString).toList.sorted } finally {admin.close()}
+            hbaseConnection.getAdmin.listTableDescriptors().asScala.map(_.getTableName.getNameAsString).toList.sorted
           }
 
           onComplete(listFuture) {
@@ -59,68 +42,25 @@ object Main extends App {
               logger.info(s"Result: ${tablesList.headOption} ... (${tablesList.size} tables)")
               complete(tablesList)
             case Failure(ex) =>
-              logger.error("Failed to retrieve HBase tables catalog", ex)
+              logger.error(s"Error: /tables", ex)
               complete(StatusCodes.InternalServerError, Map("error" -> ex.getMessage))
           }
         }
-      } ~ path(Segment / Segment) { (namespace, tableName) =>
+      } ~ path("table" / Segment) { tableName =>
         get {
-          logger.info(s"GET HBase table: $namespace:$tableName")
-          val scanFuture = Future {
-            val table = hbaseConnection.getTable(TableName.valueOf(s"$namespace:$tableName"))
-            val scanner = table.getScanner(new Scan())
-            try {
-              scanner.asScala.map { result =>
-                val cellsMap = Option(result.listCells()).map(_.asScala).getOrElse(Nil).map { cell =>
-                  val qualifierStr = Bytes.toString(cell.getQualifierArray, cell.getQualifierOffset, cell.getQualifierLength)
-                  val valueStr     = Bytes.toString(cell.getValueArray,     cell.getValueOffset,     cell.getValueLength)
-                  qualifierStr -> valueStr
-                }.toMap
-
-                cellsMap + ("key" -> Bytes.toString(result.getRow))
-              }.toList
-            } finally {
-              scanner.close()
-              table.close()
+          parameters("startRow".?, "limit".as[Int].?(1000)) { (startRow, limit) =>
+            val pageFuture = Future {
+              dfService.fetchTablePage(tableName, startRow, limit)
             }
-          }
 
-          onComplete(scanFuture) {
-            case Success(list) =>
-              logger.info(s"Result: ${list.headOption}... (${list.size} rows)")
-              complete(list)
-            case Failure(ex) =>
-              logger.error(s"HBase query failed for $namespace:$tableName", ex)
-              complete(StatusCodes.InternalServerError, Map("error" -> ex.getMessage))
-          }
-        }
-      }
-    } ~ path("v1" / "spark") {
-      post {
-        entity(as[SparkRequest]) { req =>
-          logger.info(s"POST Run Spark SQL: $req")
-          SimpleSqlValidator.validate(req.sql) match {
-            case Right(_) =>
-              val sqlBase64 = Base64.getEncoder.encodeToString(req.sql.getBytes())
-              val (queue, source) = Source.queue[ByteString](1024, OverflowStrategy.dropTail).preMaterialize()
-              Future {
-                val command = Seq(
-                  "/opt/spark/bin/spark-submit",
-                  s"--driver-java-options=-Dapp.hbase.table=${req.hbaseTable} -Dapp.hive.sql.base64=$sqlBase64",
-                  "--class", "com.mitrakoff.mariposa.Hive2HBase",
-                  resolveJarPath()
-                )
-
-                val processLogger = ProcessLogger(s => queue.offer(ByteString(s"$s\n")))
-                val exitCode = command ! processLogger
-                queue.offer(ByteString(s"Finished with code: $exitCode\n"))
-                queue.complete()
-              }.recover{ case e => logger.error(s"ERROR: ${e.getMessage}", e) }
-
-              complete(HttpEntity.Chunked.fromData(ContentTypes.`text/plain(UTF-8)`, source))
-            case Left(error) =>
-              logger.warn(s"Error parsing SQL: $error")
-              complete(StatusCodes.BadRequest, Map("error" -> error))
+            onComplete(pageFuture) {
+              case Success(page) =>
+                logger.info(s"Result: ${page.columns} :: ${page.rows.headOption} ... (${page.rows.size} rows)")
+                complete(TableResponse(tableName, page.columns, page.rows, page.nextRowKey))
+              case Failure(ex) =>
+                logger.error(s"Error: /table/$tableName", ex)
+                complete(StatusCodes.InternalServerError, Map("error" -> ex.getMessage))
+            }
           }
         }
       }
@@ -139,14 +79,6 @@ object Main extends App {
   // add graceful shutdown hook
   sys.addShutdownHook { cleanUp() }
 
-  /** Finds mariposa-assembly-*.jar in current directory */
-  private def resolveJarPath(): String = {
-    new File(sys.props("user.dir")).listFiles()
-      .find(f => f.getName.startsWith("mariposa-assembly-") && f.getName.endsWith(".jar"))
-      .map(_.getAbsolutePath)
-      .getOrElse {throw new Exception("File mariposa-assembly-*.jar not found")}
-  }
-
   /** Graceful shutdown */
   private def cleanUp(): Unit = {
     logger.info("Graceful shutdown...")
@@ -163,5 +95,3 @@ object Main extends App {
     Await.result(future, 2.seconds) // wait graceful shutdown to complete
   }
 }
-
-case class SparkRequest(sql: String, hbaseTable: String)

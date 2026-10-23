@@ -5,7 +5,7 @@ import 'package:mariposa/dataframe.dart'; // Asegúrate de que aquí viva Maripo
 class MariposaApiClient {
   final String baseUrl;
 
-  MariposaApiClient({this.baseUrl = 'http://mitrakoff.ru:7012'});
+  MariposaApiClient({this.baseUrl = 'http://myfeo.fun:7012'});
 
   Future<List<String>> fetchHBaseTables() async {
     final response = await http.get(Uri.parse('$baseUrl/v1/hbase/tables'));

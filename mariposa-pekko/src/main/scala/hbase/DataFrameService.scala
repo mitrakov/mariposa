@@ -1,18 +1,14 @@
-package com.mariposa.services
+package hbase
 
-import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.TableName
-import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory, Scan}
+import org.apache.hadoop.hbase.client.{Connection, Scan}
 import org.apache.hadoop.hbase.util.Bytes
 import scala.jdk.CollectionConverters._
 
+case class TableResponse(tableName: String, columns: List[String], rows: List[List[Option[String]]], pagination: Option[String])
 case class HBaseDataPage(columns: List[String], rows: List[List[Option[String]]], nextRowKey: Option[String])
 
-class HBaseService {
-  // Inicializa la configuración por defecto de HBase (busca hbase-site.xml en el classpath)
-  private val config = HBaseConfiguration.create()
-  private val connection: Connection = ConnectionFactory.createConnection(config)
-
+class DataFrameService(connection: Connection) {
   def fetchTablePage(tableNameStr: String, startRow: Option[String], limit: Int): HBaseDataPage = {
     val table = connection.getTable(TableName.valueOf(tableNameStr))
     val scan = new Scan()

@@ -1,5 +1,5 @@
 name := "mariposa-pekko"
-version := "1.0"
+version := "1.1"
 scalaVersion := "2.13.18"
 
 val pekkoVersion = "2.0.0-M1"
@@ -12,13 +12,12 @@ libraryDependencies ++= Seq(
   "org.apache.pekko" %% "pekko-http-spray-json" % pekkoVersion,
   "org.apache.hbase" % "hbase-client"           % hbaseVersion,
   "org.apache.hbase" % "hbase-common"           % hbaseVersion,
-  //"ch.qos.logback"   % "logback-classic"        % "1.6.1",    "org.slf4j" % "slf4j-simple" % "2.0.18",
   "org.scalatest" %% "scalatest" % "3.2.20" % Test,
 )
 
 assembly / assemblyMergeStrategy := {
   case "reference.conf" => MergeStrategy.concat // concat all reference.conf files so Pekko can read its settings
-  case PathList("META-INF", xs @ _*) =>
+  case PathList("META-INF", xs*) =>
     xs match {
       case "MANIFEST.MF" :: Nil => MergeStrategy.discard
       case _ => MergeStrategy.first
@@ -26,4 +25,6 @@ assembly / assemblyMergeStrategy := {
   case _ => MergeStrategy.first
 }
 
-assembly / packageOptions += Package.ManifestAttributes("Add-Opens" -> "java.base/java.nio") // shitty Java-17
+// fix java-17: java.lang.reflect.InaccessibleObjectException:
+// Unable to make static boolean java.nio.Bits.unaligned() accessible: module java.base does not "opens java.nio"
+assembly / packageOptions += Package.ManifestAttributes("Add-Opens" -> "java.base/java.nio")
