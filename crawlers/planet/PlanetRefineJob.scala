@@ -1,9 +1,9 @@
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
-import org.apache.spark.sql.{DataFrame, SparkSession}
 
 // build.sbt: "org.apache.spark" %% "spark-sql"  % "4.1.1" % "provided"
-// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-*.jar PlanetRefineJob.scala
+// spark-submit --num-executors 5 --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar PlanetRefineJob.scala
 class PlanetRefineJob {
   private val sourceTable = "planet.t_import"
   private val targetTable = "planet.refine"

@@ -3,7 +3,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
 
 // build.sbt: "org.apache.spark" %% "spark-sql"  % "4.1.1" % "provided"
-// spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly mariposa-fly-*.jar HhRefineJob.scala
+// spark-submit --num-executors 5 --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar HhRefineJob.scala
 class HhRefineJob {
   private val sourceTable = "hh.t_import"
   private val targetTable = "hh.refine"

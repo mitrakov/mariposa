@@ -33,7 +33,7 @@ class Fz223Scraper {
   val targetTopic = "zakupki-fz223-import"
   val batchSize = 1000000
   val idFile = "fz223-id.txt"
-  val sleepMsec = 7000     // update this param to catch up the ID!
+  val sleepMsec = 12000     // update this param to catch up the ID!
 
   def run(): Unit = {
     println("=== [Mariposa] Executing Zakupki FZ-223 Scraper Job ===")
@@ -82,9 +82,7 @@ class Fz223Scraper {
           .header("User-Agent", "Mozilla/5.0")
           .send(http)
 
-        if (response.code.code == 404) {
-          println(s"Not found: $id (404). Skipping...")
-        } else if (response.code.code != 200) {
+        if (response.code.code != 200) {
           println(s"Failed to fetch $id (Status: ${response.code})")
           errCount += 1
           if (errCount >= 100) {

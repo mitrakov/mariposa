@@ -121,6 +121,10 @@ object Hive2HBase {
 }
 
 /*
-spark-submit --driver-java-options="-Dapp.hbase.table=table1 -Dapp.hive.sql.file=a.sql" \
-  --class com.mitrakoff.mariposa.Hive2HBase mariposa-assembly-*.jar
+spark-submit \
+  --driver-java-options=" \
+   -Dapp.hbase.table=planet:cards \
+   -Dapp.hive.sql.text='SELECT * FROM planet.refine WHERE city = \"Санкт-Петербург\";'" \
+  --class com.mitrakoff.mariposa.Hive2HBase \
+  /home/hadoop/mariposa-assembly-*.jar
 */
