@@ -42,8 +42,7 @@ class _MariposaUniversalChartState extends State<MariposaUniversalChart> {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
-        title: const Text('🦋 Mariposa DataMart'),
-        backgroundColor: const Color(0xFF1F1F1F),
+        title: const Text('🦋 Mariposa Chart'),
         centerTitle: true,
         actions: [
           PopupMenuButton<String>(
@@ -62,8 +61,8 @@ class _MariposaUniversalChartState extends State<MariposaUniversalChart> {
 
 
   List<PopupMenuEntry<String>> _buildSortMenuItems(BuildContext context) {
-    Color activeColor = const Color(0xFF1E88E5);
-    Color inactiveColor = Colors.white54;
+    Color activeColor = const Color(0xFF1EA8E5);
+    Color inactiveColor = Colors.grey;
 
     final List<PopupMenuEntry<String>> items = [
       PopupMenuItem<String>(
@@ -71,11 +70,10 @@ class _MariposaUniversalChartState extends State<MariposaUniversalChart> {
         child: ListTile(
           leading: Icon(
               Icons.label_outline,
-              color: _activeSort == 'key' ? activeColor : inactiveColor // 💡 Uso de la variable
+              color: _activeSort == 'key' ? activeColor : inactiveColor
           ),
           title: Text(
             'Order by Label (A-Z)',
-            style: TextStyle(color: _activeSort == 'key' ? Colors.white : Colors.white),
           ),
           contentPadding: EdgeInsets.zero,
         ),
@@ -94,10 +92,7 @@ class _MariposaUniversalChartState extends State<MariposaUniversalChart> {
                 Icons.bar_chart,
                 color: isSelected ? activeColor : inactiveColor
             ),
-            title: Text(
-              'Order by $metric (DESC)',
-              style: TextStyle(color: isSelected ? Colors.white : Colors.white70),
-            ),
+            title: Text('Order by $metric (DESC)'),
             contentPadding: EdgeInsets.zero,
           ),
         );
@@ -110,9 +105,7 @@ class _MariposaUniversalChartState extends State<MariposaUniversalChart> {
 
   Widget _buildChartBody() {
     if (_currentData.isEmpty) {
-      return const Center(
-        child: Text('No data found in HBase', style: TextStyle(color: Colors.white54)),
-      );
+      return const Center(child: Text('No data found in HBase', style: TextStyle(color: Colors.white54)));
     }
 
     final List<String> metricNames = _currentData.first.metrics.keys.toList();

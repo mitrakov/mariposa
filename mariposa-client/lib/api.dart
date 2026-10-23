@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:mariposa/dataframe.dart';
 import 'package:mariposa/statrow.dart';
 
 class MariposaApiClient {
@@ -12,7 +13,7 @@ class MariposaApiClient {
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((table) => table.toString()).toList();
-    } else throw Exception('Failed to load catalog from Pekko');
+    } else throw Exception('Mariposa Server Error: ${response.statusCode}; ${response.body}');
   }
 
   Future<List<MariposaStatRow>> fetchTable(String table) async {
@@ -28,6 +29,15 @@ class MariposaApiClient {
         final List<dynamic> rowValues = rowItem as List<dynamic>;
         return MariposaStatRow.fromTabular(columns, rowValues);
       }).toList();
+    } else throw Exception('Mariposa Server Error: ${response.statusCode}; ${response.body}');
+  }
+  
+  Future<DataFrameResponse> fetchDataframe(String table) async {
+    final response = await http.get(Uri.parse('$baseUrl/table/$table'));
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      return DataFrameResponse.fromJson(data);
     } else throw Exception('Mariposa Server Error: ${response.statusCode}; ${response.body}');
   }
 }

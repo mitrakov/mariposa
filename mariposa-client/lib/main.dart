@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mariposa/api.dart';
 import 'package:mariposa/mariposachart.dart';
+import 'package:mariposa/viewer_screen.dart';
 
 void main() {
   runApp(const MariposaApp());
@@ -14,22 +15,7 @@ class MariposaApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Mariposa Cluster Gateway',
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFF1F1F1F),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF1E88E5), width: 2),
-          ),
-          labelStyle: const TextStyle(color: Colors.white70),
-        ),
-      ),
+      theme: ThemeData(),
       home: const ConnectionInputPage(),
     );
   }
@@ -82,12 +68,33 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
     }
   }
 
+  void _fetchAndShowDataframe() async {
+    if (!_formKey.currentState!.validate() || _selectedTable == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final data = await _apiClient.fetchDataframe(_selectedTable!.trim());
+
+      setState(() => _isLoading = false);
+
+      if (data.rows.isEmpty) {
+        _showSnackBar('Empty table in HBase');
+        return;
+      }
+
+      Navigator.push(context, MaterialPageRoute(builder: (context) => ViewerScreen(data)));
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('ERROR: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('🦋 Mariposa Cluster Gateway'),
-        backgroundColor: const Color(0xFF1F1F1F),
         elevation: 0,
         centerTitle: true,
       ),
@@ -99,13 +106,12 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 16,
               children: [
                 const Icon(Icons.hub_outlined, size: 80, color: Color(0xFF1E88E5)),
                 const SizedBox(height: 16),
-                const Text(
-                  'Query HBase',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                const Text('Mariposa', textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black54),
                 ),
                 const SizedBox(height: 32),
 
@@ -154,15 +160,15 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
 
                     return DropdownButtonFormField<String>(
                       initialValue: _selectedTable,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(),
                         labelText: 'Select HBase Table',
-                        prefixIcon: Icon(Icons.table_chart_outlined, color: Colors.white54),
+                        prefixIcon: Icon(Icons.table_chart_outlined),
                       ),
-                      dropdownColor: const Color(0xFF1F1F1F),
                       items: tables.map((String table) {
                         return DropdownMenuItem<String>(
                           value: table,
-                          child: Text(table, style: const TextStyle(color: Colors.white)),
+                          child: Text(table, style: const TextStyle(color: Color(0xBB000000))),
                         );
                       }).toList(),
                       onChanged: _isLoading ? null : (newValue) {
@@ -172,7 +178,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                     );
                   },
                 ),
-                const SizedBox(height: 16),
 
                 ElevatedButton(
                   onPressed: _isLoading ? null : _fetchAndShowChart,
@@ -183,7 +188,18 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                   ),
                   child: _isLoading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('START', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      : const Text('CHART', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _fetchAndShowDataframe,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6E38F5),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('DATAFRAME', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ],
             ),
