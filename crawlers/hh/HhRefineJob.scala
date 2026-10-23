@@ -51,7 +51,7 @@ class HhRefineJob {
       )
 
     // make PK first column
-    df.select(("profile_url" :: df.columns.filter(_ != "profile_url").toList).map(col): _*)
+    df.select(("vacancy_id" :: df.columns.filter(_ != "vacancy_id").toList).map(col): _*)
       .sort("area_name")
       .write
       .format("parquet")

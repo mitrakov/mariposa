@@ -33,7 +33,7 @@ class Fz223Scraper {
   val targetTopic = "zakupki-fz223-import"
   val batchSize = 1000000
   val idFile = "fz223-id.txt"
-  val sleepMsec = 6000     // update this param to catch up the ID!
+  val sleepMsec = 7000     // update this param to catch up the ID!
 
   def run(): Unit = {
     println("=== [Mariposa] Executing Zakupki FZ-223 Scraper Job ===")

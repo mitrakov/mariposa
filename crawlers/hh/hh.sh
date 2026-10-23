@@ -26,4 +26,4 @@ JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar HhScrape
 kill `ps x | grep HhScraper.scala | head -1 | awk '{print $1}'`
 
 
-spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar HhRefineJob.scala
+spark-submit --num-executors 5 --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar HhRefineJob.scala

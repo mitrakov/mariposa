@@ -21,11 +21,12 @@ spark-submit \
   /home/hadoop/mariposa-assembly-*.jar &
 
 
+
 JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar PlanetScraper.scala > /home/hadoop/logs/$0.log 2>&1 &
 kill `ps x | grep PlanetScraper.scala | head -1 | awk '{print $1}'`
 
 
-spark-submit --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar PlanetRefineJob.scala
+spark-submit --num-executors 5 --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar PlanetRefineJob.scala
 
 
 spark-submit \
