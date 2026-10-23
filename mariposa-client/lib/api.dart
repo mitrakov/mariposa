@@ -1,59 +1,33 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:mariposa/dataframe.dart'; // Asegúrate de que aquí viva MariposaDataRow
+import 'package:mariposa/statrow.dart';
 
 class MariposaApiClient {
   final String baseUrl;
-
-  MariposaApiClient({this.baseUrl = 'http://myfeo.fun:7012'});
+  MariposaApiClient({this.baseUrl = 'http://myfeo.fun:7012/v1/hbase'});
 
   Future<List<String>> fetchHBaseTables() async {
-    final response = await http.get(Uri.parse('$baseUrl/v1/hbase/tables'));
+    final response = await http.get(Uri.parse('$baseUrl/tables'));
 
     if (response.statusCode == 200) {
-      List<dynamic> data = jsonDecode(response.body);
+      final List<dynamic> data = jsonDecode(response.body);
       return data.map((table) => table.toString()).toList();
     } else throw Exception('Failed to load catalog from Pekko');
   }
 
-  /// Recupera cualquier tabla de HBase y la convierte en una estructura de filas dinámica.
-  Future<List<MariposaDataRow>> fetchDataMart(String namespace, String table) async {
-    final response = await http.get(Uri.parse('$baseUrl/v1/hbase/$namespace/$table'));
+  Future<List<MariposaStatRow>> fetchTable(String table) async {
+    final response = await http.get(Uri.parse('$baseUrl/table/$table'));
 
     if (response.statusCode == 200) {
-      return _parseDynamicJson(response.body);
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      final List<dynamic> rawColumns = data['columns'] ?? [];
+      final List<dynamic> rawRows = data['rows'] ?? [];
+      final List<String> columns = rawColumns.map((c) => c.toString()).toList();
+
+      return rawRows.map((dynamic rowItem) {
+        final List<dynamic> rowValues = rowItem as List<dynamic>;
+        return MariposaStatRow.fromTabular(columns, rowValues);
+      }).toList();
     } else throw Exception('Mariposa Server Error: ${response.statusCode}; ${response.body}');
-  }
-
-  Stream<String> runSparkJobStream(String sql, String targetTable) async* {
-    final url = Uri.parse('$baseUrl/v1/spark');
-
-    final request = http.Request('POST', url);
-    request.headers['Content-Type'] = 'application/json';
-    request.body = jsonEncode({'sql': sql, 'hbaseTable': targetTable,});
-
-    try {
-      final response = await http.Client().send(request);
-
-      if (response.statusCode == 200) {
-        yield* response.stream
-            .transform(utf8.decoder)
-            .transform(const LineSplitter());
-      } else {
-        yield '❌ Error del servidor: ${response.statusCode}';
-      }
-    } catch (e) {
-      yield '=== [MARIPOSA-SPARK-STREAM-ERROR] ===: $e';
-    }
-  }
-
-  /// Procesa el JSON dinámico sin nombres de columnas fijos
-  List<MariposaDataRow> _parseDynamicJson(String jsonString) {
-    final List<dynamic> decodedJson = jsonDecode(jsonString);
-
-    // Convertimos cada objeto del JSON en un MariposaDataRow genérico
-    return decodedJson
-        .map((item) => MariposaDataRow.fromJson(item as Map<String, dynamic>))
-        .toList();
   }
 }

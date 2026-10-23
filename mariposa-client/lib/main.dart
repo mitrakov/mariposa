@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:mariposa/api.dart';
-import 'package:mariposa/console.dart';
 import 'package:mariposa/mariposachart.dart';
 
 void main() {
@@ -14,7 +13,7 @@ class MariposaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Mariposa Ecosistema',
+      title: 'Mariposa Cluster Gateway',
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF121212),
         inputDecorationTheme: InputDecorationTheme(
@@ -64,13 +63,12 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
     setState(() => _isLoading = true);
 
     try {
-      final parts = _selectedTable!.trim().split(":");
-      final data = await _apiClient.fetchDataMart(parts.length == 2 ? parts.first : "default", parts.last);
+      final data = await _apiClient.fetchTable(_selectedTable!.trim());
 
       setState(() => _isLoading = false);
 
       if (data.isEmpty) {
-        _showSnackBar('Tabla vacía en HBase');
+        _showSnackBar('Empty table in HBase');
         return;
       }
 
@@ -80,7 +78,7 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
       );
     } catch (e) {
       setState(() => _isLoading = false);
-      _showSnackBar('Fallo de conexión: $e');
+      _showSnackBar('ERROR: $e');
     }
   }
 
@@ -92,17 +90,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
         backgroundColor: const Color(0xFF1F1F1F),
         elevation: 0,
         centerTitle: true,
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => SqlConsolePage()),
-          );
-        },
-        label: const Text('SPARK CONSOLE'),
-        icon: const Icon(Icons.bolt),
-        backgroundColor: const Color(0xFF1E88E5),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -116,22 +103,20 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                 const Icon(Icons.hub_outlined, size: 80, color: Color(0xFF1E88E5)),
                 const SizedBox(height: 16),
                 const Text(
-                  'Query HBase via Pekko',
+                  'Query HBase',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 const SizedBox(height: 32),
 
-                // 💡 INTEGRACIÓN MAESTRA: FutureBuilder para pintar el catálogo dinámico de HBase
                 FutureBuilder<List<String>>(
                   future: _tablesFuture,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      // Mientras Pekko responde, mostramos un dropdown simulado con un spinner discreto
                       return TextFormField(
                         readOnly: true,
                         decoration: const InputDecoration(
-                          labelText: 'Cargando catálogo de HBase...',
+                          labelText: 'Downloading HBase...',
                           prefixIcon: SizedBox(
                             width: 20, height: 20,
                             child: Padding(
@@ -142,20 +127,19 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                         ),
                       );
                     } else if (snapshot.hasError) {
-                      // Si falla Kerberos o la red, mostramos la alerta visual en el mismo campo
                       return DropdownButtonFormField<String>(
                         decoration: const InputDecoration(
-                          labelText: 'Error al cargar tablas',
+                          labelText: 'Cannot download tables',
                           prefixIcon: Icon(Icons.error_outline, color: Colors.redAccent),
                         ),
                         items: const [],
-                        onChanged: null, // Deshabilitado
-                        validator: (_) => 'Verifica la conexión del servidor Pekko',
+                        onChanged: null,
+                        validator: (_) => 'Check your server connection',
                       );
                     } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                       return DropdownButtonFormField<String>(
                         decoration: const InputDecoration(
-                          labelText: 'No se encontraron tablas',
+                          labelText: 'No tables found',
                           prefixIcon: Icon(Icons.warning_amber_outlined, color: Colors.orangeAccent),
                         ),
                         items: const [],
@@ -163,7 +147,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                       );
                     }
 
-                    // ESTRATEGIA: Si ya hay datos, autoseleccionamos la primera tabla del clúster si el estado está limpio
                     final tables = snapshot.data!;
                     if (_selectedTable == null && tables.isNotEmpty) {
                       _selectedTable = tables.first;
@@ -175,7 +158,7 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                         labelText: 'Select HBase Table',
                         prefixIcon: Icon(Icons.table_chart_outlined, color: Colors.white54),
                       ),
-                      dropdownColor: const Color(0xFF1F1F1F), // Fondo oscuro para el menú desplegable
+                      dropdownColor: const Color(0xFF1F1F1F),
                       items: tables.map((String table) {
                         return DropdownMenuItem<String>(
                           value: table,
@@ -185,7 +168,7 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                       onChanged: _isLoading ? null : (newValue) {
                         setState(() => _selectedTable = newValue);
                       },
-                      validator: (value) => value == null ? 'La tabla es obligatoria' : null,
+                      validator: (value) => value == null ? 'Table is necessary' : null,
                     );
                   },
                 ),
@@ -200,7 +183,7 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                   ),
                   child: _isLoading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('GENERATE CHART 🚀', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      : const Text('START', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ],
             ),
