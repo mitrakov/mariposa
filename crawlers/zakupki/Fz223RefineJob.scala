@@ -33,29 +33,31 @@ class Fz223RefineJob {
   }
 
   private def buildCityExtractionLogic(addressCol: Column): Column = {
-    // 1. Definición de las expresiones regulares nativas
+    // 1. Regex estándar para ciudades convencionales
     val prefixRegex = """(?i)\b(?:г\.|г\.\.|г|город)\s*([а-яА-Я0-9\-]+)"""
     val suffixRegex = """(?i)\b([а-яА-Я0-9\-]+)\s*(?:г|город)\b"""
-    val ruralRegex  = """(?i)\b(?:с\.|п\.|д\.|рп|село|поселок|деревня)\s*([а-яА-Я0-9\-]+)"""
-    val commaFallbackRegex = """^[^,]+,\s*([а-яА-Я0-9\-]+)\s*,"""
+    
+    // 2. REGEX MEJORADO: Captura TODAS las variantes de asentamientos rusos que encontramos en tus datos
+    // Mapea: рп. (рабочий поселок), пгт., с. (село), п. (поселок), д. (деревня), ст-ца. (станица), 
+    // сл. (слобода), дп. (дачный поселок), м. (местечко), х. (хутор), мкр. (микрорайон)
+    val ruralRegex = """(?i)\b(?:с\.|п\.|д\.|рп\.|рп|пгт\.|пгт|ст-ца\.|ст-ца|сл\.|сл|дп\.|дп|м\.|х\.|мкр\.|поселок|село|деревня|мч|местечко|р\.пос\.)\s*([а-яА-Я0-9\s\-]+?)(?=,|\d|\b)"""
 
-    // 2. Construcción de la jerarquía lúdica con Coalesce
+    // 3. Estrategia jerárquica con Coalesce nativo
     initcap(
       trim(
         coalesce(
-          // Red de seguridad absoluta para megapólis y casos especiales
           when(lower(addressCol).contains("санкт-петербург") || lower(addressCol).contains("спб"), lit("Санкт-Петербург"))
             .when(lower(addressCol).contains("москва"), lit("Москва"))
             .when(lower(addressCol).contains("севастополь"), lit("Севастополь"))
+            .when(lower(addressCol).contains("сириус"), lit("Сириус")) // Caso especial: Territorio Federal Сириус
             .when(lower(addressCol).startsWith("ростов-на-дону"), lit("Ростов-на-Дону")),
 
-          // Evaluación secuencial de patrones (nullif convierte "" en NULL para que coalesce continúe)
+          // Evaluación secuencial de patrones de texto estructurado
           nullif(regexp_extract(addressCol, prefixRegex, 1), lit("")),
           nullif(regexp_extract(addressCol, suffixRegex, 1), lit("")),
           nullif(regexp_extract(addressCol, ruralRegex, 1), lit("")),
-          nullif(regexp_extract(addressCol, commaFallbackRegex, 1), lit("")),
 
-          lit("Unknown")
+          lit("EMPTY")
         )
       )
     )
