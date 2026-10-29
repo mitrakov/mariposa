@@ -31,15 +31,13 @@ class ConnectionInputPage extends StatefulWidget {
 class _ConnectionInputPageState extends State<ConnectionInputPage> {
   String? _selectedTable;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
   final MariposaApiClient _apiClient = MariposaApiClient();
   bool _isLoading = false;
-
   late Future<List<String>> _tablesFuture;
 
   @override
   void initState() {
-    super.initState() ;
+    super.initState();
     _tablesFuture = _apiClient.fetchHBaseTables();
   }
 
@@ -74,8 +72,8 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
     setState(() => _isLoading = true);
 
     try {
-      final data = await _apiClient.fetchDataframe(_selectedTable!.trim());
-
+      final String targetTable = _selectedTable!.trim();
+      final data = await _apiClient.fetchDataframe(targetTable);
       setState(() => _isLoading = false);
 
       if (data.rows.isEmpty) {
@@ -83,7 +81,7 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
         return;
       }
 
-      Navigator.push(context, MaterialPageRoute(builder: (context) => ViewerScreen(data)));
+      Navigator.push(context, MaterialPageRoute(builder: (context) => ViewerScreen(data, tableName: targetTable)));
     } catch (e) {
       setState(() => _isLoading = false);
       _showSnackBar('ERROR: $e');
@@ -160,7 +158,7 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
 
                     return DropdownButtonFormField<String>(
                       initialValue: _selectedTable,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         labelText: 'Select HBase Table',
                         prefixIcon: Icon(Icons.table_chart_outlined),

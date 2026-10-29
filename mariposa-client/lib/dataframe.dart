@@ -16,7 +16,7 @@ class DataFrameResponse {
       tableName: json['tableName'] as String,
       columns: List<String>.from(json['columns']),
       rows: (json['rows'] as List).map((row) => List<dynamic>.from(row)).toList(),
-      nextRowKey: json['pagination']?['next_row_key'] as String?,
+      nextRowKey: json['nextRowKey'] as String?,
     );
   }
 

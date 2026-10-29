@@ -5,9 +5,6 @@ import org.apache.hadoop.hbase.client.{Connection, Scan}
 import org.apache.hadoop.hbase.util.Bytes
 import scala.jdk.CollectionConverters._
 
-case class TableResponse(tableName: String, columns: List[String], rows: List[List[Option[String]]], pagination: Option[String])
-case class HBaseDataPage(columns: List[String], rows: List[List[Option[String]]], nextRowKey: Option[String])
-
 class DataFrameService(connection: Connection) {
   def fetchTablePage(tableNameStr: String, startRow: Option[String], limit: Int): HBaseDataPage = {
     val table = connection.getTable(TableName.valueOf(tableNameStr))
@@ -60,3 +57,5 @@ class DataFrameService(connection: Connection) {
     HBaseDataPage(columnsList, allRowsData, nextRowKey)
   }
 }
+
+case class HBaseDataPage(columns: List[String], rows: List[List[Option[String]]], nextRowKey: Option[String])

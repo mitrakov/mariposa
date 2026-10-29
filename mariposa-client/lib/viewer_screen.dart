@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:mariposa/datacard.dart';
 import 'package:mariposa/dataframe.dart';
+import 'package:mariposa/api.dart';
 
 class ViewerScreen extends StatefulWidget {
   final DataFrameResponse df;
-  const ViewerScreen(this.df);
-  
+  final String tableName; // Necesitamos el nombre de la tabla para pedir más datos
+
+  const ViewerScreen(this.df, {required this.tableName});
+
   @override
   State<ViewerScreen> createState() => _ViewerScreenState();
 }
 
 class _ViewerScreenState extends State<ViewerScreen> {
   final List<Map<String, dynamic>> _allRows = [];
+  final MariposaApiClient _apiClient = MariposaApiClient();
   String? _nextRowKey;
   bool _isLoading = false;
   bool _hasError = false;
@@ -19,22 +23,36 @@ class _ViewerScreenState extends State<ViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _loadMoreData();
+    // Procesamos el mazo inicial que llegó por parámetro desde la pantalla anterior
+    _processNewDataBlock(widget.df);
+  }
+
+  void _processNewDataBlock(DataFrameResponse response) {
+    _nextRowKey = response.nextRowKey;
+
+    // 1. Extraemos las filas del bloque actual
+    final List<Map<String, dynamic>> newRows = [];
+    for (int i = 0; i < response.rows.length; i++) {
+      newRows.add(response.getRowAsMap(i));
+    }
+
+    // 2. LA MAGIA: Barajamos localmente las cartas del bloque nuevo antes de concatenarlas
+    newRows.shuffle();
+
+    setState(() {
+      _allRows.addAll(newRows);
+      _isLoading = false;
+    });
   }
 
   Future<void> _loadMoreData() async {
-    if (_isLoading) return;
+    if (_isLoading || _nextRowKey == null) return;
     setState(() => _isLoading = true);
 
     try {
-      DataFrameResponse response = widget.df;
-      setState(() {
-        _nextRowKey = response.nextRowKey;
-        for (int i = 0; i < response.rows.length; i++) {
-          _allRows.add(response.getRowAsMap(i));
-        }
-        _isLoading = false;
-      });
+      // Pedimos el siguiente mazo usando la función modificada con persistencia interna
+      DataFrameResponse response = await _apiClient.fetchDataframe(widget.tableName);
+      _processNewDataBlock(response);
     } catch (e) {
       print("ERROR: $e");
       setState(() {
@@ -49,7 +67,6 @@ class _ViewerScreenState extends State<ViewerScreen> {
     if (_hasError) {
       return const Scaffold(body: Center(child: Text("Error connecting to HBase.")));
     }
-
     if (_allRows.isEmpty && _isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -59,6 +76,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
       body: PageView.builder(
         itemCount: _allRows.length + (_nextRowKey != null ? 1 : 0),
         onPageChanged: (index) {
+          // Si el usuario se acerca al final del lote actual, disparamos la precarga en segundo plano
           if (index >= _allRows.length - 2 && _nextRowKey != null) {
             _loadMoreData();
           }

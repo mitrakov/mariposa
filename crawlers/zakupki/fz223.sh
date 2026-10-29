@@ -25,4 +25,4 @@ JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar Fz223Scr
 kill `ps x | grep Fz223Scraper.scala | head -1 | awk '{print $1}'`
 
 
-spark-submit --num-executors 5 --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar Fz223RefineJob.scala
+spark-submit --num-executors 5 /home/hadoop/mariposa-fly-*.jar Fz223RefineJob.scala

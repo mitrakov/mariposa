@@ -1,4 +1,4 @@
-import hbase.{DataFrameService, TableResponse}
+import hbase.DataFrameService
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory}
 import org.apache.pekko.actor.typed.ActorSystem
@@ -95,3 +95,5 @@ object Main extends App {
     Await.result(future, 2.seconds) // wait graceful shutdown to complete
   }
 }
+
+case class TableResponse(tableName: String, columns: List[String], rows: List[List[Option[String]]], nextRowKey: Option[String])

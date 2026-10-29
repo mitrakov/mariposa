@@ -25,7 +25,7 @@ JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar PlanetSc
 kill `ps x | grep PlanetScraper.scala | head -1 | awk '{print $1}'`
 
 
-spark-submit --num-executors 5 --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar PlanetRefineJob.scala
+spark-submit --num-executors 5 /home/hadoop/mariposa-fly-*.jar PlanetRefineJob.scala
 spark-submit --driver-java-options="-Dapp.hbase.table=planet:${0:2:-3} -Dapp.hive.sql.file=${0:2:-3}.sql" --class com.mitrakoff.mariposa.Hive2HBase /home/hadoop/mariposa-assembly-*.jar
 
 
