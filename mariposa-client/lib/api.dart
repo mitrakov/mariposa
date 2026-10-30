@@ -17,7 +17,7 @@ class MariposaApiClient {
     final String storageKey = "$_cursorKeyPrefix$table";
 
     String? savedRowKey = prefs.getString(storageKey);
-    String url = '$baseUrl/table/$table?limit=100';
+    String url = '$baseUrl/table/$table?limit=10';
 
     if (savedRowKey != null && savedRowKey.isNotEmpty) {
       url += '&startRow=$savedRowKey';
