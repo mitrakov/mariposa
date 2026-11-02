@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DataCard extends StatelessWidget {
   final Map<String, dynamic> rowData;
@@ -6,16 +7,24 @@ class DataCard extends StatelessWidget {
 
   const DataCard({super.key, required this.rowData, required this.index});
 
-  bool _isImageUrl(String value) {
-    final lowerValue = value.toLowerCase();
+  bool _isUrl(String s) => s.trim().toLowerCase().startsWith('http://') || s.trim().toLowerCase().startsWith('https://');
 
-    return
-      lowerValue.endsWith('.jpg')  || lowerValue.contains('.jpg?') ||
-          lowerValue.endsWith('.jpeg') || lowerValue.contains('.jpeg?') ||
-          lowerValue.endsWith('.png')  || lowerValue.contains('.png?') ||
-          lowerValue.endsWith('.webp') || lowerValue.endsWith('.webp?') ||
-          lowerValue.endsWith('.gif')  || lowerValue.endsWith('.gif?')
-    ;
+  Future<void> _handleLaunchUrl(String urlString, BuildContext context) async {
+    try {
+      final Uri url = Uri.parse(urlString.trim());
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) { debugPrint("Cannot open URL: $e"); }
+  }
+
+  bool _isImageUrl(String value) {
+    final s = value.toLowerCase();
+    return s.endsWith('.jpg') || s.contains('.jpg?') ||
+        s.endsWith('.jpeg') || s.contains('.jpeg?') ||
+        s.endsWith('.png') || s.contains('.png?') ||
+        s.endsWith('.webp') || s.endsWith('.webp?') ||
+        s.endsWith('.gif') || s.contains('.gif?');
   }
 
   @override
@@ -71,7 +80,6 @@ class DataCard extends StatelessWidget {
                           if (i == 0) {
                             if (mainPhotoUrl == null) return const SizedBox.shrink();
                             return Theme(
-                              // Este truco elimina las líneas que ExpansionTile añade por defecto arriba y abajo al abrirse
                               data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                               child: ExpansionTile(
                                 initiallyExpanded: false,
@@ -118,6 +126,7 @@ class DataCard extends StatelessWidget {
                           final entry = cleanData.entries.elementAt(i-1);
                           final valueStr = entry.value.toString();
                           final isInlineImage = _isImageUrl(valueStr);
+                          final isClickableUrl = _isUrl(valueStr);
 
                           return Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,6 +153,15 @@ class DataCard extends StatelessWidget {
                                     errorBuilder: (context, e, s) => Text(
                                       valueStr,
                                       style: const TextStyle(fontSize: 14, color: Colors.black87),
+                                    ),
+                                  ),
+                                ) : isClickableUrl ? GestureDetector(
+                                  onTap: () => _handleLaunchUrl(valueStr, context),
+                                  child: Text(
+                                    valueStr,
+                                    textAlign: TextAlign.start,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue,
+                                      decoration: TextDecoration.underline,
                                     ),
                                   ),
                                 )

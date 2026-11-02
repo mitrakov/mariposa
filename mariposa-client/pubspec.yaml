@@ -12,6 +12,7 @@ dependencies:
   http: 1.6.0                          # http
   syncfusion_flutter_charts: 34.1.33   # charts and diagrams
   shared_preferences: 2.5.4            # local key-value storage for settings
+  url_launcher: 6.3.2                  # clickable URLs
 
 flutter:
   uses-material-design: true
