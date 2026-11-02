@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mariposa/api.dart';
-import 'package:mariposa/mariposachart.dart';
 import 'package:mariposa/viewer_screen.dart';
 
-void main() {
-  runApp(const MariposaApp());
-}
+void main() => runApp(const MariposaApp());
 
 class MariposaApp extends StatelessWidget {
   const MariposaApp({Key? key}) : super(key: key);
@@ -39,31 +36,6 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
   void initState() {
     super.initState();
     _tablesFuture = _apiClient.fetchHBaseTables();
-  }
-
-  void _fetchAndShowChart() async {
-    if (!_formKey.currentState!.validate() || _selectedTable == null) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final data = await _apiClient.fetchTable(_selectedTable!.trim());
-
-      setState(() => _isLoading = false);
-
-      if (data.isEmpty) {
-        _showSnackBar('Empty table in HBase');
-        return;
-      }
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => MariposaUniversalChart(data)),
-      );
-    } catch (e) {
-      setState(() => _isLoading = false);
-      _showSnackBar('ERROR: $e');
-    }
   }
 
   void _fetchAndShowDataframe() async {
@@ -176,22 +148,10 @@ class _ConnectionInputPageState extends State<ConnectionInputPage> {
                     );
                   },
                 ),
-
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _fetchAndShowChart,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E88E5),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('CHART', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                ),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _fetchAndShowDataframe,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6E38F5),
+                    backgroundColor: const Color(0xFF1E88E5),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
