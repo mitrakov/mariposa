@@ -123,8 +123,11 @@ class DataCard extends StatelessWidget {
                             );
                           }
 
-                          final entry = cleanData.entries.elementAt(i-1);
-                          final valueStr = entry.value.toString();
+                          final entry = cleanData.entries.elementAt(i - 1);
+                          var valueStr = entry.value.toString().trim();
+                          if (valueStr.startsWith('ArraySeq(') && valueStr.endsWith(')'))
+                            valueStr = valueStr.substring(9, valueStr.length - 1);
+
                           final isInlineImage = _isImageUrl(valueStr);
                           final isClickableUrl = _isUrl(valueStr);
 
@@ -132,18 +135,16 @@ class DataCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Expanded(
-                                flex: 2,
-                                child: Text(
-                                  entry.key,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w600,
+                                flex: 3,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 2.0),
+                                  child: Text(entry.key, overflow: TextOverflow.ellipsis, maxLines: 2,
+                                    style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600),
                                   ),
                                 ),
                               ),
                               Expanded(
-                                flex: 5,
+                                flex: 6,
                                 child: isInlineImage
                                     ? ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
