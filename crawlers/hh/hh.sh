@@ -21,9 +21,16 @@ spark-submit \
   --class com.mitrakoff.mariposa.Kafka2Hive \
   /home/hadoop/mariposa-assembly-*.jar &
 
+spark-submit \
+  --driver-java-options=" \
+   -Dapp.hbase.table=hh:cards \
+   -Dapp.hive.sql.text='SELECT * FROM hh.refine;'" \
+  --class com.mitrakoff.mariposa.Hive2HBase \
+  /home/hadoop/mariposa-assembly-*.jar
+
 
 JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar HhScraper.scala     > /home/hadoop/logs/$0.log 2>&1 &
-kill `ps x | grep HhScraper.scala | head -1 | awk '{print $1}'`
+kill `ps x | grep HhScraper.scala     | head -1 | awk '{print $1}'`
 
 
 spark-submit --num-executors 5 /home/hadoop/mariposa-fly-*.jar HhRefineJob.scala
