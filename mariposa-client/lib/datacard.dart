@@ -69,31 +69,48 @@ class DataCard extends StatelessWidget {
                         separatorBuilder: (context, index) => const Divider(color: Colors.black12, height: 16),
                         itemBuilder: (context, i) {
                           if (i == 0) {
-                            return mainPhotoUrl == null ? SizedBox.shrink() : Container(
-                              width: double.infinity,
-                              height: 300, // photo height
-                              color: Colors.grey[200],
-                              child: Image.network(
-                                mainPhotoUrl,
-                                fit: BoxFit.fitWidth,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return const Center(
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  );
-                                },
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.amber[50],
-                                    child: const Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.broken_image, color: Colors.amber, size: 40),
-                                        Text("Image not available", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                      ],
+                            if (mainPhotoUrl == null) return const SizedBox.shrink();
+                            return Theme(
+                              // Este truco elimina las líneas que ExpansionTile añade por defecto arriba y abajo al abrirse
+                              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                              child: ExpansionTile(
+                                initiallyExpanded: false,
+                                title: const Text(
+                                  "Ver foto adjunta",
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.blueGrey),
+                                ),
+                                leading: const Icon(Icons.image, size: 20, color: Colors.blueGrey),
+                                tilePadding: EdgeInsets.zero,
+                                childrenPadding: const EdgeInsets.only(bottom: 12.0),
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    height: 300, // photo height
+                                    color: Colors.grey[200],
+                                    child: Image.network(
+                                      mainPhotoUrl,
+                                      fit: BoxFit.fitWidth,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return const Center(
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        );
+                                      },
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.amber[50],
+                                          child: const Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.broken_image, color: Colors.amber, size: 40),
+                                              Text("Image not available", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                            ],
+                                          ),
+                                        );
+                                      },
                                     ),
-                                  );
-                                },
+                                  ),
+                                ],
                               ),
                             );
                           }
