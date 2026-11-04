@@ -18,14 +18,14 @@ spark-submit \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
-  --class com.mitrakoff.mariposa.Kafka2Hive \
+  --class Kafka2Hive \
   /home/hadoop/mariposa-assembly-*.jar &
 
 spark-submit \
   --driver-java-options=" \
    -Dapp.hbase.table=planet:cards \
    -Dapp.hive.sql.text='SELECT * FROM planet.refine WHERE city = \"Санкт-Петербург\";'" \
-  --class com.mitrakoff.mariposa.Hive2HBase \
+  --class Hive2HBase \
   /home/hadoop/mariposa-assembly-*.jar
 
 

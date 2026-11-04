@@ -3,7 +3,7 @@ import org.apache.spark.sql.functions._
 
 
 // build.sbt: "org.apache.spark" %% "spark-sql"  % "4.1.1" % "provided"
-// spark-submit --num-executors 5 --class com.mitrakoff.mariposa.fly.MariposaFly /home/hadoop/mariposa-fly-*.jar Fz223RefineJob.scala
+// spark-submit --num-executors 5 /home/hadoop/mariposa-fly-*.jar Fz223RefineJob.scala
 class Fz223RefineJob {
   private val sourceTable = "zakupki.fz223_import"
   private val targetTable = "zakupki.fz223_refine"
