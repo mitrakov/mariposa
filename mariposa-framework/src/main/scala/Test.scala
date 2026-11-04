@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa
-
 import io.cucumber.core.cli.Main
 import io.cucumber.datatable.DataTable
 import io.cucumber.scala.{EN, ScalaDsl}
@@ -31,7 +29,7 @@ test_catalog.json:
 spark-submit \
   --driver-java-options="-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
-  --class com.mitrakoff.mariposa.Test mariposa-assembly-1.0.0.jar
+  --class Test mariposa-assembly-*.jar
 */
 // TODO: For some reason, first attempt always fail; all subsequent attempts are OK. Check why.
 object Test extends App {

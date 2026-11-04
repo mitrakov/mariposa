@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa
-
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.{col, struct, to_json}
 
@@ -95,6 +93,6 @@ spark-submit \
   --driver-java-options="-Dapp.hive.table=test_table -Dapp.kafka.topic=test-topic-1 \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
-  --class com.mitrakoff.mariposa.Hive2Kafka \
+  --class Hive2Kafka \
   mariposa-assembly-1.0.0.jar
  */

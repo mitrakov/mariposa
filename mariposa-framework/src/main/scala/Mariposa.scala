@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa
-
 import org.antlr.v4.runtime.{CharStreams, CommonTokenStream}
 import org.slf4j.LoggerFactory
 
@@ -16,14 +14,14 @@ object Mariposa extends App {
     System.err.println("""Usage:
       |spark-submit mariposa.jar file.sql
       |or:
-      |spark-submit --class com.mitrakoff.mariposa.SomeClass --driver-java-options="-Dapp.kafka.topic=mytopic ..." mariposa.jar
+      |spark-submit --class SomeClass --driver-java-options="-Dapp.kafka.topic=mytopic ..." mariposa.jar
       |
       |Available programs are:
-      |com.mitrakoff.mariposa.Kafka2Hive
-      |com.mitrakoff.mariposa.Kafka2HBase
-      |com.mitrakoff.mariposa.Hive2Kafka
-      |com.mitrakoff.mariposa.Hive2HBase
-      |com.mitrakoff.mariposa.HBase2Kafka
+      |Kafka2Hive
+      |Kafka2HBase
+      |Hive2Kafka
+      |Hive2HBase
+      |HBase2Kafka
       |""".stripMargin)
     System.exit(1)
   }

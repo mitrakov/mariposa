@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa
-
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
 import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
@@ -125,6 +123,6 @@ spark-submit \
   --driver-java-options=" \
    -Dapp.hbase.table=planet:cards \
    -Dapp.hive.sql.text='SELECT * FROM planet.refine WHERE city = \"Санкт-Петербург\";'" \
-  --class com.mitrakoff.mariposa.Hive2HBase \
+  --class Hive2HBase \
   /home/hadoop/mariposa-assembly-*.jar
 */

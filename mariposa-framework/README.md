@@ -24,13 +24,13 @@ UPLOAD TO KAFKA FROM HBASE CATALOG 'mycatalog.json' TOPIC 'telemetry' SERVERS 'l
 
 ## Usage as a program
 ```shell
-spark-submit --class com.mitrakoff.mariposa.SomeClass --driver-java-options="-Dapp.kafka.topic=mytopic ..." mariposa.jar
+spark-submit --class SomeClass --driver-java-options="-Dapp.kafka.topic=mytopic ..." mariposa.jar
 ```
 Available programs are:
-- com.mitrakoff.mariposa.Kafka2Hive
-- com.mitrakoff.mariposa.Kafka2HBase
-- com.mitrakoff.mariposa.Hive2Kafka
-- com.mitrakoff.mariposa.HBase2Kafka
+- Kafka2Hive
+- Kafka2HBase
+- Hive2Kafka
+- HBase2Kafka
 
 ## Usage as Library
 ### Sbt
@@ -40,7 +40,7 @@ name := "my"
 version := "0.1.0"
 scalaVersion := "2.13.17"
 resolvers += Resolver.mavenLocal     // TODO: publish to artifactory
-libraryDependencies += "com.mitrakoff" %% "mariposa" % "1.0.0"
+libraryDependencies += "com.mitrakoff" %% "mariposa" % "1.2"
 assembly / mainClass := Some("Main")
 assembly / assemblyMergeStrategy := {
   case PathList("META-INF", xs*) =>
@@ -59,7 +59,7 @@ addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "2.3.1")
 
 ```scala
 // Main.scala
-import com.mitrakoff.mariposa.Mariposa
+import Mariposa
 
 object Main extends App {
   Mariposa.kafka2Hive
@@ -107,7 +107,7 @@ pom.xml:
         <dependency>
             <groupId>com.mitrakoff</groupId>
             <artifactId>mariposa_${scala.binary.version}</artifactId>
-            <version>1.0.0</version>
+            <version>1.2</version>
         </dependency>
     </dependencies>
 
@@ -175,7 +175,7 @@ pom.xml:
 
 ```java
 // Main.java
-import com.mitrakoff.mariposa.Mariposa;
+import Mariposa;
 
 public class Main {
     public static void main(String[] args) {
@@ -212,7 +212,7 @@ spark-submit my.jar
 
 ```scala
 // Main.scala
-import com.mitrakoff.mariposa.Mariposa
+import Mariposa
 
 object Main extends App {
   val catalog = s"""{

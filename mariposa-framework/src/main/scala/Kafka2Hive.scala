@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa
-
 import org.apache.spark.sql.functions.{col, from_json}
 import org.apache.spark.sql.streaming.Trigger
 import org.apache.spark.sql.types.{StructField, StructType}
@@ -154,7 +152,7 @@ spark-submit \
    -Dapp.security.truststore.password=$JKS_PASSWORD \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
-  --class com.mitrakoff.mariposa.Kafka2Hive \
+  --class Kafka2Hive \
   mariposa-assembly-1.0.0.jar
 
 kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic test-topic-1 --command-config $KAFKA_HOME/config/sasl.properties

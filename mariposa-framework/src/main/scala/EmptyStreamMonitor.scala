@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa
-
 import org.apache.spark.sql.streaming.StreamingQuery
 import org.slf4j.LoggerFactory
 import java.util.concurrent.{Executors, TimeUnit}

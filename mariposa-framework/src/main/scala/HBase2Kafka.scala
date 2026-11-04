@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa
-
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.{col, struct, to_json}
 import org.apache.hadoop.hbase.spark.datasources.HBaseTableCatalog
@@ -117,6 +115,6 @@ spark-submit \
   --driver-java-options="-Dapp.hbase.json.catalog=catalog.json -Dapp.kafka.topic=test-topic-2 \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
-  --class com.mitrakoff.mariposa.HBase2Kafka \
+  --class HBase2Kafka \
   mariposa-assembly-1.0.0.jar
 */

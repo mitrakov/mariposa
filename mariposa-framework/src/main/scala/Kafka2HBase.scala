@@ -1,5 +1,3 @@
-package com.mitrakoff.mariposa
-
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions.{col, from_json}
 import org.apache.spark.sql.types.{StringType, StructType}
@@ -140,7 +138,7 @@ spark-submit \
   --driver-java-options="-Dapp.hbase.json.catalog=catalog.json -Dapp.kafka.topic=test-topic-2 \
    -Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
   --conf "spark.executor.extraJavaOptions=-Djava.security.auth.login.config=$KAFKA_HOME/config/kafka_jaas.conf" \
-  --class com.mitrakoff.mariposa.Kafka2HBase \
+  --class Kafka2HBase \
   mariposa-assembly-1.0.0.jar
 
 kafka-console-producer.sh --bootstrap-server $(hostname):9092 --topic test-topic-2 --command-config $KAFKA_HOME/config/sasl.properties
