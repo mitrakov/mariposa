@@ -86,7 +86,7 @@ case class Kafka2HBase private (
       monitor.start(query)
 
     query.awaitTermination()
-    logger.info("Kafka to HBase completed successfully.")
+    logger.info("\nKafka to HBase completed successfully.\n")
     spark.close()
     monitor.stop()
   }

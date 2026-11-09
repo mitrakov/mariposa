@@ -47,7 +47,7 @@ case class Hive2Kafka  private (
     val toKafkaDF = hiveDF.select(to_json(struct(hiveDF.columns.map(col): _*)).as("value"))
     toKafkaDF.write.format("kafka").options(kafkaOptions).save()
 
-    logger.info("Hive  to Kafka completed successfully.")
+    logger.info("\nHive to Kafka completed successfully.\n")
     spark.stop()
   }
 

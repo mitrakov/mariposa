@@ -55,7 +55,7 @@ case class HBase2Kafka private (
     val toKafkaDF = hbaseDF.select(to_json(struct(hbaseDF.columns.map(col): _*)).as("value"))
     toKafkaDF.write.format("kafka").options(kafkaOptions).save()
 
-    logger.info("HBase to Kafka completed successfully.")
+    logger.info("\nHBase to Kafka completed successfully.\n")
     spark.stop()
   }
 

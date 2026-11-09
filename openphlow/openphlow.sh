@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# openphlow.sh for image: mitrakov/hadoop-krb:1.0.2
+# openphlow.sh for image: mitrakov/openphlow:1.0.0
 set -euo pipefail
 
 # helpers
@@ -922,7 +922,7 @@ else      # WORKERs
     zkServer.sh start
 
     # start HBase
-    sleep 15     # simple sync with master
+    sleep 20     # simple sync with master
     log "Starting HBase RegionServer..."
     kinit -kt $KEYTABS_DIR/$MY_HOSTNAME.keytab hbase/$MY_HOSTNAME@DEV.DF.SBRF.RU && klist
     hbase-daemon.sh start regionserver

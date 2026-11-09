@@ -84,7 +84,7 @@ case class Kafka2Hive  private (
       monitor.start(query)
 
     query.awaitTermination()
-    logger.info("Kafka to Hive completed successfully.")
+    logger.info("\nKafka to Hive completed successfully.\n")
     spark.close()
     monitor.stop()
   }

@@ -44,7 +44,7 @@ case class Hive2HBase private (
         .format("org.apache.hadoop.hbase.spark")
         .save()
 
-      logger.info("\n[SUCCESS] Hive2HBase completed for {}\n", hbaseTableName)
+      logger.info("\nHive to HBase completed successfully.\n")
     } finally {
       spark.close()
     }
