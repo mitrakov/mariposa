@@ -230,7 +230,7 @@ class PlanetScraper {
       )
 
       // Sección "Личная информация"
-      val infoSection = soup.select("div:containsOwn(Личная información), div:containsOwn(Личная информация)").first()
+      val infoSection = soup.select("div:containsOwn(Личная информация)").first()
       if (infoSection != null) {
         val infoUl = infoSection.nextElementSibling()
         if (infoUl != null && infoUl.tagName() == "ul") {

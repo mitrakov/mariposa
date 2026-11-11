@@ -34,7 +34,7 @@ object ScraperApp extends App {
   // run user class
   println(s"Executing: $className.run()...")
   runMethod.invoke(job)
-  println(s"SUCCESS: $className")
+  println(s"\nSUCCESS: $className")
 }
 
 /*

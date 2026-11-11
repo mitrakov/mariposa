@@ -1,5 +1,5 @@
 name := "mariposa-scraper"
-version := "1.0"
+version := "1.1"
 scalaVersion := "2.13.18"
 libraryDependencies ++= Seq(
   "org.scala-lang" % "scala-compiler" % scalaVersion.value, // compiler
@@ -9,6 +9,7 @@ libraryDependencies ++= Seq(
   "org.jsoup" % "jsoup" % "1.23.1",                      // html parser
   "org.apache.kafka" % "kafka-clients" % "4.2.0",        // kafka client, should match cluster version
   "org.slf4j" % "slf4j-simple" % "2.0.18",               // simple slf4j impl for kafka
+  "org.xerial" % "sqlite-jdbc" % "3.54.1.0",             // SQLite
 )
 
 assembly / assemblyMergeStrategy := {
