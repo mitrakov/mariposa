@@ -11,9 +11,11 @@ build.sbt: libraryDependencies ++= Seq(
   "org.jsoup" % "jsoup" % "1.23.1", "com.softwaremill.sttp.client4" %% "circe" % "4.0.26",
   "io.circe" %% "circe-generic" % "0.14.10", "org.xerial" % "sqlite-jdbc" % "3.54.1.0",
 )*/
-class PlanetScraperDB {
+object PlanetScraperDB extends App {
   val dbPath = "planet.db"
   val sleepMsec = 2000
+  
+  run()
 
   def run(): Unit = {
     while (true) {
@@ -26,8 +28,7 @@ class PlanetScraperDB {
     println("=== LovePlanet Scraper (SQLite Mode) ===")
     val upsert: String =
       """INSERT INTO profile (
-        |  id, photo, gender, name, age, city, children, status, seeking, alcohol, languages, about, quote, search, interests,
-        |  payload
+        |  id, photo, gender, name, age, city, children, status, seeking, alcohol, languages, about, quote, search, interests, payload
         |) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |ON CONFLICT(id) DO UPDATE SET
         |  photo      = excluded.photo,
