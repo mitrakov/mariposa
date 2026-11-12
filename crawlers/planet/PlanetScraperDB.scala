@@ -3,24 +3,17 @@ import io.circe.syntax.EncoderOps
 import org.jsoup.Jsoup
 import sttp.client4.{DefaultSyncBackend, UriContext, basicRequest}
 import java.sql.{Connection, DriverManager, PreparedStatement, Types}
-import java.time.Instant
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.util.Using.Manager
 
 /*
-kafka-topics.sh --bootstrap-server $(hostname):9092 --command-config $KAFKA_HOME/config/sasl.properties --create --topic planet-import
-JKS_PASSWORD=... java -jar /home/hadoop/mariposa-scraper-assembly-*.jar /home/hadoop/apps/PlanetScraper.scala
 build.sbt: libraryDependencies ++= Seq(
   "org.jsoup" % "jsoup" % "1.23.1", "com.softwaremill.sttp.client4" %% "circe" % "4.0.26",
-  "io.circe" %% "circe-generic" % "0.14.10", "org.apache.kafka" % "kafka-clients" % "4.2.0",
-  "org.xerial" % "sqlite-jdbc" % "3.54.1.0",
-)
-*/
+  "io.circe" %% "circe-generic" % "0.14.10", "org.xerial" % "sqlite-jdbc" % "3.54.1.0",
+)*/
 class PlanetScraperDB {
   val dbPath = "planet.db"
   val sleepMsec = 2000
-  
-  run()
 
   def run(): Unit = {
     while (true) {
@@ -30,10 +23,10 @@ class PlanetScraperDB {
   }
 
   private def run_(): Unit = {
-    println("=== LovePlanet Scraper Job (SQLite Modular Mode) ===")
+    println("=== LovePlanet Scraper (SQLite Mode) ===")
     val upsert: String =
       """INSERT INTO profile (
-        |  id, photo, gender, name, age, city, children, status, seeking, alcohol, languages, about, quote, target_search, interests,
+        |  id, photo, gender, name, age, city, children, status, seeking, alcohol, languages, about, quote, search, interests,
         |  payload
         |) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |ON CONFLICT(id) DO UPDATE SET
@@ -49,7 +42,7 @@ class PlanetScraperDB {
         |  languages  = excluded.languages,
         |  about      = excluded.about,
         |  quote      = excluded.quote,
-        |  target_search = excluded.target_search,
+        |  search     = excluded.search,
         |  interests  = excluded.interests,
         |  payload    = excluded.payload,
         |  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -106,11 +99,10 @@ class PlanetScraperDB {
     println(s"Processing profile: $profileUrl")
     for {
       rawJsonObj <- parseProfilePage(http, profileUrl)
-      stampedObj  = rawJsonObj.add("api_capture_date", Instant.now().toString.asJson)
-      record     <- extractProfileRecord(profileUrl, stampedObj)
+      record     <- extractProfileRecord(profileUrl, rawJsonObj)
     } {
       upsertProfile(upsertStmt, record)
-      println(s"Upserted ${record.name} (${record.age}, ${record.city}) -> SQLite")
+      println(s"OK ${record.id}: ${record.city} ${record.name} ${record.age} ${record.gender}")
     }
   }
 
@@ -138,27 +130,14 @@ class PlanetScraperDB {
       case None => ("", 0)
     }
 
-    // Validate required NOT NULL / CHECK fields before hitting SQLite
-    val cityOpt = getStr("city")
-    if (parsedName.isEmpty || parsedAge < 17 || cityOpt.isEmpty) {
-      println(s"Skipping invalid/incomplete profile $profileUrl (name='$parsedName', age=$parsedAge, city=$cityOpt)")
-      return None
-    }
-
-    // Detect gender from JSON if available, defaulting to false (woman) for d-1 search
-    val isMan = getStr("gender").exists(_.equalsIgnoreCase("man"))
-
-    // Ensure photo matches CHECK (photo IS NULL OR photo LIKE 'https://%')
-    val validPhoto = getStr("photo_url").filter(_.startsWith("https://"))
-
     Some(
       ProfileRecord(
         id        = profileUrl,
-        photo     = validPhoto,
-        gender    = isMan,
+        photo     = getStr("photo_url"),
+        gender    = detectGender(parsedName, getStr("personal_status"), getStr("seeking")),
         name      = parsedName,
         age       = parsedAge,
-        city      = cityOpt.get,
+        city      = getStr("city").get,
         children  = getStr("personal_children"),
         status    = getStr("personal_status"),
         seeking   = getStr("seeking"),
@@ -166,7 +145,7 @@ class PlanetScraperDB {
         languages = getArrayAsCsv("personal_languages").orElse(getStr("personal_languages")),
         about     = getStr("about"),
         quote     = getStr("quote"),
-        targetSearch = getStr("target_search"),
+        search    = getStr("search"),
         interests = getArrayAsCsv("interests"),
         payload   = jsonObj.asJson.noSpaces
       )
@@ -176,12 +155,17 @@ class PlanetScraperDB {
   private def upsertProfile(stmt: PreparedStatement, r: ProfileRecord): Unit = {
     def setNullableString(idx: Int, opt: Option[String]): Unit = opt match {
       case Some(v) => stmt.setString(idx, v)
-      case None    => stmt.setNull(idx, Types.VARCHAR)
+      case None    => stmt.setNull(idx, Types.NULL)
+    }
+
+    def setNullableBool(idx: Int, opt: Option[Boolean]): Unit = opt match {
+      case Some(v) => stmt.setBoolean(idx, v)
+      case None    => stmt.setNull(idx, Types.NULL)
     }
 
     stmt.setString(1, r.id)
     setNullableString(2, r.photo)
-    stmt.setBoolean(3, r.gender)
+    setNullableBool(3, r.gender)
     stmt.setString(4, r.name)
     stmt.setInt(5, r.age)
     stmt.setString(6, r.city)
@@ -192,7 +176,7 @@ class PlanetScraperDB {
     setNullableString(11, r.languages)
     setNullableString(12, r.about)
     setNullableString(13, r.quote)
-    setNullableString(14, r.targetSearch)
+    setNullableString(14, r.search)
     setNullableString(15, r.interests)
     stmt.setString(16, r.payload)
 
@@ -207,7 +191,7 @@ class PlanetScraperDB {
         """CREATE TABLE IF NOT EXISTS profile (
           |    id TEXT NOT NULL PRIMARY KEY CHECK (id LIKE 'https://%'),
           |    photo TEXT CHECK (photo IS NULL OR photo LIKE 'https://%'),
-          |    gender BOOLEAN NOT NULL,
+          |    gender BOOLEAN,
           |    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
           |    age INTEGER NOT NULL CHECK (age >= 17),
           |    city TEXT NOT NULL,
@@ -218,7 +202,7 @@ class PlanetScraperDB {
           |    languages TEXT,
           |    about TEXT,
           |    quote TEXT,
-          |    target_search TEXT,
+          |    search TEXT,
           |    interests TEXT,
           |    payload TEXT NOT NULL CHECK (json_valid(payload)),
           |    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -236,74 +220,6 @@ class PlanetScraperDB {
       stmt.close()
     }
   }
-
-//  private def run_(): Unit = {
-//    println("=== LovePlanet Scraper Job (SQLite WAL Mode) ===")
-//    val conn = DriverManager.getConnection(dbPath)
-//    initDb(conn)
-//
-//    val insertSql =
-//      """INSERT INTO profiles (profile_url, capture_date, payload_json, synced_to_kafka)
-//        |VALUES (?, ?, ?, 0)
-//        |ON CONFLICT(profile_url) DO UPDATE SET
-//        |  capture_date = excluded.capture_date,
-//        |  payload_json = excluded.payload_json,
-//        |  synced_to_kafka = 0""".stripMargin
-//
-//    val pstmt = conn.prepareStatement(insertSql)
-//    val http = DefaultSyncBackend()
-//
-//    try {
-//      for (page <- 0 to 1000) {
-//        println(s"\n--- Scraping Index Page $page ---")
-//        val indexRequest = basicRequest
-//          .get(uri"https://loveplanet.ru")
-//          .header("User-Agent", "Mozilla/5.0")
-//          .send(http)
-//
-//        indexRequest.body match {
-//          case Right(html) =>
-//            val soup = Jsoup.parse(html)
-//            val containers = soup.select("div.buser_usinfo").asScala
-//            for (container <- containers) {
-//              val linkTag = container.select("a.buser_usname").first()
-//              if (linkTag != null && linkTag.hasAttr("href")) {
-//                val href = linkTag.attr("href")
-//                if (href.matches("^/page/\\w+/frl-2$")) {
-//                  val fullProfileUrl = s"https://loveplanet.ru$href"
-//                  println(s"\nProcessing profile: $fullProfileUrl")
-//
-//                  parseProfilePage(http, fullProfileUrl).foreach { profileData =>
-//                    val now = Instant.now().toString
-//                    val finalJson = profileData
-//                      .add("api_capture_date", now.asJson)
-//                      .asJson
-//                      .noSpaces
-//
-//                    pstmt.setString(1, fullProfileUrl)
-//                    pstmt.setString(2, now)
-//                    pstmt.setString(3, finalJson)
-//                    pstmt.executeUpdate()
-//
-//                    println(s"Saved $href to SQLite.")
-//                  }
-//                  Thread.sleep(sleepMsec)
-//                }
-//              }
-//            }
-//          case Left(err) =>
-//            println(s"Error: $err")
-//        }
-//      }
-//    } catch {
-//      case e: Exception => println(s"Err: ${e.getMessage}")
-//    } finally {
-//      pstmt.close()
-//      conn.close()
-//      http.close()
-//      println("DONE.\n")
-//    }
-//  }
 
   private lazy val translations: Map[String, String] = Map(
     "внешность" -> "appearance",
@@ -417,7 +333,7 @@ class PlanetScraperDB {
         "interests"     -> interests.asJson,
         "seeking"       -> seekingText.asJson,
         "about"         -> aboutText.asJson,
-        "target_search" -> targetSearchText.asJson,
+        "search"        -> targetSearchText.asJson,
         "profile_url"   -> url.asJson
       )
 
@@ -467,12 +383,109 @@ class PlanetScraperDB {
       None
     }
   }
+
+  private def detectGender(name: String,
+                           personalStatus: Option[String],
+                           seeking: Option[String]): Option[Boolean] = {
+    import scala.util.matching.Regex
+
+    val FemaleNames: Set[String] = Set(
+      "света", "влада", "анна", "маша", "елизавета", "лия", "наталия", "юша", "ксения", "ольга",
+      "ирина", "лариса", "александра", "анфиса", "анастасия", "елена", "яна", "аня", "полина",
+      "софия", "светлана", "алина", "оксана", "оля", "виктория", "татьяна", "катерина", "марина",
+      "катя", "алена", "алёна", "элина", "лиса", "лиза", "ната", "екатерина", "алла", "надежда",
+      "инга", "ксюша", "милана", "валерия", "люда", "анюта", "лина", "настя", "арина", "мария",
+      "юля", "юлия", "наталья", "таисия", "мия", "галина", "ира", "людмила", "вика", "олеся",
+      "евгения", "ника", "алия", "элона", "карина", "эльмира", "тата", "инна", "тартуга", "натали",
+      "василиса", "наташа", "леся", "рита", "валентина", "нина", "алиса", "наина", "дарья", "любовь",
+      "таня", "зоя", "соня", "элизабет", "лилия", "гузель", "айгуль", "мари"
+    )
+
+    val MaleNames: Set[String] = Set(
+      "андрей", "игорь", "евгений", "руслан", "азим", "марк", "владимир", "максим", "виталий",
+      "артем", "артём", "георгий", "александр", "влад", "артур", "дмитрий", "антон", "стас",
+      "кирилл", "егор", "арсений", "алексей", "иван", "олег", "миша", "кирил", "вячеслав",
+      "серёга", "михаил", "андриано", "виктор", "николай", "роман", "дима", "адель", "саид",
+      "никита", "баха", "павел", "вадим", "давид", "коля", "эдуард", "юрий", "денис", "данил",
+      "халид", "валерий", "вася", "святослав", "владислав", "лева", "паша", "хашим", "толик",
+      "эрнест", "азат", "шамырбек", "альберт", "шамси", "димитрий", "турист", "тверичанин",
+      "федор", "мерик", "мударис", "анатолий", "станислав", "тимофей", "степан", "димон", "али",
+      "григорий", "бадрик", "пауль", "саба", "илья", "володя", "вова", "умар", "борис", "мухсин",
+      "ваня", "норайр", "перман", "владимер", "санчес", "рустам", "ден", "герман", "собир",
+      "тима", "арсен", "карен", "глеб", "тимоха", "славик", "константин", "мансур", "капар",
+      "ислам", "самандар", "нодир", "шавкат", "петр", "валентин", "рашид", "пётр", "арсентий",
+      "артемий", "леша", "захар", "нурик", "аман", "маруф", "леонид", "наваи", "армен", "энвер",
+      "мердан", "арман", "амир", "слава", "гена", "бурхон", "юра", "равиль", "рамин", "серафим",
+      "гриня", "ахмед", "аманулла", "азиз", "даниил", "василий", "ренат", "ахмат", "едуард", "макс",
+      "михо", "ахмет", "пабло", "педро", "мурад", "ринат", "мухаммет", "ричард", "мехмет", "франческо",
+      "гари", "тони", "мохамед", "шах", "андреи", "алекс", "салах", "марсель", "махмад", "антони",
+      "омар", "фатих", "сократ", "роберто", "магамед", "алмат", "камиль", "альфред",
+      "роберт", "мурат", "рамиль", "зухроб", "марат", "аират", "гриша", "шухрат", "джони", "юсуф",
+      "даниэль", "фернандо", "август", "амед", "серж", "бехруз", "армат", "аркадий", "энджи", "йосе",
+      "мухаммад", "дмитри", "азамат", "лео", "игнат", "аледжандро", "джорге", "шамиль", "сергей",
+      "сергеи", "мике", "филипп", "эд", "сергио", "шерзод", "эмиль", "франциско", "антонио", "магомед",
+      "арт", "рикардо", "андрев"
+    )
+
+    val MaleStatuses: Set[String]   = Set("Свободен", "Женат", "Разведен")
+    val FemaleStatuses: Set[String] = Set("Свободна", "Замужем", "Разведена")
+
+    val LatinToCyrillicReplacements: Seq[(String, String)] = Seq(
+      "shch" -> "щ", "sh" -> "ш", "ch" -> "ч", "zh" -> "ж", "kh" -> "х",
+      "ya"   -> "я", "yu" -> "ю", "yo" -> "ё", "ts" -> "ц", "a"  -> "а",
+      "b"    -> "б", "v"  -> "в", "g"  -> "г", "d"  -> "д", "e"  -> "е",
+      "z"    -> "з", "i"  -> "и", "j"  -> "дж", "k" -> "к", "l"  -> "л",
+      "m"    -> "м", "n"  -> "н", "o"  -> "о", "p"  -> "п", "r"  -> "р",
+      "s"    -> "с", "t"  -> "т", "u"  -> "у", "f"  -> "ф", "y"  -> "й",
+      "x"    -> "кс", "th" -> "т", "w" -> "в", "h"  -> "х", "é"  -> "е",
+      "c"    -> "ц"
+    )
+
+    val FirstWordRegex: Regex     = "^([^\\s,._—]+)".r
+    val SeekingWomenRegex: Regex  = "(?i)(женщин|девуш)".r
+    val SeekingMenRegex: Regex    = "(?i)(мужчин|парн)".r
+    val MaleEndingRegex: Regex    = "(?i)[йнрмксвл]$".r
+    val FemaleEndingRegex: Regex  = "(?i)[ая]$".r
+
+    /** Predict gender (true = man, false = woman) from profile data */
+    def f(): Option[Boolean] = {
+      val cyrillicFull = LatinToCyrillicReplacements.foldLeft(name.toLowerCase.trim) {
+        case (acc, (from, to)) => acc.replace(from, to)
+      }
+      val firstWord = FirstWordRegex.findFirstIn(cyrillicFull).getOrElse("")
+
+      // Strategy 1: Exact dictionary match
+      if (MaleNames.contains(firstWord)) return Some(true)
+      if (FemaleNames.contains(firstWord)) return Some(false)
+
+      // Strategy 2: Grammatically gendered marital status
+      personalStatus.map(_.trim) match {
+        case Some(s) if MaleStatuses.contains(s)   => return Some(true)
+        case Some(s) if FemaleStatuses.contains(s) => return Some(false)
+        case _ =>
+      }
+
+      // Strategy 3: Seeking preference text ("ищу девушку" vs "ищу мужчину")
+      seeking match {
+        case Some(s) if SeekingWomenRegex.findFirstIn(s).isDefined => return Some(true)
+        case Some(s) if SeekingMenRegex.findFirstIn(s).isDefined   => return Some(false)
+        case _ =>
+      }
+
+      // Strategy 4: Typical Russian name endings
+      if (MaleEndingRegex.findFirstIn(firstWord).isDefined) return Some(true)
+      if (FemaleEndingRegex.findFirstIn(firstWord).isDefined) return Some(false)
+
+      None
+    }
+    f()
+  }
 }
 
 case class ProfileRecord(
   id: String,
   photo: Option[String],
-  gender: Boolean,
+  gender: Option[Boolean],
   name: String,
   age: Int,
   city: String,
@@ -483,7 +496,7 @@ case class ProfileRecord(
   languages: Option[String],
   about: Option[String],
   quote: Option[String],
-  targetSearch: Option[String],
+  search: Option[String],
   interests: Option[String],
   payload: String
 )
