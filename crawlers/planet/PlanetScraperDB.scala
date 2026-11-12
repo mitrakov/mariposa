@@ -26,27 +26,28 @@ class PlanetScraperDB {
 
   private def run_(): Unit = {
     println("=== LovePlanet Scraper (SQLite Mode) ===")
-    val upsert = """INSERT INTO profile (
-      |  id, photo, gender, name, age, city, children, status, seeking, alcohol, languages, about, quote, search, interests, payload
-      |) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      |ON CONFLICT(id) DO UPDATE SET
-      |  photo      = excluded.photo,
-      |  gender     = excluded.gender,
-      |  name       = excluded.name,
-      |  age        = excluded.age,
-      |  city       = excluded.city,
-      |  children   = excluded.children,
-      |  status     = excluded.status,
-      |  seeking    = excluded.seeking,
-      |  alcohol    = excluded.alcohol,
-      |  languages  = excluded.languages,
-      |  about      = excluded.about,
-      |  quote      = excluded.quote,
-      |  search     = excluded.search,
-      |  interests  = excluded.interests,
-      |  payload    = excluded.payload,
-      |  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-      |  ;""".stripMargin
+    val upsert =
+    """INSERT INTO profile (
+     |  id, photo, gender, name, age, city, children, status, seeking, alcohol, languages, about, quote, search, interests, payload
+     |) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     |ON CONFLICT(id) DO UPDATE SET
+     |  photo      = excluded.photo,
+     |  gender     = excluded.gender,
+     |  name       = excluded.name,
+     |  age        = excluded.age,
+     |  city       = excluded.city,
+     |  children   = excluded.children,
+     |  status     = excluded.status,
+     |  seeking    = excluded.seeking,
+     |  alcohol    = excluded.alcohol,
+     |  languages  = excluded.languages,
+     |  about      = excluded.about,
+     |  quote      = excluded.quote,
+     |  search     = excluded.search,
+     |  interests  = excluded.interests,
+     |  payload    = excluded.payload,
+     |  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+     |  ;""".stripMargin
     Manager { use =>
       val conn = use(DriverManager.getConnection(s"jdbc:sqlite:$dbPath"))
       initDb(conn)
@@ -101,14 +102,11 @@ class PlanetScraperDB {
     def getStr(key: String): Option[String] = jsonObj(key).flatMap(_.asString).map(_.trim).filter(_.nonEmpty)
 
     def getArrayAsCsv(key: String): Option[String] =
-      jsonObj(key)
-        .flatMap(_.asArray)
-        .map(_.flatMap(_.asString).map(_.trim).filter(_.nonEmpty))
-        .filter(_.nonEmpty)
-        .map(_.mkString(", "))
+      jsonObj(key).flatMap(_.asArray).map(_.flatMap(_.asString).map(_.trim).filter(_.nonEmpty)).filter(_.nonEmpty)
+        .map(_.mkString(","))
 
     // Parse "Дарья, 25" -> ("Дарья", 25)
-    val (parsedName, parsedAge) = getStr("name_age") match {
+    val (name, age) = getStr("name_age") match {
       case Some(raw) =>
         val parts = raw.split(",").map(_.trim)
         val namePart = parts.headOption.getOrElse("")
@@ -116,25 +114,30 @@ class PlanetScraperDB {
         (namePart, agePart)
       case None => ("", 0)
     }
+    val gender = detectGender(name, getStr("status"), getStr("seeking"))
 
     Some(
       ProfileRecord(
         id        = profileUrl,
         photo     = getStr("photo_url"),
-        gender    = detectGender(parsedName, getStr("status"), getStr("seeking")),
-        name      = parsedName,
-        age       = parsedAge,
+        gender    = gender,
+        name      = name,
+        age       = age,
         city      = getStr("city").get,
         children  = getStr("children"),
         status    = getStr("status"),
         seeking   = getStr("seeking"),
         alcohol   = getStr("alcohol"),
-        languages = getArrayAsCsv("languages").orElse(getStr("languages")),
+        languages = getArrayAsCsv("languages"),
         about     = getStr("about"),
         quote     = getStr("quote"),
         search    = getStr("search"),
         interests = getArrayAsCsv("interests"),
-        payload   = jsonObj.asJson.deepDropNullValues.noSpaces
+        payload   = jsonObj
+          .add("name", name.asJson)
+          .add("age", age.asJson)
+          .add("gender", gender.asJson)
+          .asJson.deepDropNullValues.noSpaces
       )
     )
   }
@@ -265,7 +268,7 @@ class PlanetScraperDB {
     }
   }
 
-  // Sub-parser de páginas de perfil desarrollado nativamente con Jsoup y Circe
+  // parse profile page
   private def parseProfilePage(http: sttp.client4.SyncBackend, url: String): Option[JsonObject] = {
     try {
       val response = basicRequest
@@ -460,6 +463,6 @@ class PlanetScraperDB {
 
 case class ProfileRecord(id: String, photo: Option[String], gender: Option[Boolean], name: String, age: Int,
                          city: String, children: Option[String], status: Option[String], seeking: Option[String],
-                         alcohol: Option[String], languages: Option[String], about: Option[String], quote: Option[String], 
+                         alcohol: Option[String], languages: Option[String], about: Option[String], quote: Option[String],
                          search: Option[String], interests: Option[String], payload: String
-)
+                        )
