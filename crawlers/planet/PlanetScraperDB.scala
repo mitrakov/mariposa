@@ -108,11 +108,11 @@ class PlanetScraperDB {
     // Parse "Дарья, 25" -> ("Дарья", 25)
     val (name, age) = getStr("name_age") match {
       case Some(raw) =>
-        val parts = raw.split(",").map(_.trim)
+        val parts = raw.split(",+").map(_.trim).filter(_.nonEmpty)     // also handle "Name,, 33" case
         val namePart = parts.headOption.getOrElse("")
-        val agePart = parts.lift(1).flatMap(_.filter(_.isDigit).toIntOption).getOrElse(0)
+        val agePart  = parts.lastOption.flatMap(_.filter(_.isDigit).toIntOption).getOrElse(-1)
         (namePart, agePart)
-      case None => ("", 0)
+      case None => ("", -1)
     }
     val gender = detectGender(name, getStr("status"), getStr("seeking"))
 
