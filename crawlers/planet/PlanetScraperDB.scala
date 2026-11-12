@@ -102,7 +102,7 @@ class PlanetScraperDB {
 
     def getArrayAsCsv(key: String): Option[String] =
       jsonObj(key).flatMap(_.asArray).map(_.flatMap(_.asString).map(_.trim).filter(_.nonEmpty)).filter(_.nonEmpty)
-        .map(_.mkString(","))
+        .map(_.mkString(", "))
 
     // Parse "Дарья, 25" -> ("Дарья", 25)
     val (name, age) = getStr("name_age") match {
