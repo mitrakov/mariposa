@@ -102,7 +102,7 @@ class PlanetScraperDB {
       record     <- extractProfileRecord(profileUrl, rawJsonObj)
     } {
       upsertProfile(upsertStmt, record)
-      println(s"OK ${record.id}: ${record.city} ${record.name} ${record.age} ${record.gender}")
+      println(s"OK: ${record.city} ${record.name} ${record.age} ${record.gender}")
     }
   }
 
@@ -147,7 +147,7 @@ class PlanetScraperDB {
         quote     = getStr("quote"),
         search    = getStr("search"),
         interests = getArrayAsCsv("interests"),
-        payload   = jsonObj.asJson.noSpaces
+        payload   = jsonObj.asJson.deepDropNullValues.noSpaces
       )
     )
   }
@@ -328,7 +328,6 @@ class PlanetScraperDB {
         "name_age"      -> displayName.asJson,
         "photo_url"     -> mainPhotoUrl.asJson,
         "city"          -> city.asJson,
-        "visitors"      -> visitorsCount.asJson,
         "quote"         -> quote.asJson,
         "interests"     -> interests.asJson,
         "seeking"       -> seekingText.asJson,
@@ -424,7 +423,7 @@ class PlanetScraperDB {
       "даниэль", "фернандо", "август", "амед", "серж", "бехруз", "армат", "аркадий", "энджи", "йосе",
       "мухаммад", "дмитри", "азамат", "лео", "игнат", "аледжандро", "джорге", "шамиль", "сергей",
       "сергеи", "мике", "филипп", "эд", "сергио", "шерзод", "эмиль", "франциско", "антонио", "магомед",
-      "арт", "рикардо", "андрев"
+      "арт", "рикардо", "андрев", "витя"
     )
 
     val MaleStatuses: Set[String]   = Set("Свободен", "Женат", "Разведен")
