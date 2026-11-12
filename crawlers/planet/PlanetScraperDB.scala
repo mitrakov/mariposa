@@ -77,8 +77,7 @@ class PlanetScraperDB {
           if (linkTag != null && linkTag.hasAttr("href")) {
             val href = linkTag.attr("href")
             if (href.matches("^/page/\\w+/frl-2$")) {
-              val fullProfileUrl = s"https://loveplanet.ru$href"
-              processSingleProfile(http, upsertStmt, fullProfileUrl)
+              processSingleProfile(http, upsertStmt, s"https://loveplanet.ru$href")
               Thread.sleep(sleepMsec)     // respect web-server
             }
           }
@@ -87,7 +86,7 @@ class PlanetScraperDB {
     }
   }
 
-  private def processSingleProfile(http: SyncBackend, upsertStmt: PreparedStatement, profileUrl: String): Unit = {
+  private def processSingleProfile(http: SyncBackend, upsertStmt: PreparedStatement, profileUrl: String): Unit = try {
     println(s"Processing profile: $profileUrl")
     for {
       rawJsonObj <- parseProfilePage(http, profileUrl)
@@ -96,7 +95,7 @@ class PlanetScraperDB {
       upsertProfile(upsertStmt, record)
       println(s"OK: ${record.city} ${record.name} ${record.age} ${record.status} ${record.seeking} ${record.gender}")
     }
-  }
+  } catch { case e: Throwable => println(s"Cannot parse profile: $profileUrl\n$e")}
 
   private def extractProfileRecord(profileUrl: String, jsonObj: JsonObject): Option[ProfileRecord] = {
     def getStr(key: String): Option[String] = jsonObj(key).flatMap(_.asString).map(_.trim).filter(_.nonEmpty)
