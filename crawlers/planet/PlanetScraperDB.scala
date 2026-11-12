@@ -1,9 +1,11 @@
 import io.circe.JsonObject
 import io.circe.syntax.EncoderOps
 import org.jsoup.Jsoup
-import sttp.client4.{DefaultSyncBackend, UriContext, basicRequest}
+import sttp.client4.{DefaultSyncBackend, SyncBackend, UriContext, basicRequest}
 import java.sql.{Connection, DriverManager, PreparedStatement, Types}
+import java.time.LocalDateTime
 import scala.jdk.CollectionConverters.CollectionHasAsScala
+import scala.util.matching.Regex
 import scala.util.Using.Manager
 
 /*
@@ -11,11 +13,9 @@ build.sbt: libraryDependencies ++= Seq(
   "org.jsoup" % "jsoup" % "1.23.1", "com.softwaremill.sttp.client4" %% "circe" % "4.0.26",
   "io.circe" %% "circe-generic" % "0.14.10", "org.xerial" % "sqlite-jdbc" % "3.54.1.0",
 )*/
-object PlanetScraperDB extends App {
+class PlanetScraperDB {
   val dbPath = "planet.db"
   val sleepMsec = 2000
-  
-  run()
 
   def run(): Unit = {
     while (true) {
@@ -26,28 +26,27 @@ object PlanetScraperDB extends App {
 
   private def run_(): Unit = {
     println("=== LovePlanet Scraper (SQLite Mode) ===")
-    val upsert: String =
-      """INSERT INTO profile (
-        |  id, photo, gender, name, age, city, children, status, seeking, alcohol, languages, about, quote, search, interests, payload
-        |) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        |ON CONFLICT(id) DO UPDATE SET
-        |  photo      = excluded.photo,
-        |  gender     = excluded.gender,
-        |  name       = excluded.name,
-        |  age        = excluded.age,
-        |  city       = excluded.city,
-        |  children   = excluded.children,
-        |  status     = excluded.status,
-        |  seeking    = excluded.seeking,
-        |  alcohol    = excluded.alcohol,
-        |  languages  = excluded.languages,
-        |  about      = excluded.about,
-        |  quote      = excluded.quote,
-        |  search     = excluded.search,
-        |  interests  = excluded.interests,
-        |  payload    = excluded.payload,
-        |  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        |  ;""".stripMargin
+    val upsert = """INSERT INTO profile (
+      |  id, photo, gender, name, age, city, children, status, seeking, alcohol, languages, about, quote, search, interests, payload
+      |) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      |ON CONFLICT(id) DO UPDATE SET
+      |  photo      = excluded.photo,
+      |  gender     = excluded.gender,
+      |  name       = excluded.name,
+      |  age        = excluded.age,
+      |  city       = excluded.city,
+      |  children   = excluded.children,
+      |  status     = excluded.status,
+      |  seeking    = excluded.seeking,
+      |  alcohol    = excluded.alcohol,
+      |  languages  = excluded.languages,
+      |  about      = excluded.about,
+      |  quote      = excluded.quote,
+      |  search     = excluded.search,
+      |  interests  = excluded.interests,
+      |  payload    = excluded.payload,
+      |  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      |  ;""".stripMargin
     Manager { use =>
       val conn = use(DriverManager.getConnection(s"jdbc:sqlite:$dbPath"))
       initDb(conn)
@@ -57,16 +56,12 @@ object PlanetScraperDB extends App {
       for (page <- 0 to 1000) {
         scrapeIndexPage(http, upsertStmt, page)
       }
-      println("DONE.\n")
+      println("DONE. Sleeping...\n")
     } recover { case e: Exception => println(s"Fatal scraper error: ${e.getMessage}") }
   }
 
-  private def scrapeIndexPage(
-                               http: sttp.client4.SyncBackend,
-                               upsertStmt: PreparedStatement,
-                               page: Int
-                             ): Unit = {
-    println(s"\n--- Scraping Index Page $page ---")
+  private def scrapeIndexPage(http: SyncBackend, upsertStmt: PreparedStatement, page: Int): Unit = {
+    println(s"\n--- Scraping Index Page $page (${LocalDateTime.now()}) ---")
     val indexRequest = basicRequest
       .get(uri"https://loveplanet.ru/a-search/d-1/p-$page")
       .header("User-Agent", "Mozilla/5.0")
@@ -83,36 +78,27 @@ object PlanetScraperDB extends App {
             if (href.matches("^/page/\\w+/frl-2$")) {
               val fullProfileUrl = s"https://loveplanet.ru$href"
               processSingleProfile(http, upsertStmt, fullProfileUrl)
-              Thread.sleep(sleepMsec)
+              Thread.sleep(sleepMsec)     // respect web-server
             }
           }
         }
-      case Left(err) =>
-        println(s"Error fetching index page $page: $err")
+      case Left(err) => println(s"Error fetching index page $page: $err")
     }
   }
 
-  private def processSingleProfile(
-                                    http: sttp.client4.SyncBackend,
-                                    upsertStmt: PreparedStatement,
-                                    profileUrl: String
-                                  ): Unit = {
+  private def processSingleProfile(http: SyncBackend, upsertStmt: PreparedStatement, profileUrl: String): Unit = {
     println(s"Processing profile: $profileUrl")
     for {
       rawJsonObj <- parseProfilePage(http, profileUrl)
       record     <- extractProfileRecord(profileUrl, rawJsonObj)
     } {
       upsertProfile(upsertStmt, record)
-      println(s"OK: ${record.city} ${record.name} ${record.age} ${record.gender}")
+      println(s"OK: ${record.city} ${record.name} ${record.age} ${record.status} ${record.seeking} ${record.gender}")
     }
   }
 
-  private def extractProfileRecord(
-                                    profileUrl: String,
-                                    jsonObj: JsonObject
-                                  ): Option[ProfileRecord] = {
-    def getStr(key: String): Option[String] =
-      jsonObj(key).flatMap(_.asString).map(_.trim).filter(_.nonEmpty)
+  private def extractProfileRecord(profileUrl: String, jsonObj: JsonObject): Option[ProfileRecord] = {
+    def getStr(key: String): Option[String] = jsonObj(key).flatMap(_.asString).map(_.trim).filter(_.nonEmpty)
 
     def getArrayAsCsv(key: String): Option[String] =
       jsonObj(key)
@@ -135,15 +121,15 @@ object PlanetScraperDB extends App {
       ProfileRecord(
         id        = profileUrl,
         photo     = getStr("photo_url"),
-        gender    = detectGender(parsedName, getStr("personal_status"), getStr("seeking")),
+        gender    = detectGender(parsedName, getStr("status"), getStr("seeking")),
         name      = parsedName,
         age       = parsedAge,
         city      = getStr("city").get,
-        children  = getStr("personal_children"),
-        status    = getStr("personal_status"),
+        children  = getStr("children"),
+        status    = getStr("status"),
         seeking   = getStr("seeking"),
-        alcohol   = getStr("personal_alcohol"),
-        languages = getArrayAsCsv("personal_languages").orElse(getStr("personal_languages")),
+        alcohol   = getStr("alcohol"),
+        languages = getArrayAsCsv("languages").orElse(getStr("languages")),
         about     = getStr("about"),
         quote     = getStr("quote"),
         search    = getStr("search"),
@@ -240,10 +226,6 @@ object PlanetScraperDB extends App {
     "знание_языков" -> "languages",
     "спорт" -> "sports",
     "ваше_образование" -> "your_education",
-    "любимая_музыка" -> "favorite_music",
-    "любимые_фильмы" -> "favorite_movies",
-    "любимые_книги" -> "favorite_books",
-    "любимые_блюда" -> "favorite_dishes",
     "самое_хорошее_в_жизни" -> "best_thing",
     "самое_ужасное_в_жизни" -> "worst_thing",
     "какие_качества_вы_цените_в_людях" -> "valued_qualities",
@@ -254,35 +236,33 @@ object PlanetScraperDB extends App {
     "самый_авантюрный_поступок" -> "adventure",
     "что_вам_нравится_или_не_нравится_в_телевизоре" -> "tv",
     "как_вы_относитесь_к_мату" -> "profanity",
-    "любимые_города_и_страны" -> "favorite_cities",
-    "любимые_места" -> "favorite_places",
-    "любимые_занятия" -> "favorite_hobby",
+    "любимая_музыка" -> "fav_music",
+    "любимые_фильмы" -> "fav_movies",
+    "любимые_книги" -> "fav_books",
+    "любимые_блюда" -> "fav_dishes",
+    "любимые_города_и_страны" -> "fav_cities",
+    "любимые_места" -> "fav_places",
+    "любимые_занятия" -> "fav_hobby",
     "какое_место_занимает_в_вашей_жизни_религия" -> "religion"
   )
 
-  // 💡 Función auxiliar de transliteración para llaves desconocidas (Fallback)
   private def transliterateToAscii(text: String): String = {
     val cyrillicTranslit = Map(
-      'а' -> "a", 'б' -> "b", 'в' -> "v", 'г' -> "g", 'д' -> "d", 'е' -> "e", 'ё' -> "yo",
-      'ж' -> "zh", 'з' -> "z", 'и' -> "i", 'й' -> "y", 'к' -> "k", 'л' -> "l", 'м' -> "m",
-      'н' -> "n", 'о' -> "o", 'п' -> "p", 'р' -> "r", 'с' -> "s", 'т' -> "t", 'у' -> "u",
-      'ф' -> "f", 'х' -> "kh", 'ц' -> "ts", 'ч' -> "ch", 'ш' -> "sh", 'щ' -> "shch",
-      'ъ' -> "", 'ы' -> "y", 'ь' -> "", 'э' -> "e", 'ю' -> "yu", 'я' -> "ya"
+      'а' -> "a", 'б' -> "b", 'в' -> "v", 'г' -> "g", 'д' -> "d", 'е' -> "e", 'ё' -> "yo", 'ж' -> "zh", 'з' -> "z", 'и' -> "i",
+      'й' -> "y", 'к' -> "k", 'л' -> "l", 'м' -> "m", 'н' -> "n", 'о' -> "o", 'п' -> "p", 'р' -> "r", 'с' -> "s", 'т' -> "t",
+      'у' -> "u", 'ф' -> "f", 'х' -> "kh", 'ц' -> "ts", 'ч' -> "ch", 'ш' -> "sh", 'щ' -> "shch", 'ъ' -> "", 'ы' -> "y", 'ь' -> "",
+      'э' -> "e", 'ю' -> "yu", 'я' -> "ya"
     )
     text.map(char => cyrillicTranslit.getOrElse(char, char.toString)).mkString
   }
 
-  // 💡 El método principal clean_hive_key idéntico a tu lógica de Python
-  private def cleanHiveKey(prefix: String, rawKey: String): String = {
-    // Normalizamos el string: lowercase, trim, espacios a guiones bajos y removemos caracteres especiales
+  // normalize key
+  private def cleanHiveKey(rawKey: String): String = {
     val normalizedKey = rawKey.toLowerCase.trim.replaceAll(" ", "_").replaceAll("[^a-z0-9_а-яё]", "")
-
-    val finalKey = translations.get(normalizedKey) match {
+    translations.get(normalizedKey) match {
       case Some(translated) => translated
       case None             => transliterateToAscii(normalizedKey)
     }
-
-    s"${prefix}_$finalKey"
   }
 
   // Sub-parser de páginas de perfil desarrollado nativamente con Jsoup y Circe
@@ -323,7 +303,7 @@ object PlanetScraperDB extends App {
       val interests = soup.select("div#tag-container a").asScala.map(_.text().trim).filter(_.nonEmpty)
       val seekingText = Option(soup.select("div:containsOwn(Я ищу)").first()).map(div => div.nextElementSibling().text())
       val aboutText = Option(soup.select("div:containsOwn(Свободно о себе)").first()).map(div => div.nextElementSibling().text())
-      val targetSearchText = Option(soup.select("div:containsOwn(Кого я хочу найти)").first()).map(div => div.nextElementSibling().text())
+      val searchText = Option(soup.select("div:containsOwn(Кого я хочу найти)").first()).map(div => div.nextElementSibling().text())
 
       var jsonMap = JsonObject(
         "name_age"      -> displayName.asJson,
@@ -333,11 +313,11 @@ object PlanetScraperDB extends App {
         "interests"     -> interests.asJson,
         "seeking"       -> seekingText.asJson,
         "about"         -> aboutText.asJson,
-        "search"        -> targetSearchText.asJson,
+        "search"        -> searchText.asJson,
         "profile_url"   -> url.asJson
       )
 
-      // Sección "Личная информация"
+      // "Личная информация"
       val infoSection = soup.select("div:containsOwn(Личная информация)").first()
       if (infoSection != null) {
         val infoUl = infoSection.nextElementSibling()
@@ -345,8 +325,7 @@ object PlanetScraperDB extends App {
           for (li <- infoUl.select("li.flex").asScala) {
             val labelTag = li.select("label").first()
             if (labelTag != null) {
-              val rawKey = labelTag.text().stripSuffix(":")
-              val flatKey = cleanHiveKey("personal", rawKey)
+              val flatKey = cleanHiveKey(labelTag.text().stripSuffix(":"))
 
               val sportBox = li.select("div.xcloud-box").first()
               if (sportBox != null) {
@@ -362,14 +341,14 @@ object PlanetScraperDB extends App {
         }
       }
 
-      // Sección "Автопортрет"
+      // "Автопортрет"
       val portraitSection = soup.select("div:containsOwn(Автопортрет)").first()
       if (portraitSection != null) {
         val portraitUl = portraitSection.nextElementSibling()
         if (portraitUl != null && portraitUl.tagName() == "ul") {
           for (li <- portraitUl.select("li.flex").asScala) {val labelTag = li.select("label").first()
-            if (labelTag != null) {val rawKey = labelTag.text().stripSuffix(":")
-              val flatKey = cleanHiveKey("portrait", rawKey)
+            if (labelTag != null) {
+              val flatKey = cleanHiveKey(labelTag.text().stripSuffix(":"))
               val valDiv = li.select("div").first()
               val value = if (valDiv != null) valDiv.text().trim else ""
               jsonMap = jsonMap.add(flatKey, value.asJson)
@@ -384,12 +363,10 @@ object PlanetScraperDB extends App {
     }
   }
 
-  private def detectGender(name: String,
-                           personalStatus: Option[String],
+  /** Predict gender (true = man, false = woman) from profile data */
+  private def detectGender(name: String, personalStatus: Option[String],
                            seeking: Option[String]): Option[Boolean] = {
-    import scala.util.matching.Regex
-
-    val FemaleNames: Set[String] = Set(
+    val femaleNames: Set[String] = Set(
       "света", "влада", "анна", "маша", "елизавета", "лия", "наталия", "юша", "ксения", "ольга",
       "ирина", "лариса", "александра", "анфиса", "анастасия", "елена", "яна", "аня", "полина",
       "софия", "светлана", "алина", "оксана", "оля", "виктория", "татьяна", "катерина", "марина",
@@ -401,7 +378,7 @@ object PlanetScraperDB extends App {
       "таня", "зоя", "соня", "элизабет", "лилия", "гузель", "айгуль", "мари"
     )
 
-    val MaleNames: Set[String] = Set(
+    val maleNames: Set[String] = Set(
       "андрей", "игорь", "евгений", "руслан", "азим", "марк", "владимир", "максим", "виталий",
       "артем", "артём", "георгий", "александр", "влад", "артур", "дмитрий", "антон", "стас",
       "кирилл", "егор", "арсений", "алексей", "иван", "олег", "миша", "кирил", "вячеслав",
@@ -447,7 +424,6 @@ object PlanetScraperDB extends App {
     val MaleEndingRegex: Regex    = "(?i)[йнрмксвл]$".r
     val FemaleEndingRegex: Regex  = "(?i)[ая]$".r
 
-    /** Predict gender (true = man, false = woman) from profile data */
     def f(): Option[Boolean] = {
       val cyrillicFull = LatinToCyrillicReplacements.foldLeft(name.toLowerCase.trim) {
         case (acc, (from, to)) => acc.replace(from, to)
@@ -455,10 +431,10 @@ object PlanetScraperDB extends App {
       val firstWord = FirstWordRegex.findFirstIn(cyrillicFull).getOrElse("")
 
       // Strategy 1: Exact dictionary match
-      if (MaleNames.contains(firstWord)) return Some(true)
-      if (FemaleNames.contains(firstWord)) return Some(false)
+      if (maleNames.contains(firstWord)) return Some(true)
+      if (femaleNames.contains(firstWord)) return Some(false)
 
-      // Strategy 2: Grammatically gendered marital status
+      // Strategy 2: Seeking status text ("свободен" vs "свободна")
       personalStatus.map(_.trim) match {
         case Some(s) if MaleStatuses.contains(s)   => return Some(true)
         case Some(s) if FemaleStatuses.contains(s) => return Some(false)
@@ -473,7 +449,7 @@ object PlanetScraperDB extends App {
       }
 
       // Strategy 4: Typical Russian name endings
-      if (MaleEndingRegex.findFirstIn(firstWord).isDefined) return Some(true)
+      if (MaleEndingRegex.findFirstIn(firstWord).isDefined)   return Some(true)
       if (FemaleEndingRegex.findFirstIn(firstWord).isDefined) return Some(false)
 
       None
@@ -482,21 +458,8 @@ object PlanetScraperDB extends App {
   }
 }
 
-case class ProfileRecord(
-  id: String,
-  photo: Option[String],
-  gender: Option[Boolean],
-  name: String,
-  age: Int,
-  city: String,
-  children: Option[String],
-  status: Option[String],
-  seeking: Option[String],
-  alcohol: Option[String],
-  languages: Option[String],
-  about: Option[String],
-  quote: Option[String],
-  search: Option[String],
-  interests: Option[String],
-  payload: String
+case class ProfileRecord(id: String, photo: Option[String], gender: Option[Boolean], name: String, age: Int,
+                         city: String, children: Option[String], status: Option[String], seeking: Option[String],
+                         alcohol: Option[String], languages: Option[String], about: Option[String], quote: Option[String], 
+                         search: Option[String], interests: Option[String], payload: String
 )
