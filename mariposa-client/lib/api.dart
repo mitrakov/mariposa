@@ -4,15 +4,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mariposa/dataframe.dart';
 
 class MariposaApiClient {
-  final String baseUrl;
+  final String baseUrl = 'http://myfeo.fun:7012/v1';
   static const String _cursorKeyPrefix = "DF_CURSOR_";
 
-  MariposaApiClient({this.baseUrl = 'http://myfeo.fun:7012/v1/hbase'});    // TODO: remove hbase!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  MariposaApiClient();
 
   // Métodо auxiliar centralizado para manejar los cursores guardados en el iPhone
   Future<String> _buildUrlWithPersistence(String table) async {
     final prefs = await SharedPreferences.getInstance();
-    // Creamos una clave única por tabla para que los cursores no se pisen entre sí
     final String storageKey = "$_cursorKeyPrefix$table";
 
     String? savedRowKey = prefs.getString(storageKey);
@@ -61,7 +60,7 @@ class MariposaApiClient {
       final Map<String, dynamic> data = jsonDecode(response.body);
       final dfResponse = DataFrameResponse.fromJson(data);
 
-      await _saveNextCursor(table, dfResponse.nextRowKey);
+      await _saveNextCursor(table, dfResponse.nextId);
       return dfResponse;
     } else throw Exception('Mariposa Server Error: ${response.statusCode}; ${response.body}');
   }

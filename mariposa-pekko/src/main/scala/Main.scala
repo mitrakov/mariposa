@@ -25,11 +25,11 @@ object Main extends App {
   private val executor = Executors.newFixedThreadPool(16)
   implicit val system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "Mariposa")
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
-  implicit val tableResponseFmt: RootJsonFormat[TableResponse] = jsonFormat4(TableResponse)
+  implicit val tableResponseFmt: RootJsonFormat[TableResponse] = jsonFormat3(TableResponse)
 
   // Routes
   private val routes =
-    pathPrefix("v1" / "hbase") {           // TODO: rm hbase
+    pathPrefix("v1") {
       path("tables") {
         get {
           logger.info("GET list all HBase tables")
@@ -96,4 +96,4 @@ object Main extends App {
   }
 }
 
-case class TableResponse(tableName: String, columns: List[String], rows: List[List[Option[String]]], nextRowKey: Option[String])
+case class TableResponse(columns: List[String], rows: List[List[Option[String]]], nextId: Option[String])

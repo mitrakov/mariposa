@@ -74,7 +74,7 @@ class DataCard extends StatelessWidget {
 
                     Expanded(
                       child: ListView.separated(
-                        itemCount: cleanData.length,
+                        itemCount: cleanData.length + 1,      // +1 because first item is photo box
                         separatorBuilder: (context, index) => const Divider(color: Colors.black12, height: 16),
                         itemBuilder: (context, i) {
                           if (i == 0) {

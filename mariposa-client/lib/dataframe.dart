@@ -1,35 +1,16 @@
 class DataFrameResponse {
-  final String tableName;
-  final List<String> columns;
-  final List<List<dynamic>> rows;
-  final String? nextRowKey;
+  final List<Map<String, dynamic>> rows;
+  final String? nextId;
 
-  DataFrameResponse({
-    required this.tableName,
-    required this.columns,
-    required this.rows,
-    this.nextRowKey,
-  });
+  DataFrameResponse(this.rows, this.nextId);
 
   factory DataFrameResponse.fromJson(Map<String, dynamic> json) {
-    return DataFrameResponse(
-      tableName: json['tableName'] as String,
-      columns: List<String>.from(json['columns']),
-      rows: (json['rows'] as List).map((row) => List<dynamic>.from(row)).toList(),
-      nextRowKey: json['nextRowKey'] as String?,
-    );
+    final rawRows = json['rows'] as List<dynamic>? ?? [];
+    return DataFrameResponse(rawRows.map((row) => Map<String, dynamic>.from(row as Map)).toList(), json['nextId'] as String?);
   }
 
   Map<String, dynamic> getRowAsMap(int rowIndex) {
-    if (rowIndex >= rows.length) return {};
-    final rowData = rows[rowIndex];
-    final Map<String, dynamic> rowMap = {};
-
-    for (int i = 0; i < columns.length; i++) {
-      if (i < rowData.length) {
-        rowMap[columns[i]] = rowData[i];
-      }
-    }
-    return rowMap;
+    if (rowIndex < 0 || rowIndex >= rows.length) return {};
+    return rows[rowIndex];
   }
 }

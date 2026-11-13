@@ -19,20 +19,17 @@ object Main {
   private val logger     = LoggerFactory.getLogger(getClass)
   private val serverPort = sys.props.getOrElse("app.server.port", "7012").toInt
   private val dbUrl      = sys.props.getOrElse("app.sqlite.url", "jdbc:sqlite:planet.db")
-
-  private val executor = Executors.newFixedThreadPool(16)
+  private val executor   = Executors.newFixedThreadPool(16)
+  
   given system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "Mariposa")
   given ec: ExecutionContext         = ExecutionContext.fromExecutor(executor)
-
-  // Explicit given resolvers to avoid Scala 3 CollectionFormats ambiguity
   given stringListFmt:   RootJsonFormat[List[String]]        = listFormat[String]
   given stringMapFmt:    RootJsonFormat[Map[String, String]] = mapFormat[String, String]
-  given pageResponseFmt: RootJsonFormat[SqlitePageResponse]  = jsonFormat3(SqlitePageResponse.apply)
+  given pageResponseFmt: RootJsonFormat[SqlitePageResponse]  = jsonFormat2(SqlitePageResponse.apply)
 
-  /** Opens a read-safe SQLite connection configured for concurrent WAL reads */
+  /** Opens a read-safe SQLite connection */
   private def openConnection(): Connection = {
     DriverManager.getConnection(dbUrl)
-    // Using.resource(conn.createStatement()) {s => s.execute("PRAGMA journal_mode=WAL;"); s.execute("PRAGMA busy_timeout=5000;")}
   }
 
   /** Lists all user tables in the SQLite database */
@@ -58,7 +55,7 @@ object Main {
 
     Using.resource(openConnection()) { conn =>
       val sql = startRow match {
-        case Some(_) => s"SELECT id, payload FROM $tableName WHERE id > ? ORDER BY id ASC LIMIT ?"
+        case Some(_) => s"SELECT id, payload FROM $tableName WHERE id >= ? ORDER BY id ASC LIMIT ?"
         case None    => s"SELECT id, payload FROM $tableName ORDER BY id ASC LIMIT ?"
       }
 
@@ -81,15 +78,14 @@ object Main {
             payloads += JsonParser(rawJson)
           }
 
-          val nextKey = if (payloads.size == limit) lastId else None
-          SqlitePageResponse(tableName, payloads.toList, nextKey)
+          SqlitePageResponse(payloads.toList, if (payloads.size == limit) lastId else None)
         }
       }
     }
   }
 
   private val routes = {
-    pathPrefix("v1" / "hbase") {                                             // TODO: rm hbase
+    pathPrefix("v1") {
       path("tables") {
         get {
           onComplete(Future(listTables())) {
@@ -106,7 +102,7 @@ object Main {
           parameters("startRow".?, "limit".as[Int].?(10)) { (startRow, limit) =>
             onComplete(Future(fetchTablePage(tableName, startRow, limit))) {
               case Success(page) =>
-                logger.info(s"Result: $tableName (${page.rows.size} rows, nextRowKey=${page.nextRowKey})")
+                logger.info(s"Result: $tableName (${page.rows.size} rows, nextId=${page.nextId})")
                 complete(page)
               case Failure(ex: IllegalArgumentException) =>
                 complete(StatusCodes.NotFound, Map("error" -> ex.getMessage))
@@ -123,7 +119,7 @@ object Main {
   @main def runServer(): Unit = {
     val server = Http().newServerAt("0.0.0.0", serverPort).bind(routes)
     server.onComplete {
-      case Success(binding) => logger.info(s"Mariposa Web (SQLite) is ONLINE at http://localhost:${binding.localAddress.getPort}/")
+      case Success(b) => logger.info(s"Mariposa Web (SQLite) is ONLINE at http://localhost:${b.localAddress.getPort}/")
       case Failure(e) => logger.error("Failed to start server", e); cleanUp(server)
     }
 
@@ -148,4 +144,4 @@ object Main {
   }
 }
 
-case class SqlitePageResponse(tableName: String, rows: List[JsValue], nextRowKey: Option[String])
+case class SqlitePageResponse(rows: List[JsValue], nextId: Option[String])

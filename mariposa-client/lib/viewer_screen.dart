@@ -23,12 +23,11 @@ class _ViewerScreenState extends State<ViewerScreen> {
   @override
   void initState() {
     super.initState();
-    // Procesamos el mazo inicial que llegó por parámetro desde la pantalla anterior
     _processNewDataBlock(widget.df);
   }
 
   void _processNewDataBlock(DataFrameResponse response) {
-    _nextRowKey = response.nextRowKey;
+    _nextRowKey = response.nextId;
 
     // 1. Extraemos las filas del bloque actual
     final List<Map<String, dynamic>> newRows = [];
@@ -76,8 +75,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
       body: PageView.builder(
         itemCount: _allRows.length + (_nextRowKey != null ? 1 : 0),
         onPageChanged: (index) {
-          // Si el usuario se acerca al final del lote actual, disparamos la precarga en segundo plano
-          if (index >= _allRows.length - 2 && _nextRowKey != null) {
+          if (index >= _allRows.length - 1 && _nextRowKey != null) {     // if only 1 card left, let's load more data
             _loadMoreData();
           }
         },

@@ -1,7 +1,7 @@
 name: mariposa
 description: "Mariposa Client"
 
-version: 1.0.9+9
+version: 1.1.0+10
 
 environment:
   sdk: ^3.10.4
