@@ -29,7 +29,7 @@ object Main extends App {
 
   // Routes
   private val routes =
-    pathPrefix("v1" / "hbase") {
+    pathPrefix("v1" / "hbase") {           // TODO: rm hbase
       path("tables") {
         get {
           logger.info("GET list all HBase tables")

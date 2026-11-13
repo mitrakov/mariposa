@@ -7,7 +7,7 @@ class MariposaApiClient {
   final String baseUrl;
   static const String _cursorKeyPrefix = "DF_CURSOR_";
 
-  MariposaApiClient({this.baseUrl = 'http://myfeo.fun:7012/v1/hbase'});
+  MariposaApiClient({this.baseUrl = 'http://myfeo.fun:7012/v1/hbase'});    // TODO: remove hbase!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   // Métodо auxiliar centralizado para manejar los cursores guardados en el iPhone
   Future<String> _buildUrlWithPersistence(String table) async {
