@@ -20,10 +20,9 @@ check_file "$KEYTABS_DIR/$MY_HOSTNAME.keytab"
 
 # format: id1@host1:9093,id2@host2:9093,id3@host3:9093 (we skip "1" and hardcode the master as "2")
 VOTERS="1@$MASTER_HOST:9093"
-count=2
 for worker in ${WORKER_HOSTS//,/ }; do
-    VOTERS="$VOTERS,$count@$worker:9093"
-    count=$((count + 1))
+    id=$((10#${worker//[!0-9]/}))        # extract ID from the worker hostname (e.g. n08 -> 8)
+    VOTERS="$VOTERS,$id@$worker:9093"
 done
 
 cat <<EOF > $KAFKA_HOME/config/server.properties
